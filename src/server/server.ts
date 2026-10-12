@@ -62,8 +62,14 @@ export const TEST_CARDS = {
 export function createServer(deps: Deps, initial: ServerState = initialState()) {
   let state = initial;
   const listeners = new Set<() => void>();
+  // State is mutated in place, so subscribers (React's useSyncExternalStore) need a
+  // value that changes on every update to know something happened.
+  let version = 0;
 
-  const notify = () => listeners.forEach((l) => l());
+  const notify = () => {
+    version += 1;
+    listeners.forEach((l) => l());
+  };
   const chaos = (): ChaosConfig => getPreset(state.presetId).config;
 
   function log(kind: LogKind, message: string) {
@@ -262,6 +268,7 @@ export function createServer(deps: Deps, initial: ServerState = initialState()) 
 
   return {
     getState: () => state,
+    getVersion: () => version,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);

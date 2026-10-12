@@ -1,26 +1,140 @@
 @import "tailwindcss";
 
+/* ── Tokens ────────────────────────────────────────────────────────────────
+   Light is the base; dark follows the OS. One accent ("ticket orange"), used for
+   the primary action and nothing decorative. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: oklch(0.982 0.008 80);
+  --card: oklch(0.996 0.003 80);
+  --sunk: oklch(0.955 0.01 80);
+  --ink: oklch(0.21 0.015 60);
+  --ink-2: oklch(0.42 0.015 60);
+  --ink-3: oklch(0.5 0.012 60);
+  --line: oklch(0.88 0.012 75);
+  --accent: oklch(0.55 0.17 42);
+  --accent-ink: oklch(0.99 0.01 80);
+  --accent-soft: oklch(0.94 0.04 55);
+  --ok: oklch(0.5 0.12 150);
+  --ok-soft: oklch(0.94 0.04 150);
+  --warn: oklch(0.52 0.13 70);
+  --warn-soft: oklch(0.95 0.05 85);
+  --bad: oklch(0.52 0.18 27);
+  --bad-soft: oklch(0.95 0.035 27);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: oklch(0.18 0.01 60);
+    --card: oklch(0.215 0.011 60);
+    --sunk: oklch(0.16 0.01 60);
+    --ink: oklch(0.94 0.008 80);
+    --ink-2: oklch(0.78 0.01 75);
+    --ink-3: oklch(0.68 0.01 70);
+    --line: oklch(0.32 0.012 60);
+    --accent: oklch(0.72 0.15 50);
+    --accent-ink: oklch(0.18 0.02 50);
+    --accent-soft: oklch(0.3 0.06 50);
+    --ok: oklch(0.76 0.13 150);
+    --ok-soft: oklch(0.28 0.05 150);
+    --warn: oklch(0.8 0.13 80);
+    --warn-soft: oklch(0.3 0.05 80);
+    --bad: oklch(0.74 0.15 27);
+    --bad-soft: oklch(0.3 0.06 27);
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-sunk: var(--sunk);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  scrollbar-color: var(--line) transparent;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a,
+button,
+summary,
+label,
+input[type="checkbox"],
+input[type="radio"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A small, fast press so every button answers immediately. */
+@utility press {
+  transition-property: transform, background-color, border-color, color, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+.perforation {
+  border-top: 2px dashed var(--line);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .spinner {
+    animation-duration: 2.4s !important;
+  }
 }
