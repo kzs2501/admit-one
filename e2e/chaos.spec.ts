@@ -110,6 +110,19 @@ test("webhook delayed: confirming, a reassuring note, then tickets", async ({ pa
   await expect(ticketsHeading(page)).toBeVisible({ timeout: 20_000 });
 });
 
+test("a refresh while confirming resumes: the webhook waits in the persisted outbox", async ({ page }) => {
+  test.setTimeout(40_000);
+  await choosePreset(page, "Webhook delayed");
+  await toPayment(page);
+  await pay(page);
+  await expect(page.getByRole("heading", { name: "Confirming your payment…" })).toBeVisible();
+  expect((await serverState(page)).outbox).toHaveLength(1);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Confirming your payment…" })).toBeVisible();
+  await expect(ticketsHeading(page)).toBeVisible({ timeout: 20_000 });
+  expect((await serverState(page)).outbox).toHaveLength(0);
+});
+
 test("hold expires mid-payment: the late payment is refunded and explained", async ({ page }) => {
   test.setTimeout(30_000);
   await choosePreset(page, "Hold expires mid-payment");

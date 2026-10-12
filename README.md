@@ -121,7 +121,7 @@ backend means replacing `src/mocks/`, not the app.
 | Check | Coverage |
 |---|---|
 | `npm test` | 67 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence across reloads, the step registry, countdown maths, form validation |
-| `npm run test:e2e` | 21 browser tests: one per chaos preset, plus refresh-resume, step guards, expiry and re-reserve, threshold announcements, focus management, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run test:e2e` | 22 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
 | `npm run lhci` | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100 |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
