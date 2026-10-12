@@ -107,11 +107,11 @@ export function ChaosPanel() {
         {/* A floated legend escapes the fieldset border, so it lays out like a normal heading. */}
         <fieldset className="px-5 pb-4">
           <legend className="tabular float-left w-full pt-4 pb-2 text-[11px] tracking-[0.14em] text-ink-3 uppercase">Scenario</legend>
-          <div className="clear-left space-y-2">
+          <div className="clear-left space-y-1.5">
             {presets.map((p) => (
               <label
                 key={p.id}
-                className={`block cursor-pointer rounded-lg border px-3.5 py-3 transition-colors ${
+                className={`block cursor-pointer rounded-lg border px-3.5 py-2.5 transition-colors ${
                   p.id === presetId ? "border-accent bg-accent-soft" : "border-line bg-card hover:bg-sunk"
                 }`}
               >
@@ -126,8 +126,10 @@ export function ChaosPanel() {
                   />
                   <span className="text-sm font-medium">{p.label}</span>
                 </span>
-                <span className="mt-1 block pl-6.5 text-sm text-ink-2">{p.description}</span>
-                <span className="mt-1 block pl-6.5 text-xs text-ink-3">Expect: {p.expectation}</span>
+                <span className="mt-0.5 block pl-6.5 text-sm text-ink-2">{p.description}</span>
+                {/* Only the chosen scenario spells out what to expect — keeps the list short
+                    enough that the server log stays in view. */}
+                {p.id === presetId && <span className="mt-1.5 block pl-6.5 text-xs text-ink-2">Expect: {p.expectation}</span>}
               </label>
             ))}
           </div>

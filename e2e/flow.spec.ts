@@ -88,7 +88,7 @@ test.describe("accessibility", () => {
       await page.getByRole("button", { name: "Reserve tickets" }).click();
       await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
       await page.getByRole("button", { name: "Continue" }).click(); // show validation errors too
-      await expect(page.getByText("Enter the attendee's full name.")).toBeVisible();
+      await expect(page.getByText("Enter the attendee’s full name.")).toBeVisible();
       expect(await scan(page), "attendees with errors").toEqual([]);
 
       await page.getByLabel("Full name").fill("Asha Rao");

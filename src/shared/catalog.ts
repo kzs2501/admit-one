@@ -77,7 +77,7 @@ export const catalog: EventInfo[] = [
     venue: "Courtyard at Old Mill Lane",
     city: "Goa",
     description:
-      "A small, standing-only evening with a piano trio. The courtyard holds forty people, and it's almost full.",
+      "A small, standing-only evening with a piano trio. The courtyard holds forty people, and it’s almost full.",
     tiers: [
       {
         id: "nmj-standing",

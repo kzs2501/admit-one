@@ -103,7 +103,7 @@ export function TierPicker({ slug }: { slug: string }) {
       <div className="space-y-3 border-t border-line p-5">
         {lostRace && (
           <Notice tone="warn" title="Just missed it" role="alert">
-            {lostRace} Availability below is up to date.
+            {lostRace} The numbers above are up to date.
           </Notice>
         )}
         {reserve.isError && !lostRace && (
@@ -121,11 +121,11 @@ export function TierPicker({ slug }: { slug: string }) {
               </>
             )}
           </p>
-          <Button type="submit" disabled={total === 0} busy={reserve.isPending}>
-            {reserve.isPending ? "Reserving…" : "Reserve tickets"}
+          <Button type="submit" disabled={total === 0 || soldOut} busy={reserve.isPending}>
+            {soldOut ? "Sold out" : reserve.isPending ? "Reserving…" : "Reserve tickets"}
           </Button>
         </div>
-        <p className="text-xs text-ink-3">We’ll hold them for you while you check out.</p>
+        {!soldOut && <p className="text-xs text-ink-3">We’ll hold them for you while you check out.</p>}
       </div>
     </form>
   );

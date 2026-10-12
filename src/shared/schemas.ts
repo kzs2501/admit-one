@@ -21,7 +21,7 @@ export const createHoldSchema = z.object({
 });
 
 export const attendeeSchema = z.object({
-  name: z.string().trim().min(2, "Enter the attendee's full name."),
+  name: z.string().trim().min(2, "Enter the attendee’s full name."),
   email: z.email("Enter a valid email address.").trim(),
 });
 
@@ -54,7 +54,7 @@ export const cardSchema = z.object({
   number: z
     .string()
     .transform((s) => s.replace(/[\s-]/g, ""))
-    .refine(passesLuhn, "That card number isn't valid."),
+    .refine(passesLuhn, "That card number isn’t valid."),
   expiry: z
     .string()
     .trim()

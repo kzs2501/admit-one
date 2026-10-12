@@ -98,7 +98,7 @@ export const presets: Preset[] = [
     id: "webhook-first",
     label: "Webhook before redirect",
     description: "The webhook lands before your browser gets the payment response.",
-    expectation: "The order page opens already confirmed — the redirect isn't the source of truth.",
+    expectation: "The order page opens already confirmed — the redirect isn’t the source of truth.",
     config: { webhookDelayMs: 0, paymentLatencyMs: 1800 },
   }),
   preset({
