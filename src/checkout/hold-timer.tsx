@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { crossedThreshold, formatRemaining, remainingMs, spokenRemaining, useNow } from "./countdown";
+import { announcedMs, crossedThreshold, formatRemaining, remainingMs, spokenRemaining, useNow } from "./countdown";
 
 /**
  * "Tickets held for 4:32". The visible clock updates every second; screen readers
@@ -17,7 +17,7 @@ export function HoldTimer({ expiresAt, offset, onExpire }: { expiresAt: number; 
   useEffect(() => {
     const crossed = crossedThreshold(previous.current, left);
     previous.current = left;
-    if (crossed) setAnnouncement(`${spokenRemaining(crossed * 1000)} left to complete your order.`);
+    if (crossed && left > 0) setAnnouncement(`${spokenRemaining(announcedMs(crossed, left))} left to complete your order.`);
     if (left === 0 && !expired.current) {
       expired.current = true;
       onExpire();

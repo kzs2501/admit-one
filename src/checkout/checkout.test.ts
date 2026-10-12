@@ -3,7 +3,7 @@ import { catalog } from "@/shared/catalog";
 import type { EventView, HoldView, OrderView } from "@/shared/api-types";
 import { applicableSteps, nextStep, orderMatchesDraft, previousStep, resolveStep, type StepContext } from "./registry";
 import { __resetDraftCache, copyDraft, emptyDraft, readDraft, writeDraft, type Draft } from "./draft";
-import { clockOffset, crossedThreshold, formatRemaining, remainingMs, spokenRemaining } from "./countdown";
+import { announcedMs, clockOffset, crossedThreshold, formatRemaining, remainingMs, spokenRemaining } from "./countdown";
 
 const view = (slug: string): EventView => {
   const e = catalog.find((x) => x.slug === slug)!;
@@ -140,5 +140,11 @@ describe("countdown", () => {
     expect(crossedThreshold(120_000, 119_000)).toBeNull();
     expect(crossedThreshold(64_000, 55_000)).toBe(60); // backgrounded tab jumped
     expect(crossedThreshold(90_000, 89_000)).toBeNull();
+    expect(crossedThreshold(130_000, 25_000)).toBe(30); // jumped past all three: the latest wins
+  });
+
+  it("says the round number when on time, the real time after a long skip", () => {
+    expect(announcedMs(120, 119_000)).toBe(120_000);
+    expect(announcedMs(30, 14_000)).toBe(14_000);
   });
 });

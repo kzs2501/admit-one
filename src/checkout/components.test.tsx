@@ -30,6 +30,16 @@ describe("HoldTimer", () => {
     expect(onExpire).not.toHaveBeenCalled();
   });
 
+  it("after a backgrounded stretch, announces the time actually left", () => {
+    const now = Date.now();
+    render(<HoldTimer expiresAt={now + 130_000} offset={0} onExpire={vi.fn()} />);
+    const live = screen.getByRole("status");
+    // The tab sleeps: the clock moves on but no timers fire until it wakes.
+    vi.setSystemTime(now + 115_000);
+    act(() => vi.advanceTimersByTime(1_005));
+    expect(live).toHaveTextContent(/^1\d seconds left to complete your order\.$/);
+  });
+
   it("calls onExpire exactly once when time runs out", () => {
     const onExpire = vi.fn();
     render(<HoldTimer expiresAt={Date.now() + 2_000} offset={0} onExpire={onExpire} />);
