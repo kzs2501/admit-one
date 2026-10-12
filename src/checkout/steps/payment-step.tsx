@@ -10,6 +10,7 @@ import { formatMoney } from "@/shared/money";
 import { api, ApiError, type PaymentResponse } from "@/lib/api";
 import { Button, Notice } from "@/components/ui";
 import type { StepProps } from "./types";
+import { attemptFor, type Attempt } from "@/checkout/attempt";
 
 const TEST_CARDS = [
   { label: "Succeeds", number: "4242 4242 4242 4242" },
@@ -28,10 +29,9 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
   const order = ctx.order!;
   const orderPage = `/orders/${order.id}`;
 
-  // One key per *attempt*. A retry after a network error reuses it, so the server
-  // can recognise the retry and never charge twice. Only a definitive answer
-  // (declined, authentication failed) starts a new attempt with a new key.
-  const attemptKey = useRef(newKey());
+  // The current payment attempt and its idempotency key (see attempt.ts). A
+  // definitive answer (declined, authentication failed) ends the attempt.
+  const attempt = useRef<Attempt | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const challenge = useRef<HTMLDialogElement>(null);
   // A refresh in the middle of 3-D Secure brings the challenge straight back.
@@ -47,7 +47,7 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
   });
 
   const failedDefinitively = (message: string) => {
-    attemptKey.current = newKey();
+    attempt.current = null;
     setDeclined(message);
     requestAnimationFrame(() => errorRef.current?.focus());
   };
@@ -61,7 +61,10 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
   };
 
   const pay = useMutation({
-    mutationFn: (card: CardInput) => api.createPayment(order.id, card, attemptKey.current),
+    mutationFn: (card: CardInput) => {
+      attempt.current = attemptFor(attempt.current, card.number, newKey);
+      return api.createPayment(order.id, card, attempt.current.key);
+    },
     onSuccess: handleResponse,
     onError: (error) => {
       if (!(error instanceof ApiError)) return;

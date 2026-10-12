@@ -3,6 +3,7 @@ import { catalog } from "@/shared/catalog";
 import type { EventView, HoldView, OrderView } from "@/shared/api-types";
 import { applicableSteps, nextStep, orderMatchesDraft, previousStep, resolveStep, type StepContext } from "./registry";
 import { __resetDraftCache, copyDraft, emptyDraft, readDraft, writeDraft, type Draft } from "./draft";
+import { attemptFor } from "./attempt";
 import { announcedMs, clockOffset, crossedThreshold, formatRemaining, remainingMs, spokenRemaining } from "./countdown";
 
 const view = (slug: string): EventView => {
@@ -146,5 +147,23 @@ describe("countdown", () => {
   it("says the round number when on time, the real time after a long skip", () => {
     expect(announcedMs(120, 119_000)).toBe(120_000);
     expect(announcedMs(30, 14_000)).toBe(14_000);
+  });
+});
+
+describe("payment attempts", () => {
+  const mint = (() => {
+    let n = 0;
+    return () => `key_${++n}`;
+  })();
+
+  it("reuses the key for a retry of the same card, however it's typed", () => {
+    const first = attemptFor(null, "4242 4242 4242 4242", mint);
+    expect(attemptFor(first, "4242-4242-4242-4242", mint)).toBe(first);
+  });
+
+  it("mints a new key when the card changes, or after a definitive answer", () => {
+    const first = attemptFor(null, "4242424242424242", mint);
+    expect(attemptFor(first, "4000002500003155", mint).key).not.toBe(first.key);
+    expect(attemptFor(null, "4242424242424242", mint).key).not.toBe(first.key);
   });
 });
