@@ -3,3 +3,6 @@ out
 node_modules
 package-lock.json
 public/mockServiceWorker.js
+.lighthouseci
+playwright-report
+test-results
