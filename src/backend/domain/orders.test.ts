@@ -20,10 +20,11 @@ describe("orders", () => {
     expect(second.isCreated).toBe(false);
     expect(second.order.id).toBe(first.order.id);
     expect(second.order.amounts).toEqual({
-      ticketsCents: 29800,
-      addOnsCents: 3600,
-      feesCents: 1002,
-      totalCents: 34402,
+      currency: "INR",
+      ticketsMinor: 999800,
+      addOnsMinor: 90000,
+      feesMinor: 32694,
+      totalMinor: 1122494,
     });
   });
 

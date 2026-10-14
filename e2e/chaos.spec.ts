@@ -74,7 +74,7 @@ test("slow network: a double click reserves once and pays once", async ({ page }
   await fillAttendees(page, 1);
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("button", { name: /Succeeds/ }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^Pay \$/ }).dblclick();
+  await page.getByRole("button", { name: /^Pay ₹/ }).dblclick();
   await expect(ticketsHeading(page)).toBeVisible({ timeout: 30_000 });
 
   const state = await serverState(page);

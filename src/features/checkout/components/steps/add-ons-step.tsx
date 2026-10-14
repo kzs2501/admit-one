@@ -19,7 +19,7 @@ export function AddOnsStep({ context, updateDraft, goNext, goBack }: StepProps) 
             <div>
               <p className="font-medium">{addOn.name}</p>
               <p className="text-sm text-ink-2">{addOn.description}</p>
-              <p className="tabular mt-1 text-sm">{formatMoney(addOn.priceCents)} each</p>
+              <p className="tabular mt-1 text-sm">{formatMoney(addOn.priceMinor, context.event.currency)} each</p>
             </div>
             <Stepper
               label={addOn.name}

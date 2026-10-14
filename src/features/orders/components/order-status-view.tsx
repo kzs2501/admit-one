@@ -56,8 +56,8 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
             <Spinner className="mx-auto size-8 text-accent" />
             <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight">Confirming your payment…</h1>
             <p className="mt-3 text-ink-2">
-              We’re waiting for your bank to confirm {formatMoney(state.order.amounts.totalCents)}. This page updates on
-              its own.
+              We’re waiting for your bank to confirm{" "}
+              {formatMoney(state.order.amounts.totalMinor, state.order.amounts.currency)}. This page updates on its own.
             </p>
             {state.isSlow && (
               <p className="mx-auto mt-6 max-w-md rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink-2">
@@ -82,7 +82,8 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
             You’re going to {event.name}
           </h1>
           <p className="mt-2 text-ink-2">
-            {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)} · {event.venue}, {event.city}
+            {formatEventDate(event.startsAt, event.timeZone)} · {formatEventTime(event.startsAt, event.timeZone)} ·{" "}
+            {event.venue}, {event.city}
           </p>
           <ul aria-label="Your tickets" className="mt-8 space-y-4">
             {order.tickets.map((ticket) => (
@@ -97,7 +98,8 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
             ))}
           </ul>
           <p className="mt-6 text-sm text-ink-3">
-            Paid {formatMoney(order.amounts.totalCents)} with a card ending {order.payment?.last4}. Order {order.id}.
+            Paid {formatMoney(order.amounts.totalMinor, order.amounts.currency)} with a card ending{" "}
+            {order.payment?.last4}. Order {order.id}.
           </p>
         </Shell>
       );

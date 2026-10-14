@@ -28,7 +28,7 @@ export default async function EventPage({ params }: PageProps<"/events/[slug]">)
       <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_24rem]">
         <div>
           <p className="tabular text-xs tracking-[0.12em] text-ink-3 uppercase">
-            {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)}
+            {formatEventDate(event.startsAt, event.timeZone)} · {formatEventTime(event.startsAt, event.timeZone)}
           </p>
           <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-balance">{event.name}</h1>
           <p className="mt-3 text-lg text-pretty text-ink-2">{event.tagline}</p>
@@ -39,7 +39,7 @@ export default async function EventPage({ params }: PageProps<"/events/[slug]">)
               {event.venue}, {event.city}
             </dd>
             <dt className="text-ink-3">Starts</dt>
-            <dd>{formatEventTime(event.startsAt)}</dd>
+            <dd>{formatEventTime(event.startsAt, event.timeZone)}</dd>
           </dl>
         </div>
         <section aria-labelledby="tickets-title">

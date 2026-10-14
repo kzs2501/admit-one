@@ -51,7 +51,7 @@ export function createPayment(context: BackendContext, orderId: string, card: Ca
   const payment: PaymentRecord = {
     id: context.deps.newId("pay"),
     orderId,
-    amountCents: order.amounts.totalCents,
+    amountMinor: order.amounts.totalMinor,
     status: outcome === "decline" ? "failed" : outcome === "challenge" ? "requires_action" : "processing",
     last4: number.slice(-4),
     failureCode: outcome === "decline" ? "card_declined" : null,

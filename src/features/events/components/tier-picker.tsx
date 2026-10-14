@@ -38,7 +38,7 @@ export function TierPicker({ slug }: { slug: string }) {
   }
 
   const total = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);
-  const subtotalCents = event.tiers.reduce((sum, tier) => sum + tier.priceCents * (quantities[tier.id] ?? 0), 0);
+  const subtotalMinor = event.tiers.reduce((sum, tier) => sum + tier.priceMinor * (quantities[tier.id] ?? 0), 0);
   const isSoldOut = event.tiers.every((tier) => tier.available === 0);
 
   return (
@@ -60,7 +60,7 @@ export function TierPicker({ slug }: { slug: string }) {
                 <p className="font-medium">{tier.name}</p>
                 <p className="text-sm text-ink-2">{tier.description}</p>
                 <p className="mt-1 text-sm">
-                  <span className="tabular font-medium">{formatMoney(tier.priceCents)}</span>
+                  <span className="tabular font-medium">{formatMoney(tier.priceMinor, event.currency)}</span>
                   <span className={`tabular ml-2 text-xs ${STOCK_TONES[level]}`}>
                     {level === "sold-out" ? "Sold out" : `${tier.available} left`}
                   </span>
@@ -102,7 +102,7 @@ export function TierPicker({ slug }: { slug: string }) {
             ) : (
               <>
                 {total} ticket{total === 1 ? "" : "s"} ·{" "}
-                <span className="tabular font-medium text-ink">{formatMoney(subtotalCents)}</span>
+                <span className="tabular font-medium text-ink">{formatMoney(subtotalMinor, event.currency)}</span>
               </>
             )}
           </p>

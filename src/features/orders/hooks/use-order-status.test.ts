@@ -17,7 +17,7 @@ const order = (status: OrderStatus, paymentDto: PaymentDto | null = null): Order
   items: [{ tierId: "osc-session", quantity: 1 }],
   attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
   addOns: {},
-  amounts: { ticketsCents: 6000, addOnsCents: 0, feesCents: 180, totalCents: 6180 },
+  amounts: { currency: "INR", ticketsMinor: 250000, addOnsMinor: 0, feesMinor: 7500, totalMinor: 257500 },
   status,
   statusReason: null,
   tickets: [],

@@ -3,13 +3,16 @@
  * of truth — the types are inferred from them, and the client parses every response
  * against them at the boundary ("parse, don't validate").
  *
- * Timestamps are ISO 8601 strings; money is integer minor units (cents).
+ * Timestamps are ISO 8601 strings; money is integer minor units, always with its
+ * currency (ISO 4217).
  */
 import { z } from "zod";
+import { CURRENCIES } from "@/core/money";
 import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 const isoDateTimeSchema = z.iso.datetime({ offset: true });
-const centsSchema = z.number().int().nonnegative();
+const minorUnitsSchema = z.number().int().nonnegative();
+const currencySchema = z.enum(CURRENCIES);
 
 export const lineItemDtoSchema = z.object({ tierId: z.string(), quantity: z.number().int().positive() });
 
@@ -17,7 +20,7 @@ export const tierDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  priceCents: centsSchema,
+  priceMinor: minorUnitsSchema,
   /** Live: tickets left right now, after sales and other buyers' holds. */
   available: z.number().int().nonnegative(),
 });
@@ -26,7 +29,7 @@ export const addOnDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  priceCents: centsSchema,
+  priceMinor: minorUnitsSchema,
 });
 
 export const eventDtoSchema = z.object({
@@ -34,6 +37,10 @@ export const eventDtoSchema = z.object({
   name: z.string(),
   tagline: z.string(),
   startsAt: isoDateTimeSchema,
+  /** IANA time zone of the venue: show event times in it. */
+  timeZone: z.string(),
+  /** The currency of every price at this event. */
+  currency: currencySchema,
   venue: z.string(),
   city: z.string(),
   description: z.string(),
@@ -58,10 +65,11 @@ export const attendeeDtoSchema = z.object({ name: z.string(), email: z.string() 
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 
 export const amountsDtoSchema = z.object({
-  ticketsCents: centsSchema,
-  addOnsCents: centsSchema,
-  feesCents: centsSchema,
-  totalCents: centsSchema,
+  currency: currencySchema,
+  ticketsMinor: minorUnitsSchema,
+  addOnsMinor: minorUnitsSchema,
+  feesMinor: minorUnitsSchema,
+  totalMinor: minorUnitsSchema,
 });
 
 export const ticketDtoSchema = z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string() });

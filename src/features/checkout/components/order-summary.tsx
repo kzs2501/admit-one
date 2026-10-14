@@ -24,7 +24,7 @@ export function OrderSummary({
       return {
         key: tierId,
         label: `${quantity} × ${tier?.name ?? tierId}`,
-        cents: (tier?.priceCents ?? 0) * quantity,
+        amountMinor: (tier?.priceMinor ?? 0) * quantity,
       };
     }),
     ...Object.entries(chosenAddOns).map(([addOnId, quantity]) => {
@@ -32,7 +32,7 @@ export function OrderSummary({
       return {
         key: addOnId,
         label: `${quantity} × ${addOn?.name ?? addOnId}`,
-        cents: (addOn?.priceCents ?? 0) * quantity,
+        amountMinor: (addOn?.priceMinor ?? 0) * quantity,
       };
     }),
   ];
@@ -43,22 +43,23 @@ export function OrderSummary({
         {event.name}
       </h2>
       <p className="mt-1 text-sm text-ink-3">
-        {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)} · {event.city}
+        {formatEventDate(event.startsAt, event.timeZone)} · {formatEventTime(event.startsAt, event.timeZone)} ·{" "}
+        {event.city}
       </p>
       <dl className="mt-4 space-y-2 text-sm">
         {rows.map((row) => (
           <div key={row.key} className="flex justify-between gap-4">
             <dt className="text-ink-2">{row.label}</dt>
-            <dd className="tabular">{formatMoney(row.cents)}</dd>
+            <dd className="tabular">{formatMoney(row.amountMinor, amounts.currency)}</dd>
           </div>
         ))}
         <div className="flex justify-between gap-4">
           <dt className="text-ink-2">Service fee ({SERVICE_FEE_LABEL})</dt>
-          <dd className="tabular">{formatMoney(amounts.feesCents)}</dd>
+          <dd className="tabular">{formatMoney(amounts.feesMinor, amounts.currency)}</dd>
         </div>
         <div className="flex justify-between gap-4 border-t border-line pt-3 font-medium">
           <dt>Total</dt>
-          <dd className="tabular">{formatMoney(amounts.totalCents)}</dd>
+          <dd className="tabular">{formatMoney(amounts.totalMinor, amounts.currency)}</dd>
         </div>
       </dl>
     </aside>

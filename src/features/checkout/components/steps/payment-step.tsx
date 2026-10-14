@@ -85,7 +85,7 @@ function PaymentForm({
   }, [payment.challengePaymentId]);
 
   const { errors } = form.formState;
-  const total = formatMoney(order.amounts.totalCents);
+  const total = formatMoney(order.amounts.totalMinor, order.amounts.currency);
 
   return (
     <div className="space-y-5">

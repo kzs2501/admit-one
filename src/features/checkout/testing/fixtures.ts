@@ -11,7 +11,7 @@ export function eventDtoFor(slug: string, available = 5): EventDto {
   const { tiers, addOns, ...event } = getEvent(slug);
   return {
     ...event,
-    tiers: tiers.map(({ id, name, description, priceCents }) => ({ id, name, description, priceCents, available })),
+    tiers: tiers.map(({ id, name, description, priceMinor }) => ({ id, name, description, priceMinor, available })),
     addOns,
   };
 }
@@ -37,7 +37,7 @@ export const orderDtoFor = (draft: Draft, status: OrderStatus = "pending"): Orde
   items: [],
   attendees: draft.attendees,
   addOns: Object.fromEntries(Object.entries(draft.addOns).filter(([, quantity]) => quantity > 0)),
-  amounts: { ticketsCents: 0, addOnsCents: 0, feesCents: 0, totalCents: 0 },
+  amounts: { currency: "INR", ticketsMinor: 0, addOnsMinor: 0, feesMinor: 0, totalMinor: 0 },
   status,
   statusReason: null,
   tickets: [],

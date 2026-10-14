@@ -45,7 +45,7 @@ export async function toPayment(page: Page, qty = 1) {
 
 export async function pay(page: Page, card: "Succeeds" | "Declined" | "Needs 3-D Secure" = "Succeeds") {
   await page.getByRole("button", { name: new RegExp(card) }).click();
-  await page.getByRole("button", { name: /^Pay \$/ }).click();
+  await page.getByRole("button", { name: /^Pay ₹/ }).click();
 }
 
 export const ticketsHeading = (page: Page) => page.getByRole("heading", { name: /You’re going to/ });

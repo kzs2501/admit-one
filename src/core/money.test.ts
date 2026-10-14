@@ -6,23 +6,33 @@ import { priceOrder, SERVICE_FEE_LABEL, type PricedEvent } from "./money";
 const summit = getEvent("frontend-systems-summit");
 
 /** An event with one tier at the given price, for fee-rounding cases. */
-const eventPricedAt = (priceCents: number): PricedEvent => ({
+const eventPricedAt = (priceMinor: number): PricedEvent => ({
   slug: "test",
-  tiers: [{ id: "t", priceCents }],
+  currency: "INR",
+  tiers: [{ id: "t", priceMinor }],
   addOns: [],
 });
 
 describe("priceOrder", () => {
-  it("prices tickets, add-ons and the fee in integer cents", () => {
+  it("prices tickets, add-ons and the fee in integer minor units, in the event's currency", () => {
     const amounts = priceOrder(summit, [{ tierId: "fss-general", quantity: 1 }], {});
-    expect(amounts).toEqual({ ticketsCents: 14900, addOnsCents: 0, feesCents: 447, totalCents: 15347 });
-    for (const cents of Object.values(amounts)) expect(Number.isInteger(cents)).toBe(true);
+    expect(amounts).toEqual({
+      currency: "INR",
+      ticketsMinor: 499900,
+      addOnsMinor: 0,
+      feesMinor: 14997,
+      totalMinor: 514897,
+    });
+    const { ticketsMinor, addOnsMinor, feesMinor, totalMinor } = amounts;
+    for (const amountMinor of [ticketsMinor, addOnsMinor, feesMinor, totalMinor]) {
+      expect(Number.isInteger(amountMinor)).toBe(true);
+    }
   });
 
   it("rounds the fee half-up without floats", () => {
-    // 3% of $0.50 = 1.5¢ → 2¢; 3% of $0.49 = 1.47¢ → 1¢
-    expect(priceOrder(eventPricedAt(50), [{ tierId: "t", quantity: 1 }], {}).feesCents).toBe(2);
-    expect(priceOrder(eventPricedAt(49), [{ tierId: "t", quantity: 1 }], {}).feesCents).toBe(1);
+    // 3% of 50 paise = 1.5 → 2; 3% of 49 paise = 1.47 → 1
+    expect(priceOrder(eventPricedAt(50), [{ tierId: "t", quantity: 1 }], {}).feesMinor).toBe(2);
+    expect(priceOrder(eventPricedAt(49), [{ tierId: "t", quantity: 1 }], {}).feesMinor).toBe(1);
   });
 
   it("rejects tiers and add-ons from other events", () => {

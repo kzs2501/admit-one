@@ -13,7 +13,7 @@ import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus } from "./orders";
 import type { HoldRecord, OrderRecord, PaymentRecord } from "./state";
 
-export type TierView = { id: string; name: string; description: string; priceCents: number; available: number };
+export type TierView = { id: string; name: string; description: string; priceMinor: number; available: number };
 
 export type EventView = Omit<EventInfo, "tiers" | "addOns"> & { tiers: TierView[]; addOns: AddOnInfo[] };
 
@@ -59,6 +59,8 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
   name: event.name,
   tagline: event.tagline,
   startsAt: event.startsAt,
+  timeZone: event.timeZone,
+  currency: event.currency,
   venue: event.venue,
   city: event.city,
   description: event.description,
@@ -67,7 +69,7 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
     id: tier.id,
     name: tier.name,
     description: tier.description,
-    priceCents: tier.priceCents,
+    priceMinor: tier.priceMinor,
     available: availableQuantity(context, tier.id),
   })),
   addOns: event.addOns,

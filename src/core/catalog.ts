@@ -5,11 +5,13 @@
  *
  * All events, venues and people are fictional.
  */
+import type { CurrencyCode } from "./money";
+
 export type TierInfo = {
   id: string;
   name: string;
   description: string;
-  priceCents: number;
+  priceMinor: number;
   capacity: number;
   /** Tickets already sold before this sandbox started. */
   baselineSold: number;
@@ -19,14 +21,19 @@ export type AddOnInfo = {
   id: string;
   name: string;
   description: string;
-  priceCents: number;
+  priceMinor: number;
 };
 
 export type EventInfo = {
   slug: string;
   name: string;
   tagline: string;
-  startsAt: string; // ISO 8601 with offset
+  /** ISO 8601, with the venue's offset. */
+  startsAt: string;
+  /** IANA zone the venue is in: event times are shown in it, wherever the visitor is. */
+  timeZone: string;
+  /** Every price at this event is in this currency (ISO 4217). */
+  currency: CurrencyCode;
   venue: string;
   city: string;
   description: string;
@@ -40,6 +47,8 @@ export const catalog: EventInfo[] = [
     name: "Frontend Systems Summit",
     tagline: "One day of talks on design systems, performance and the web platform.",
     startsAt: "2026-11-21T09:30:00+05:30",
+    timeZone: "Asia/Kolkata",
+    currency: "INR",
     venue: "The Foundry, Hall 2",
     city: "Pune",
     description:
@@ -49,7 +58,7 @@ export const catalog: EventInfo[] = [
         id: "fss-general",
         name: "General",
         description: "All talks, coffee, and the evening meetup.",
-        priceCents: 14900,
+        priceMinor: 499900,
         capacity: 120,
         baselineSold: 41,
       },
@@ -57,14 +66,14 @@ export const catalog: EventInfo[] = [
         id: "fss-workshop",
         name: "Workshop + General",
         description: "Everything in General plus a three-hour morning workshop.",
-        priceCents: 34900,
+        priceMinor: 1199900,
         capacity: 20,
         baselineSold: 14,
       },
     ],
     addOns: [
-      { id: "fss-lunch", name: "Lunch pass", description: "Hot lunch on the day.", priceCents: 1800 },
-      { id: "fss-tee", name: "Summit T-shirt", description: "Collected at registration.", priceCents: 2500 },
+      { id: "fss-lunch", name: "Lunch pass", description: "Hot lunch on the day.", priceMinor: 45000 },
+      { id: "fss-tee", name: "Summit T-shirt", description: "Collected at registration.", priceMinor: 79900 },
     ],
   },
   {
@@ -72,6 +81,8 @@ export const catalog: EventInfo[] = [
     name: "Night Market Jazz",
     tagline: "A standing-room trio set in a covered courtyard.",
     startsAt: "2026-11-07T20:00:00+05:30",
+    timeZone: "Asia/Kolkata",
+    currency: "INR",
     venue: "Courtyard at Old Mill Lane",
     city: "Goa",
     description:
@@ -81,7 +92,7 @@ export const catalog: EventInfo[] = [
         id: "nmj-standing",
         name: "Standing",
         description: "Entry from 7:30 pm.",
-        priceCents: 3500,
+        priceMinor: 120000,
         capacity: 40,
         baselineSold: 38,
       },
@@ -93,6 +104,8 @@ export const catalog: EventInfo[] = [
     name: "Open Studio: Ceramics",
     tagline: "Two hours at the wheel, materials and firing included.",
     startsAt: "2026-12-05T11:00:00+05:30",
+    timeZone: "Asia/Kolkata",
+    currency: "INR",
     venue: "Clayhouse Studio",
     city: "Jaipur",
     description:
@@ -102,7 +115,7 @@ export const catalog: EventInfo[] = [
         id: "osc-session",
         name: "Two-hour session",
         description: "Clay, tools, firing and glazing included.",
-        priceCents: 6000,
+        priceMinor: 250000,
         capacity: 12,
         baselineSold: 3,
       },
@@ -128,4 +141,4 @@ export const findTier = (tierId: string) => {
   return undefined;
 };
 
-export const lowestPriceCents = (event: EventInfo) => Math.min(...event.tiers.map((t) => t.priceCents));
+export const lowestPriceMinor = (event: EventInfo) => Math.min(...event.tiers.map((t) => t.priceMinor));

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { catalog, lowestPriceCents } from "@/core/catalog";
+import { catalog, lowestPriceMinor } from "@/core/catalog";
 import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { AvailabilityBadge } from "@/features/events/components/availability-badge";
 import { routes } from "@/lib/routes";
@@ -26,7 +26,7 @@ export default function Home() {
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="tabular text-xs text-ink-3">
-                  {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)}
+                  {formatEventDate(event.startsAt, event.timeZone)} · {formatEventTime(event.startsAt, event.timeZone)}
                 </p>
                 <AvailabilityBadge slug={event.slug} />
               </div>
@@ -38,7 +38,7 @@ export default function Home() {
                 {event.venue}, {event.city}
               </p>
               <p className="mt-1 text-sm">
-                From <span className="tabular font-medium">{formatMoney(lowestPriceCents(event))}</span>
+                From <span className="tabular font-medium">{formatMoney(lowestPriceMinor(event), event.currency)}</span>
               </p>
             </Link>
           </li>

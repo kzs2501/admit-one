@@ -8,10 +8,11 @@
  */
 import { z } from "zod";
 import { PRESET_IDS } from "@/backend/chaos/presets";
+import { CURRENCIES } from "@/core/money";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -39,10 +40,11 @@ const orderRecordSchema = z.object({
   attendees: z.array(z.object({ name: z.string(), email: z.string() })),
   addOns: z.record(z.string(), z.number().int().positive()),
   amounts: z.object({
-    ticketsCents: z.number().int(),
-    addOnsCents: z.number().int(),
-    feesCents: z.number().int(),
-    totalCents: z.number().int(),
+    currency: z.enum(CURRENCIES),
+    ticketsMinor: z.number().int(),
+    addOnsMinor: z.number().int(),
+    feesMinor: z.number().int(),
+    totalMinor: z.number().int(),
   }),
   status: z.enum(ORDER_STATUSES),
   statusReason: z.string().nullable(),
@@ -55,7 +57,7 @@ const orderRecordSchema = z.object({
 const paymentRecordSchema = z.object({
   id: z.string(),
   orderId: z.string(),
-  amountCents: z.number().int(),
+  amountMinor: z.number().int(),
   status: z.enum(PAYMENT_STATUSES),
   last4: z.string(),
   failureCode: z.enum(PAYMENT_FAILURE_CODES).nullable(),
