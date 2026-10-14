@@ -4,7 +4,8 @@
  * as thin as a real API's controllers should be.
  */
 import { http, HttpResponse } from "msw/http";
-import type { Result, Server } from "@/backend/server";
+import type { Backend } from "@/backend/backend";
+import type { Result } from "@/backend/domain/result";
 
 type Options = {
   /** Wait helper — real timers in the browser, instant in tests. */
@@ -12,7 +13,7 @@ type Options = {
   random: () => number;
 };
 
-export function createHandlers(server: Server, { sleep, random }: Options) {
+export function createHandlers(server: Backend, { sleep, random }: Options) {
   const latency = (extra = 0) => {
     const [min, max] = server.chaos().latencyMs;
     return sleep(min + random() * (max - min) + extra);

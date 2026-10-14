@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { DUPLICATE_GAP_MS, LAST_SECONDS_MS, PAYMENT_GRACE_MS, TEST_CARDS, createServer, type Result } from "./server";
+import { createBackend } from "./backend";
+import { LAST_SECONDS_MS, PAYMENT_GRACE_MS, TEST_CARDS } from "./domain/payments";
+import type { Result } from "./domain/result";
+import { DUPLICATE_GAP_MS } from "./domain/webhooks";
 import { DEFAULT_CHAOS, type PresetId } from "@/backend/chaos/presets";
 import { canTransition, isTerminal, transitions } from "@/backend/domain/order-machine";
 import { deserialize, initialState, serialize } from "@/backend/domain/state";
@@ -16,7 +19,7 @@ function setup(preset: PresetId = "happy") {
       t += ms;
     },
   };
-  const server = createServer(
+  const server = createBackend(
     { now: clock.now, newId: (p) => `${p}_${++n}`, random: () => 0.42 },
     initialState(preset),
   );
@@ -348,7 +351,7 @@ describe("persistence", () => {
     const { order } = checkout(server, 1);
     const saved = serialize(server.getState());
 
-    const restored = createServer({ now: clock.now, newId: (p) => `${p}_r`, random: () => 0.1 }, deserialize(saved)!);
+    const restored = createBackend({ now: clock.now, newId: (p) => `${p}_r`, random: () => 0.1 }, deserialize(saved)!);
     expect(restored.nextDeliveryAt()).not.toBeNull();
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
     restored.deliverDue();

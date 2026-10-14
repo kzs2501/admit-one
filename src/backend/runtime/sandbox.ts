@@ -7,13 +7,13 @@
  * every hold and order — and lose any webhook still waiting to be delivered. With
  * it, the outbox survives the reload and the runtime picks up where it left off.
  */
-import { createServer, type Server } from "@/backend/server";
+import { createBackend, type Backend } from "@/backend/backend";
 import { deserialize, initialState, serialize } from "@/backend/domain/state";
 
 const STORAGE_KEY = "admit-one:sandbox:v1";
 const CROWD_INTERVAL_MS = 6000;
 
-let server: Server | null = null;
+let server: Backend | null = null;
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 
@@ -25,7 +25,7 @@ function load() {
   }
 }
 
-function save(s: Server) {
+function save(s: Backend) {
   try {
     sessionStorage.setItem(STORAGE_KEY, serialize(s.getState()));
   } catch {
@@ -37,7 +37,7 @@ function save(s: Server) {
  * Keeps time-based behaviour running: delivers webhooks when they're due, and lets
  * the crowd buy tickets while that preset is on.
  */
-function startRuntime(s: Server) {
+function startRuntime(s: Backend) {
   let webhookTimer: ReturnType<typeof setTimeout> | undefined;
   let crowdTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -61,9 +61,9 @@ function startRuntime(s: Server) {
 }
 
 /** The tab's simulated server, created (and restored) on first use. Browser only. */
-export function getServer(): Server {
+export function getServer(): Backend {
   if (!server) {
-    server = createServer({ now: Date.now, newId, random: Math.random }, load() ?? initialState());
+    server = createBackend({ now: Date.now, newId, random: Math.random }, load() ?? initialState());
     startRuntime(server);
   }
   return server;

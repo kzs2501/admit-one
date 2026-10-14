@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { presets, type PresetId } from "@/backend/chaos/presets";
-import type { Server } from "@/backend/server";
+import type { Backend } from "@/backend/backend";
 
 /** The tab's simulated server — loaded lazily, and only in the browser. */
 function useSandbox() {
-  const [server, setServer] = useState<Server | null>(null);
+  const [server, setServer] = useState<Backend | null>(null);
   useEffect(() => {
     let alive = true;
     import("@/backend/runtime/sandbox").then(({ getServer }) => alive && setServer(getServer()));

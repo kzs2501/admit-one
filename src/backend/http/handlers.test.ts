@@ -5,12 +5,12 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
-import { createServer } from "@/backend/server";
+import { createBackend } from "@/backend/backend";
 import { initialState } from "@/backend/domain/state";
 import { createHandlers } from "./handlers";
 
 let n = 0;
-const sim = createServer({ now: Date.now, newId: (p) => `${p}_${++n}`, random: () => 0.5 }, initialState());
+const sim = createBackend({ now: Date.now, newId: (p) => `${p}_${++n}`, random: () => 0.5 }, initialState());
 const network = setupServer(...createHandlers(sim, { sleep: async () => {}, random: () => 0 }));
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
