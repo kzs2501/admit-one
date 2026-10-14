@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { catalog, getEventInfo } from "@/shared/catalog";
+import { catalog, getEventInfo } from "@/core/catalog";
 import { formatEventDate, formatEventTime } from "@/lib/format";
-import { TierPicker } from "@/components/tier-picker";
+import { TierPicker } from "@/features/events/components/tier-picker";
 
 export const dynamicParams = false;
 

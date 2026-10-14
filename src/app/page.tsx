@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { catalog, lowestPriceCents } from "@/shared/catalog";
-import { formatMoney } from "@/shared/money";
+import { catalog, lowestPriceCents } from "@/core/catalog";
+import { formatMoney } from "@/core/money";
 import { formatEventDate, formatEventTime } from "@/lib/format";
-import { AvailabilityBadge } from "@/components/availability";
+import { AvailabilityBadge } from "@/features/events/components/availability-badge";
 
 export default function Home() {
   return (

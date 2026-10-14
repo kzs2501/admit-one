@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import type { ServerState } from "../src/server/state";
+import type { ServerState } from "../src/backend/domain/state";
 
 /** Pick a chaos scenario through the panel, exactly as a visitor would. */
 export async function choosePreset(page: Page, label: string) {

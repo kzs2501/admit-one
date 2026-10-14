@@ -1,4 +1,4 @@
-import { CheckoutFlow } from "@/checkout/checkout-flow";
+import { CheckoutFlow } from "@/features/checkout/components/checkout-flow";
 
 /**
  * The checkout lives in the layout, not the page: a layout persists while the

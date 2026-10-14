@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import { Providers } from "@/components/providers";
-import { ChaosPanel } from "@/components/chaos-panel";
+import { Providers } from "./providers";
+import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
 import { site } from "@/lib/site";
 import "./globals.css";
 
