@@ -33,9 +33,7 @@ describe("AttendeesStep", () => {
     const goNext = vi.fn();
     render(
       <AttendeesStep
-        ctx={{ event, hold, draft, order: null }}
-        holdId="hold_1"
-        draft={draft}
+        context={{ event, hold, draft, order: null }}
         updateDraft={updateDraft}
         goNext={goNext}
         goBack={null}

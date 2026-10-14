@@ -1,10 +1,9 @@
 import type { Draft } from "@/features/checkout/hooks/use-draft";
 import type { StepContext } from "@/features/checkout/domain/step-registry";
 
+/** What every checkout step receives from the flow. */
 export type StepProps = {
-  ctx: StepContext;
-  holdId: string;
-  draft: Draft;
+  context: StepContext;
   updateDraft: (patch: Partial<Draft>) => void;
   goNext: () => void;
   goBack: (() => void) | null;

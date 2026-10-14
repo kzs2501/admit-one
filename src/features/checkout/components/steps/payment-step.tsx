@@ -1,142 +1,91 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import type { PaymentResultDto } from "@/contract/dto";
-import type { ConfirmChallengeRequest } from "@/contract/requests";
-import { cardSchema, type CardInput } from "@/core/schemas";
-import { apiClient, NetworkError, problemOf } from "@/lib/api-client";
+import type { OrderDto } from "@/contract/dto";
+import { cardSchema, type CardDetails, type CardInput } from "@/core/schemas";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { FormActions } from "@/components/ui/form-actions";
 import { Notice } from "@/components/ui/notice";
+import { TextField } from "@/components/ui/text-field";
+import { usePayment } from "@/features/checkout/hooks/use-payment";
 import type { StepProps } from "./step-props";
-import { attemptFor, type Attempt } from "@/features/checkout/domain/payment-attempt";
 
-const TEST_CARDS = [
+/** The simulated provider's test cards, as a payment form's test mode would offer them. */
+export const TEST_CARD_OPTIONS = [
   { label: "Succeeds", number: "4242 4242 4242 4242" },
   { label: "Declined", number: "4000 0000 0000 0002" },
   { label: "Needs 3-D Secure", number: "4000 0025 0000 3155" },
-];
+] as const;
 
-const newKey = () => crypto.randomUUID();
+const TEST_CARD_EXPIRY = "12 / 30";
+const TEST_CARD_CVC = "123";
 
-/**
- * Pay for the order. The response to "pay" is never treated as proof of payment:
- * on success we go to the order page, which waits for the provider's webhook.
- */
-export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
-  const router = useRouter();
-  const order = ctx.order!;
-  const orderPage = `/orders/${order.id}`;
-
-  // The current payment attempt and its idempotency key (see attempt.ts). A
-  // definitive answer (declined, authentication failed) ends the attempt.
-  const attempt = useRef<Attempt | null>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-  const challenge = useRef<HTMLDialogElement>(null);
-  // A refresh in the middle of 3-D Secure brings the challenge straight back.
-  const [challengePaymentId, setChallengePaymentId] = useState<string | null>(() =>
-    order.payment?.status === "requires_action" ? order.payment.id : null,
+/** Pay for the order. Review creates the order, so it always exists by this step. */
+export function PaymentStep({ context, goBack, onExpired }: StepProps) {
+  if (!context.order) {
+    return (
+      <Notice tone="bad" title="There’s no order to pay for yet" role="alert">
+        Go back and review your order first.
+      </Notice>
+    );
+  }
+  return (
+    <PaymentForm
+      order={context.order}
+      cardholderName={context.draft.attendees[0]?.name ?? ""}
+      goBack={goBack}
+      onExpired={onExpired}
+    />
   );
+}
+
+function PaymentForm({
+  order,
+  cardholderName,
+  goBack,
+  onExpired,
+}: {
+  order: OrderDto;
+  cardholderName: string;
+  goBack: (() => void) | null;
+  onExpired: () => void;
+}) {
+  const declineNotice = useRef<HTMLDivElement>(null);
+  const challengeDialog = useRef<HTMLDialogElement>(null);
   const [declineMessage, setDeclineMessage] = useState<string | null>(null);
 
-  const form = useForm<CardInput>({
+  const form = useForm<CardInput, unknown, CardDetails>({
     resolver: zodResolver(cardSchema),
-    defaultValues: { number: "", expiry: "", cvc: "", name: ctx.draft.attendees[0]?.name ?? "" },
+    defaultValues: { number: "", expiry: "", cvc: "", name: cardholderName },
     mode: "onTouched",
   });
 
-  const failedDefinitively = (message: string) => {
-    attempt.current = null;
-    setDeclineMessage(message);
-    requestAnimationFrame(() => errorRef.current?.focus());
-  };
-
-  const handleResponse = (result: PaymentResultDto) => {
-    if (result.payment.status === "requires_action") {
-      setChallengePaymentId(result.payment.id);
-      return;
-    }
-    router.push(orderPage);
-  };
-
-  const pay = useMutation({
-    mutationFn: (card: CardInput) => {
-      attempt.current = attemptFor(attempt.current, card.number, newKey);
-      return apiClient.createPayment(order.id, card, attempt.current.key);
+  const payment = usePayment({
+    order,
+    onExpired,
+    onDeclined: (message) => {
+      setDeclineMessage(message);
+      // After the notice renders, move focus to it so the outcome is announced and in view.
+      requestAnimationFrame(() => declineNotice.current?.focus());
     },
-    onSuccess: handleResponse,
-    onError: (error) => {
-      const problem = problemOf(error);
-      switch (problem?.code) {
-        case "card_declined":
-        case "authentication_failed":
-          failedDefinitively(problem.detail);
-          break;
-        case "hold_expired":
-          onExpired();
-          break;
-        case "payment_in_progress":
-        case "already_completed":
-          router.push(orderPage);
-          break;
-        case "invalid_card":
-          form.setError("number", { message: problem.detail });
-          break;
-        default:
-          // A network failure or an unexpected problem: shown by the notices below.
-          break;
-      }
+    onInvalidCard: (message) => {
+      form.setError("number", { message });
     },
   });
 
-  const authenticate = useMutation({
-    mutationFn: (decision: ConfirmChallengeRequest["decision"]) => {
-      if (!challengePaymentId) throw new Error("No payment is waiting for authentication.");
-      return apiClient.confirmChallenge(challengePaymentId, { decision });
-    },
-    onSuccess: (result) => {
-      setChallengePaymentId(null);
-      handleResponse(result);
-    },
-    onError: (error) => {
-      setChallengePaymentId(null);
-      const problem = problemOf(error);
-      if (problem?.code === "authentication_failed") failedDefinitively(problem.detail);
-    },
-  });
-
+  // Keep the native dialog in step with the challenge: open while the bank is asking.
   useEffect(() => {
-    const dialog = challenge.current;
+    const dialog = challengeDialog.current;
     if (!dialog) return;
-    if (challengePaymentId && !dialog.open) dialog.showModal();
-    if (!challengePaymentId && dialog.open) dialog.close();
-  }, [challengePaymentId]);
+    if (payment.challengePaymentId && !dialog.open) dialog.showModal();
+    if (!payment.challengePaymentId && dialog.open) dialog.close();
+  }, [payment.challengePaymentId]);
 
-  const err = form.formState.errors;
-  const field = (name: keyof CardInput, label: string, props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <div>
-      <label htmlFor={`card-${name}`} className="block text-sm text-ink-2">
-        {label}
-      </label>
-      <input
-        id={`card-${name}`}
-        aria-invalid={err[name] ? true : undefined}
-        aria-describedby={err[name] ? `card-${name}-error` : undefined}
-        {...props}
-        {...form.register(name)}
-        className="tabular mt-1.5 h-11 w-full rounded-lg border border-line bg-paper px-3 text-base aria-[invalid=true]:border-bad"
-      />
-      {err[name] && (
-        <p id={`card-${name}-error`} className="mt-1.5 text-sm text-bad">
-          {err[name]?.message}
-        </p>
-      )}
-    </div>
-  );
+  const { errors } = form.formState;
+  const total = formatMoney(order.amounts.totalCents);
 
   return (
     <div className="space-y-5">
@@ -144,18 +93,18 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
         <p className="text-sm font-medium">Test cards</p>
         <p className="mt-0.5 text-sm text-ink-2">No real payments here. Pick a card to fill the form:</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {TEST_CARDS.map((c) => (
+          {TEST_CARD_OPTIONS.map((testCard) => (
             <button
-              key={c.number}
+              key={testCard.number}
               type="button"
               onClick={() => {
-                form.setValue("number", c.number, { shouldValidate: true });
-                form.setValue("expiry", "12 / 30", { shouldValidate: true });
-                form.setValue("cvc", "123", { shouldValidate: true });
+                form.setValue("number", testCard.number, { shouldValidate: true });
+                form.setValue("expiry", TEST_CARD_EXPIRY, { shouldValidate: true });
+                form.setValue("cvc", TEST_CARD_CVC, { shouldValidate: true });
               }}
               className="press rounded-md border border-line bg-card px-3 py-2 text-sm hover:bg-paper"
             >
-              {c.label} <span className="tabular ml-1 text-ink-3">…{c.number.slice(-4)}</span>
+              {testCard.label} <span className="tabular ml-1 text-ink-3">…{testCard.number.slice(-4)}</span>
             </button>
           ))}
         </div>
@@ -165,68 +114,100 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
         noValidate
         onSubmit={form.handleSubmit((card) => {
           setDeclineMessage(null);
-          pay.mutate(card);
+          payment.pay(card);
         })}
         className="space-y-4 rounded-xl border border-line bg-card p-5"
       >
-        {field("name", "Name on card", { autoComplete: "cc-name" })}
-        {field("number", "Card number", {
-          autoComplete: "cc-number",
-          inputMode: "numeric",
-          placeholder: "4242 4242 4242 4242",
-        })}
+        <TextField
+          id="card-name"
+          label="Name on card"
+          error={errors.name?.message}
+          inputProps={{ autoComplete: "cc-name", ...form.register("name") }}
+        />
+        <TextField
+          id="card-number"
+          label="Card number"
+          error={errors.number?.message}
+          inputProps={{
+            autoComplete: "cc-number",
+            inputMode: "numeric",
+            placeholder: "4242 4242 4242 4242",
+            className: "tabular",
+            ...form.register("number"),
+          }}
+        />
         <div className="grid grid-cols-2 gap-4">
-          {field("expiry", "Expiry", { autoComplete: "cc-exp", inputMode: "numeric", placeholder: "MM / YY" })}
-          {field("cvc", "Security code", { autoComplete: "cc-csc", inputMode: "numeric", placeholder: "123" })}
+          <TextField
+            id="card-expiry"
+            label="Expiry"
+            error={errors.expiry?.message}
+            inputProps={{
+              autoComplete: "cc-exp",
+              inputMode: "numeric",
+              placeholder: "MM / YY",
+              className: "tabular",
+              ...form.register("expiry"),
+            }}
+          />
+          <TextField
+            id="card-cvc"
+            label="Security code"
+            error={errors.cvc?.message}
+            inputProps={{
+              autoComplete: "cc-csc",
+              inputMode: "numeric",
+              placeholder: "123",
+              className: "tabular",
+              ...form.register("cvc"),
+            }}
+          />
         </div>
 
         {declineMessage && (
-          <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <div ref={declineNotice} tabIndex={-1} className="outline-none">
             <Notice tone="bad" title="Payment didn’t go through" role="alert">
               {declineMessage} Your tickets are still held.
             </Notice>
           </div>
         )}
-        {pay.error instanceof NetworkError && (
-          // A dropped connection or an unreadable answer: the outcome is unknown, so
-          // the same attempt key is kept and a retry is safe.
+        {payment.hasConnectionProblem && (
           <Notice tone="warn" title="Connection problem" role="alert">
             Nothing was charged twice — press Pay again to retry safely.
           </Notice>
         )}
 
-        <div className="flex justify-between gap-3 pt-1">
-          {goBack ? (
-            <Button type="button" variant="ghost" onClick={goBack} disabled={pay.isPending}>
-              Back
+        <div className="pt-1">
+          <FormActions onBack={goBack} isBackDisabled={payment.isPaying}>
+            <Button type="submit" busy={payment.isPaying}>
+              {payment.isPaying ? "Processing…" : `Pay ${total}`}
             </Button>
-          ) : (
-            <span />
-          )}
-          <Button type="submit" busy={pay.isPending}>
-            {pay.isPending ? "Processing…" : `Pay ${formatMoney(order.amounts.totalCents)}`}
-          </Button>
+          </FormActions>
         </div>
       </form>
 
       <dialog
-        ref={challenge}
+        ref={challengeDialog}
         aria-labelledby="challenge-title"
-        onCancel={(e) => e.preventDefault()} // the bank decides, not Escape
+        onCancel={(cancelEvent) => {
+          cancelEvent.preventDefault(); // the bank decides, not Escape
+        }}
         className="m-auto w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-card p-6 text-ink shadow-2xl backdrop:bg-ink/40"
       >
         <h2 id="challenge-title" className="font-display text-lg font-semibold">
           Confirm it’s you
         </h2>
         <p className="mt-2 text-sm text-ink-2">
-          Your bank wants to check this {formatMoney(order.amounts.totalCents)} payment. (Simulated 3-D Secure — choose
-          an outcome.)
+          Your bank wants to check this {total} payment. (Simulated 3-D Secure — choose an outcome.)
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={() => authenticate.mutate("reject")} disabled={authenticate.isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => payment.authenticate("reject")}
+            disabled={payment.isAuthenticating}
+          >
             Fail authentication
           </Button>
-          <Button onClick={() => authenticate.mutate("approve")} busy={authenticate.isPending} autoFocus>
+          <Button onClick={() => payment.authenticate("approve")} busy={payment.isAuthenticating} autoFocus>
             Approve
           </Button>
         </div>

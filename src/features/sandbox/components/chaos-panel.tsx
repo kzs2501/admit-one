@@ -42,7 +42,8 @@ export function ChaosPanel() {
       return;
     }
     sandbox?.reset();
-    queryClient.invalidateQueries();
+    // A reset replaces the whole backend, so every cached answer is stale: refetch them all.
+    void queryClient.invalidateQueries();
     setIsConfirmingReset(false);
   };
 

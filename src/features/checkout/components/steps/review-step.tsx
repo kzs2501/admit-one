@@ -2,23 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { HoldDetailsDto } from "@/contract/dto";
 import { apiClient, problemOf } from "@/lib/api-client";
+import { holdQueries } from "@/lib/queries";
+import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
+import { FormActions } from "@/components/ui/form-actions";
 import { Notice } from "@/components/ui/notice";
 import type { StepProps } from "./step-props";
 
 /** Check everything, then create (or update) the order the payment will be for. */
-export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: StepProps) {
+export function ReviewStep({ context, goNext, goBack, onExpired }: StepProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const extras = Object.entries(draft.addOns).filter(([, n]) => n > 0);
+  const { draft, event, hold } = context;
+  const chosenExtras = Object.entries(draft.addOns).filter(([, quantity]) => quantity > 0);
 
   const save = useMutation({
-    mutationFn: () => apiClient.upsertOrder({ holdId, attendees: draft.attendees, addOns: draft.addOns }),
+    mutationFn: () => apiClient.upsertOrder({ holdId: hold.id, attendees: draft.attendees, addOns: draft.addOns }),
     onSuccess: (order) => {
-      queryClient.setQueryData<HoldDetailsDto>(["hold", holdId], (old) =>
-        old ? { ...old, order, hold: { ...old.hold, orderId: order.id } } : old,
+      queryClient.setQueryData(holdQueries.detail(hold.id).queryKey, (cached) =>
+        cached ? { ...cached, order, hold: { ...cached.hold, orderId: order.id } } : cached,
       );
       goNext();
     },
@@ -30,7 +33,7 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
           break;
         case "payment_in_progress":
         case "already_completed":
-          if (ctx.order) router.push(`/orders/${ctx.order.id}`);
+          if (context.order) router.push(routes.order(context.order.id));
           break;
         default:
           break; // shown in the notice below
@@ -41,27 +44,32 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
   return (
     <div className="space-y-5">
       <section aria-labelledby="who-title" className="rounded-xl border border-line bg-card p-5">
-        <h3 id="who-title" className="text-sm font-medium">
+        <h2 id="who-title" className="text-sm font-medium">
           Attendees
-        </h3>
+        </h2>
         <ul className="mt-3 space-y-2 text-sm">
-          {draft.attendees.map((a, i) => (
+          {draft.attendees.map((attendee, i) => (
             <li key={i} className="flex flex-wrap justify-between gap-x-4">
-              <span>{a.name}</span>
-              <span className="text-ink-2">{a.email}</span>
+              <span>{attendee.name}</span>
+              <span className="text-ink-2">{attendee.email}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      {ctx.event.addOns.length > 0 && (
+      {event.addOns.length > 0 && (
         <section aria-labelledby="extras-title" className="rounded-xl border border-line bg-card p-5">
-          <h3 id="extras-title" className="text-sm font-medium">
+          <h2 id="extras-title" className="text-sm font-medium">
             Extras
-          </h3>
+          </h2>
           <p className="mt-2 text-sm text-ink-2">
-            {extras.length
-              ? extras.map(([id, n]) => `${n} × ${ctx.event.addOns.find((a) => a.id === id)?.name}`).join(", ")
+            {chosenExtras.length
+              ? chosenExtras
+                  .map(([addOnId, quantity]) => {
+                    const name = event.addOns.find((addOn) => addOn.id === addOnId)?.name ?? addOnId;
+                    return `${quantity} × ${name}`;
+                  })
+                  .join(", ")
               : "None"}
           </p>
         </section>
@@ -73,18 +81,11 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
         </Notice>
       )}
 
-      <div className="flex justify-between gap-3">
-        {goBack ? (
-          <Button type="button" variant="ghost" onClick={goBack}>
-            Back
-          </Button>
-        ) : (
-          <span />
-        )}
+      <FormActions onBack={goBack}>
         <Button type="button" onClick={() => save.mutate()} busy={save.isPending}>
           {save.isPending ? "Saving…" : "Continue to payment"}
         </Button>
-      </div>
+      </FormActions>
     </div>
   );
 }

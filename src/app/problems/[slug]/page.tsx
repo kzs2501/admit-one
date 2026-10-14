@@ -8,6 +8,7 @@ import {
   PROBLEM_TYPE_PATH,
   problemTypeFor,
 } from "@/contract/problems";
+import { routes } from "@/lib/routes";
 
 export const dynamicParams = false;
 
@@ -29,7 +30,7 @@ export default async function ProblemTypePage({ params }: PageProps<"/problems/[
   return (
     <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8">
       <Link
-        href={PROBLEM_TYPE_PATH}
+        href={routes.problems()}
         className="-mx-1 inline-flex min-h-8 items-center px-1 text-sm text-ink-3 hover:text-ink"
       >
         ← All problem types

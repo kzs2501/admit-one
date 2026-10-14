@@ -2,7 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { stockLevel, type StockLevel } from "@/core/ticketing";
-import { apiClient } from "@/lib/api-client";
+import { eventQueries } from "@/lib/queries";
+
+/** Availability changes while the page is open; refresh it this often. */
+const AVAILABILITY_REFRESH_MS = 8_000;
 
 const TONES: Record<StockLevel, string> = {
   "sold-out": "bg-bad-soft text-bad",
@@ -12,7 +15,7 @@ const TONES: Record<StockLevel, string> = {
 
 /** "12 left" / "Only 2 left" / "Sold out" — live, while the static card renders instantly. */
 export function AvailabilityBadge({ slug }: { slug: string }) {
-  const { data } = useQuery({ queryKey: ["events"], queryFn: apiClient.listEvents, refetchInterval: 8_000 });
+  const { data } = useQuery({ ...eventQueries.list(), refetchInterval: AVAILABILITY_REFRESH_MS });
   const event = data?.find((candidate) => candidate.slug === slug);
 
   // Reserve the badge's space before data arrives, so nothing shifts when it does.

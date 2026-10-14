@@ -1,127 +1,78 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import type { OrderDto } from "@/contract/dto";
 import { getEvent } from "@/core/catalog";
-import type { OrderStatus } from "@/core/statuses";
-import { apiClient, problemOf } from "@/lib/api-client";
 import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
-import { stepHref } from "@/features/checkout/domain/step-registry";
+import { routes } from "@/lib/routes";
+import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
+import { stepHref } from "@/features/checkout/domain/step-registry";
+import { useOrderStatus } from "@/features/orders/hooks/use-order-status";
 
-/** Statuses that need nothing more from the server — stop polling. */
-const SETTLED_STATUSES: readonly OrderStatus[] = ["fulfilled", "refunded", "expired", "failed"];
-
-/** 0.5s, 1s, 2s, then every 4s: fast when it's likely to finish, gentle when it isn't. */
-export const pollDelay = (attempt: number) => Math.min(4_000, 500 * 2 ** attempt);
-
-const SLOW_AFTER_MS = 8_000;
-
-/** Pending, but nothing is in flight: the buyer hasn't paid (or abandoned 3-D Secure). */
-const isUnpaid = (order: OrderDto) =>
-  order.status === "pending" &&
-  (!order.payment || order.payment.status === "requires_action" || order.payment.status === "failed");
-
-/** Only worth polling while a payment is genuinely in flight. */
-const isWaiting = (order: OrderDto) => !SETTLED_STATUSES.includes(order.status) && !isUnpaid(order);
-
-/**
- * The order page — where the browser lands after paying. It never assumes the
- * payment worked just because we got here: it polls until the webhook has settled
- * the order, however long that takes, and whichever arrived first.
- */
+/** The order page: renders whatever `useOrderStatus` says the order is doing. */
 export function OrderStatusView({ orderId }: { orderId: string }) {
-  const [slow, setSlow] = useState(false);
+  const state = useOrderStatus(orderId);
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const query = useQuery({
-    queryKey: ["order", orderId],
-    queryFn: () => apiClient.getOrder(orderId),
-    refetchInterval: (current) =>
-      current.state.data && !isWaiting(current.state.data) ? false : pollDelay(current.state.dataUpdateCount),
-  });
-  const order = query.data;
-  const waiting = order ? isWaiting(order) : false;
-
-  // Reassure after a while; the clock starts when waiting does.
+  // When an outcome arrives, move focus to it so it's announced and in view.
+  const isOutcome = ["fulfilled", "refunded", "expired", "failed"].includes(state.kind);
   useEffect(() => {
-    if (!waiting) return;
-    const t = setTimeout(() => setSlow(true), SLOW_AFTER_MS);
-    return () => clearTimeout(t);
-  }, [waiting]);
+    if (isOutcome) heading.current?.focus();
+  }, [isOutcome]);
 
-  // When the outcome arrives, move focus to it so it's announced and in view.
-  const status = order?.status;
-  useEffect(() => {
-    if (status && SETTLED_STATUSES.includes(status)) heading.current?.focus();
-  }, [status]);
-
-  if (query.isError) {
-    const isMissing = problemOf(query.error)?.code === "not_found";
-    return (
-      <Shell>
-        <Notice tone="bad" title={isMissing ? "We can’t find that order" : "Couldn’t load your order"} role="alert">
-          {isMissing ? "It may belong to another tab, or the sandbox was reset." : "We’ll keep trying."}{" "}
-          <Link href="/" className="underline underline-offset-4">
-            Browse events
-          </Link>
-        </Notice>
-      </Shell>
-    );
-  }
-
-  if (!order) {
-    return (
-      <Shell>
-        <div className="grid min-h-[40vh] place-items-center">
-          <Spinner label="Loading your order" className="size-6 text-ink-3" />
-        </div>
-      </Shell>
-    );
-  }
-
-  const event = getEvent(order.eventSlug);
-
-  if (isUnpaid(order)) {
-    return (
-      <Shell>
-        <Outcome headingRef={heading} tone="warn" title="This order isn’t paid yet" reason={null}>
-          <Link href={stepHref(order.holdId, "payment")} className="underline underline-offset-4">
-            Continue to payment
-          </Link>
-        </Outcome>
-      </Shell>
-    );
-  }
-
-  if (waiting) {
-    return (
-      <Shell>
-        <div role="status" aria-live="polite" className="py-10 text-center">
-          <Spinner className="mx-auto size-8 text-accent" />
-          <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight">Confirming your payment…</h1>
-          <p className="mt-3 text-ink-2">
-            We’re waiting for your bank to confirm {formatMoney(order.amounts.totalCents)}. This page updates on its
-            own.
-          </p>
-          {slow && (
-            <p className="mx-auto mt-6 max-w-md rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink-2">
-              This is taking longer than usual. Your payment is safe — you won’t be charged twice, and you don’t need to
-              do anything.
+  switch (state.kind) {
+    case "loading":
+      return (
+        <Shell>
+          <div className="grid min-h-[40vh] place-items-center">
+            <Spinner label="Loading your order" className="size-6 text-ink-3" />
+          </div>
+        </Shell>
+      );
+    case "not-found":
+      return (
+        <ErrorState title="We can’t find that order">
+          It may belong to another tab, or the sandbox was reset.
+        </ErrorState>
+      );
+    case "load-error":
+      return <ErrorState title="Couldn’t load your order">We’ll keep trying.</ErrorState>;
+    case "awaiting-payment":
+      return (
+        <Shell>
+          <Outcome headingRef={heading} tone="warn" title="This order isn’t paid yet" reason={null}>
+            <Link href={stepHref(state.order.holdId, "payment")} className="underline underline-offset-4">
+              Continue to payment
+            </Link>
+          </Outcome>
+        </Shell>
+      );
+    case "confirming":
+      return (
+        <Shell>
+          <div role="status" aria-live="polite" className="py-10 text-center">
+            <Spinner className="mx-auto size-8 text-accent" />
+            <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight">Confirming your payment…</h1>
+            <p className="mt-3 text-ink-2">
+              We’re waiting for your bank to confirm {formatMoney(state.order.amounts.totalCents)}. This page updates on
+              its own.
             </p>
-          )}
-        </div>
-      </Shell>
-    );
-  }
-
-  return (
-    <Shell>
-      {order.status === "fulfilled" && (
-        <>
+            {state.isSlow && (
+              <p className="mx-auto mt-6 max-w-md rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink-2">
+                This is taking longer than usual. Your payment is safe — you won’t be charged twice, and you don’t need
+                to do anything.
+              </p>
+            )}
+          </div>
+        </Shell>
+      );
+    case "fulfilled": {
+      const { order } = state;
+      const event = getEvent(order.eventSlug);
+      return (
+        <Shell>
           <p className="tabular text-xs tracking-[0.14em] text-ok uppercase">Payment confirmed</p>
           <h1
             ref={heading}
@@ -134,47 +85,58 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
             {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)} · {event.venue}, {event.city}
           </p>
           <ul aria-label="Your tickets" className="mt-8 space-y-4">
-            {order.tickets.map((t) => (
-              <li key={t.code}>
-                <TicketStub event={event.name} attendee={t.attendeeName} tier={t.tierName} code={t.code} />
+            {order.tickets.map((ticket) => (
+              <li key={ticket.code}>
+                <TicketStub
+                  event={event.name}
+                  attendee={ticket.attendeeName}
+                  tier={ticket.tierName}
+                  code={ticket.code}
+                />
               </li>
             ))}
           </ul>
           <p className="mt-6 text-sm text-ink-3">
             Paid {formatMoney(order.amounts.totalCents)} with a card ending {order.payment?.last4}. Order {order.id}.
           </p>
-        </>
-      )}
-
-      {order.status === "refunded" && (
-        <Outcome headingRef={heading} tone="warn" title="We refunded your payment" reason={order.statusReason}>
-          <Link href={`/events/${order.eventSlug}`} className="underline underline-offset-4">
-            Look for tickets again
-          </Link>
-        </Outcome>
-      )}
-
-      {order.status === "expired" && (
-        <Outcome headingRef={heading} tone="bad" title="This reservation expired" reason={order.statusReason}>
-          <Link href={`/events/${order.eventSlug}`} className="underline underline-offset-4">
-            Look for tickets again
-          </Link>
-        </Outcome>
-      )}
-
-      {order.status === "failed" && (
-        <Outcome headingRef={heading} tone="bad" title="Payment didn’t go through" reason={order.statusReason}>
-          <Link href={stepHref(order.holdId, "payment")} className="underline underline-offset-4">
-            Try another card
-          </Link>{" "}
-          — your tickets are still held for now.
-        </Outcome>
-      )}
-    </Shell>
-  );
+        </Shell>
+      );
+    }
+    case "refunded":
+      return (
+        <Shell>
+          <Outcome headingRef={heading} tone="warn" title="We refunded your payment" reason={state.order.statusReason}>
+            <Link href={routes.event(state.order.eventSlug)} className="underline underline-offset-4">
+              Look for tickets again
+            </Link>
+          </Outcome>
+        </Shell>
+      );
+    case "expired":
+      return (
+        <Shell>
+          <Outcome headingRef={heading} tone="bad" title="This reservation expired" reason={state.order.statusReason}>
+            <Link href={routes.event(state.order.eventSlug)} className="underline underline-offset-4">
+              Look for tickets again
+            </Link>
+          </Outcome>
+        </Shell>
+      );
+    case "failed":
+      return (
+        <Shell>
+          <Outcome headingRef={heading} tone="bad" title="Payment didn’t go through" reason={state.order.statusReason}>
+            <Link href={stepHref(state.order.holdId, "payment")} className="underline underline-offset-4">
+              Try another card
+            </Link>{" "}
+            — your tickets are still held for now.
+          </Outcome>
+        </Shell>
+      );
+  }
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return <div className="mx-auto max-w-2xl px-5 py-10 sm:px-8 sm:py-14">{children}</div>;
 }
 
@@ -185,11 +147,11 @@ function Outcome({
   reason,
   children,
 }: {
-  headingRef: React.Ref<HTMLHeadingElement>;
+  headingRef: Ref<HTMLHeadingElement>;
   tone: "warn" | "bad";
   title: string;
   reason: string | null;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div>

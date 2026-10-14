@@ -3,16 +3,18 @@
 import { ticketCount } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { FormActions } from "@/components/ui/form-actions";
 import { Stepper } from "@/components/ui/stepper";
 import type { StepProps } from "./step-props";
 
 /** Optional extras, up to one of each per ticket. Only shown for events that have any. */
-export function AddOnsStep({ ctx, draft, updateDraft, goNext, goBack }: StepProps) {
-  const count = ticketCount(ctx.hold.items);
+export function AddOnsStep({ context, updateDraft, goNext, goBack }: StepProps) {
+  const { draft } = context;
+  const count = ticketCount(context.hold.items);
   return (
     <div className="space-y-5">
       <ul className="divide-y divide-line rounded-xl border border-line bg-card">
-        {ctx.event.addOns.map((addOn) => (
+        {context.event.addOns.map((addOn) => (
           <li key={addOn.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
             <div>
               <p className="font-medium">{addOn.name}</p>
@@ -28,14 +30,7 @@ export function AddOnsStep({ ctx, draft, updateDraft, goNext, goBack }: StepProp
           </li>
         ))}
       </ul>
-      <div className="flex justify-between gap-3">
-        {goBack ? (
-          <Button type="button" variant="ghost" onClick={goBack}>
-            Back
-          </Button>
-        ) : (
-          <span />
-        )}
+      <FormActions onBack={goBack}>
         <Button
           type="button"
           onClick={() => {
@@ -45,7 +40,7 @@ export function AddOnsStep({ ctx, draft, updateDraft, goNext, goBack }: StepProp
         >
           {Object.values(draft.addOns).some((quantity) => quantity > 0) ? "Continue" : "Continue without extras"}
         </Button>
-      </div>
+      </FormActions>
     </div>
   );
 }

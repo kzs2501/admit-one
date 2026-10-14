@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PROBLEM_CATALOG, PROBLEM_CODES, problemTypeFor } from "@/contract/problems";
+import { PROBLEM_CATALOG, PROBLEM_CODES } from "@/contract/problems";
+import { routes } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "API problem types",
@@ -20,7 +21,7 @@ export default function ProblemsPage() {
       <ul className="mt-8 divide-y divide-line rounded-xl border border-line bg-card">
         {PROBLEM_CODES.map((code) => (
           <li key={code}>
-            <Link href={problemTypeFor(code)} className="flex items-baseline justify-between gap-4 p-4 hover:bg-sunk">
+            <Link href={routes.problem(code)} className="flex items-baseline justify-between gap-4 p-4 hover:bg-sunk">
               <span>
                 <code className="text-sm">{code}</code>
                 <span className="ml-3 text-sm text-ink-2">{PROBLEM_CATALOG[code].title}</span>

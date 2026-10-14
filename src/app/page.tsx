@@ -2,6 +2,7 @@ import Link from "next/link";
 import { catalog, lowestPriceCents } from "@/core/catalog";
 import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { AvailabilityBadge } from "@/features/events/components/availability-badge";
+import { routes } from "@/lib/routes";
 
 export default function Home() {
   return (
@@ -20,7 +21,7 @@ export default function Home() {
         {catalog.map((event) => (
           <li key={event.slug}>
             <Link
-              href={`/events/${event.slug}`}
+              href={routes.event(event.slug)}
               className="group block h-full rounded-xl border border-line bg-card p-5 transition-colors hover:border-ink-3"
             >
               <div className="flex items-start justify-between gap-3">

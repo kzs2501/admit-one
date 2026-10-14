@@ -1,0 +1,135 @@
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import type { EventDto, HoldDetailsDto, HoldDto } from "@/contract/dto";
+import { isAwaitingConfirmation, isPaidFor } from "@/core/order-status";
+import { problemOf } from "@/lib/api-client";
+import { holdQueries } from "@/lib/queries";
+import { routes } from "@/lib/routes";
+import { useMounted } from "@/lib/use-mounted";
+import { clockOffset } from "@/features/checkout/domain/countdown";
+import {
+  applicableSteps,
+  nextStep,
+  previousStep,
+  resolveStep,
+  stepHref,
+  type Step,
+  type StepContext,
+  type StepId,
+} from "@/features/checkout/domain/step-registry";
+import { useDraft, type Draft } from "./use-draft";
+
+/** Everything the checkout can be showing — exactly one at a time. */
+export type CheckoutState =
+  | { kind: "loading" }
+  | { kind: "not-found" }
+  | { kind: "load-error" }
+  | { kind: "expired"; hold: HoldDto; event: EventDto; stepId: StepId }
+  | {
+      kind: "ready";
+      context: StepContext;
+      step: Step;
+      flow: readonly Step[];
+      stepIndex: number;
+      previous: Step | null;
+      next: Step | null;
+      expiresAtMs: number;
+      clockOffsetMs: number;
+    };
+
+export type CheckoutInputs = {
+  requestedStep: string;
+  details: HoldDetailsDto | undefined;
+  error: unknown;
+  /** When the hold was last fetched — the moment its `serverTime` was true. */
+  fetchedAtMs: number;
+  draft: Draft;
+  /** False until the browser's sessionStorage (and so the draft) can be read. */
+  isMounted: boolean;
+  hasExpiredLocally: boolean;
+};
+
+/** Where the checkout should be, and where the URL should go — a pure function of its inputs. */
+export function deriveCheckout(inputs: CheckoutInputs): {
+  state: CheckoutState;
+  /** The order page to move to, once money has moved or a payment is with the provider. */
+  orderPageId: string | null;
+  /** The step the URL should show instead of the requested one. */
+  redirectStepId: StepId | null;
+} {
+  const { details, draft, isMounted } = inputs;
+  const order = details?.order ?? null;
+  const isOver =
+    details !== undefined &&
+    (details.hold.status === "converted" || (order !== null && (isPaidFor(order) || isAwaitingConfirmation(order))));
+  const isExpired = details !== undefined && !isOver && (inputs.hasExpiredLocally || details.hold.status === "expired");
+  const context: StepContext | null =
+    details && isMounted ? { event: details.event, hold: details.hold, draft, order } : null;
+  const resolution = context ? resolveStep(inputs.requestedStep, context) : null;
+
+  const orderPageId = isOver ? (order?.id ?? null) : null;
+  const redirectStepId = resolution?.redirect && !isOver && !isExpired ? resolution.step.id : null;
+  const derive = (state: CheckoutState) => ({ state, orderPageId, redirectStepId });
+
+  if (inputs.error) {
+    return derive({ kind: problemOf(inputs.error)?.code === "not_found" ? "not-found" : "load-error" });
+  }
+  if (details && context && isExpired) {
+    const stepId = resolution && !resolution.redirect ? resolution.step.id : "attendees";
+    return derive({ kind: "expired", hold: details.hold, event: details.event, stepId });
+  }
+  if (!details || !context || !resolution || resolution.redirect || isOver) return derive({ kind: "loading" });
+
+  const flow = applicableSteps(context);
+  return derive({
+    kind: "ready",
+    context,
+    step: resolution.step,
+    flow,
+    stepIndex: flow.findIndex((step) => step.id === resolution.step.id),
+    previous: previousStep(resolution.step.id, context),
+    next: nextStep(resolution.step.id, context),
+    expiresAtMs: Date.parse(details.hold.expiresAt),
+    clockOffsetMs: clockOffset(Date.parse(details.serverTime), inputs.fetchedAtMs),
+  });
+}
+
+/**
+ * The checkout's view-model. The URL says which step was asked for, the registry says
+ * whether it's allowed, and the hold says whether the checkout is still on; this hook
+ * combines them into one `CheckoutState` and keeps the URL in step with it.
+ */
+export function useCheckout(holdId: string, requestedStep: string) {
+  const router = useRouter();
+  const isMounted = useMounted();
+  const [draft, updateDraft] = useDraft(holdId);
+  const [hasExpiredLocally, setHasExpiredLocally] = useState(false);
+  const { data: details, error, dataUpdatedAt, refetch } = useQuery(holdQueries.detail(holdId));
+
+  const { state, orderPageId, redirectStepId } = deriveCheckout({
+    requestedStep,
+    details,
+    error,
+    fetchedAtMs: dataUpdatedAt,
+    draft,
+    isMounted,
+    hasExpiredLocally,
+  });
+
+  useEffect(() => {
+    if (orderPageId) router.replace(routes.order(orderPageId));
+  }, [orderPageId, router]);
+
+  useEffect(() => {
+    if (redirectStepId) router.replace(stepHref(holdId, redirectStepId));
+  }, [redirectStepId, holdId, router]);
+
+  /** The hold ran out (the countdown hit zero, or the server said so): re-read it. */
+  const expire = useCallback(() => {
+    setHasExpiredLocally(true);
+    void refetch();
+  }, [refetch]);
+
+  return { state, updateDraft, expire };
+}

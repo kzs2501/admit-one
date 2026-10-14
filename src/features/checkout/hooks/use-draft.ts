@@ -4,6 +4,7 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import { z } from "zod";
+import { readSession, writeSession } from "@/lib/storage";
 
 /** Unvalidated: the draft holds whatever was typed, including half-finished input. */
 const draftSchema = z.object({
@@ -25,13 +26,7 @@ const cache = new Map<string, Draft>();
 export function readDraft(holdId: string): Draft {
   const cached = cache.get(holdId);
   if (cached) return cached;
-  let draft = createEmptyDraft();
-  try {
-    const parsed = draftSchema.safeParse(JSON.parse(sessionStorage.getItem(draftStorageKey(holdId)) ?? "null"));
-    if (parsed.success) draft = parsed.data;
-  } catch {
-    // Unreadable storage: start empty.
-  }
+  const draft = readSession(draftStorageKey(holdId), draftSchema) ?? createEmptyDraft();
   cache.set(holdId, draft);
   return draft;
 }
@@ -39,11 +34,7 @@ export function readDraft(holdId: string): Draft {
 export function writeDraft(holdId: string, patch: Partial<Draft>) {
   const next = { ...readDraft(holdId), ...patch };
   cache.set(holdId, next);
-  try {
-    sessionStorage.setItem(draftStorageKey(holdId), JSON.stringify(next));
-  } catch {
-    // Quota or privacy mode: the draft lives for this page only.
-  }
+  writeSession(draftStorageKey(holdId), next); // if storage refuses, the draft lives for this page only
   listeners.forEach((listener) => {
     listener();
   });

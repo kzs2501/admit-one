@@ -8,6 +8,7 @@ import type { EventDto, HoldDto, OrderDto } from "@/contract/dto";
 import { ticketCount } from "@/core/ticketing";
 import { attendeesSchema } from "@/core/schemas";
 import type { Draft } from "@/features/checkout/hooks/use-draft";
+import { routes } from "@/lib/routes";
 
 export type StepId = "attendees" | "add-ons" | "review" | "payment";
 
@@ -103,4 +104,4 @@ export function previousStep(current: StepId, ctx: StepContext): Step | null {
   return flow[flow.findIndex((s) => s.id === current) - 1] ?? null;
 }
 
-export const stepHref = (holdId: string, step: StepId) => `/checkout/${holdId}/${step}`;
+export const stepHref = (holdId: string, step: StepId) => routes.checkoutStep(holdId, step);

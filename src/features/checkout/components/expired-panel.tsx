@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { EventDto, HoldDto } from "@/contract/dto";
 import { apiClient, problemOf } from "@/lib/api-client";
+import { holdQueries } from "@/lib/queries";
+import { routes } from "@/lib/routes";
 import { describeItems } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Notice } from "@/components/ui/notice";
 import { copyDraft } from "@/features/checkout/hooks/use-draft";
 import { stepHref, type StepId } from "@/features/checkout/domain/step-registry";
@@ -22,7 +25,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
     mutationFn: () => apiClient.createHold({ eventSlug: hold.eventSlug, items: hold.items }),
     onSuccess: (details) => {
       copyDraft(hold.id, details.hold.id);
-      queryClient.setQueryData(["hold", details.hold.id], details);
+      queryClient.setQueryData(holdQueries.detail(details.hold.id).queryKey, details);
       router.replace(stepHref(details.hold.id, step));
     },
   });
@@ -40,7 +43,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
         {isGoneAgain ? (
           <Notice tone="bad" title="Those tickets have gone" role="alert">
             Someone else reserved them after your hold expired.{" "}
-            <Link href={`/events/${hold.eventSlug}`} className="underline underline-offset-4">
+            <Link href={routes.event(hold.eventSlug)} className="underline underline-offset-4">
               See what’s left
             </Link>
           </Notice>
@@ -55,12 +58,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
           <Button onClick={() => again.mutate()} busy={again.isPending} disabled={isGoneAgain}>
             {again.isPending ? "Reserving…" : "Reserve the same tickets again"}
           </Button>
-          <Link
-            href={`/events/${hold.eventSlug}`}
-            className="inline-flex min-h-11 press items-center rounded-lg border border-line bg-card px-5 text-sm font-medium hover:bg-sunk"
-          >
-            Back to the event
-          </Link>
+          <ButtonLink href={routes.event(hold.eventSlug)}>Back to the event</ButtonLink>
         </div>
         <p className="text-sm text-ink-3">Anything you’d already filled in will be kept.</p>
       </div>

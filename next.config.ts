@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {/* config options here */};
+const nextConfig: NextConfig = {
+  // Check every literal href against the real routes at build time.
+  typedRoutes: true,
+};
 
 export default nextConfig;

@@ -1,21 +1,22 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ticketCount } from "@/core/ticketing";
 import { attendeesSchema } from "@/core/schemas";
+import { ticketCount } from "@/core/ticketing";
 import { Button } from "@/components/ui/button";
+import { TextField } from "@/components/ui/text-field";
 import type { StepProps } from "./step-props";
 
 /** One name and email per ticket: tickets are personal, so each needs its own. */
-export function AttendeesStep({ ctx, draft, updateDraft, goNext }: StepProps) {
-  const { hold, event } = ctx;
+export function AttendeesStep({ context, updateDraft, goNext }: StepProps) {
+  const { hold, event, draft } = context;
   const count = ticketCount(hold.items);
 
   // "Ticket 2 · Workshop + General" — one label per ticket, in order.
-  const labels = useMemo(
+  const ticketLabels = useMemo(
     () =>
       hold.items.flatMap(({ tierId, quantity }) =>
         Array.from({ length: quantity }, () => event.tiers.find((tier) => tier.id === tierId)?.name ?? "Ticket"),
@@ -24,7 +25,7 @@ export function AttendeesStep({ ctx, draft, updateDraft, goNext }: StepProps) {
   );
 
   const schema = useMemo(() => z.object({ attendees: attendeesSchema(count) }), [count]);
-  const form = useForm<z.infer<typeof schema>>({
+  const form = useForm<z.input<typeof schema>, unknown, z.output<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       attendees: Array.from({ length: count }, (_, i) => draft.attendees[i] ?? { name: "", email: "" }),
@@ -34,11 +35,20 @@ export function AttendeesStep({ ctx, draft, updateDraft, goNext }: StepProps) {
   const { fields } = useFieldArray({ control: form.control, name: "attendees" });
   const errors = form.formState.errors.attendees;
 
-  // Save as they type, so a refresh or a step back loses nothing.
-  const typed = useWatch({ control: form.control, name: "attendees" });
-  useEffect(() => {
-    updateDraft({ attendees: (typed ?? []).map((a) => ({ name: a?.name ?? "", email: a?.email ?? "" })) });
-  }, [typed, updateDraft]);
+  // Save as they type, so a refresh or a step back loses nothing. A subscription, not
+  // a render-then-effect: the form's values go straight to the draft store.
+  useEffect(
+    () =>
+      form.subscribe({
+        formState: { values: true },
+        callback: ({ values }) => {
+          updateDraft({
+            attendees: values.attendees.map((typed) => ({ name: typed.name, email: typed.email })),
+          });
+        },
+      }),
+    [form, updateDraft],
+  );
 
   return (
     <form
@@ -50,54 +60,33 @@ export function AttendeesStep({ ctx, draft, updateDraft, goNext }: StepProps) {
       className="space-y-5"
     >
       {fields.map((field, i) => {
-        const err = errors?.[i];
-        const nameId = `attendee-${i}-name`;
-        const emailId = `attendee-${i}-email`;
+        const fieldErrors = errors?.[i];
+        const isFirstTicket = i === 0;
         return (
           <fieldset key={field.id} className="rounded-xl border border-line bg-card p-5">
             <legend className="px-1 text-sm font-medium">
-              Ticket {i + 1} <span className="font-normal text-ink-3">· {labels[i]}</span>
+              Ticket {i + 1} <span className="font-normal text-ink-3">· {ticketLabels[i]}</span>
             </legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor={nameId} className="block text-sm text-ink-2">
-                  Full name
-                </label>
-                <input
-                  id={nameId}
-                  autoComplete={i === 0 ? "name" : "off"}
-                  aria-invalid={err?.name ? true : undefined}
-                  aria-describedby={err?.name ? `${nameId}-error` : undefined}
-                  {...form.register(`attendees.${i}.name`)}
-                  className="mt-1.5 h-11 w-full rounded-lg border border-line bg-paper px-3 text-base aria-[invalid=true]:border-bad"
-                />
-                {err?.name && (
-                  <p id={`${nameId}-error`} className="mt-1.5 text-sm text-bad">
-                    {err.name.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label htmlFor={emailId} className="block text-sm text-ink-2">
-                  Email <span className="text-ink-3">(the ticket is sent here)</span>
-                </label>
-                <input
-                  id={emailId}
-                  type="email"
-                  inputMode="email"
-                  spellCheck={false}
-                  autoComplete={i === 0 ? "email" : "off"}
-                  aria-invalid={err?.email ? true : undefined}
-                  aria-describedby={err?.email ? `${emailId}-error` : undefined}
-                  {...form.register(`attendees.${i}.email`)}
-                  className="mt-1.5 h-11 w-full rounded-lg border border-line bg-paper px-3 text-base aria-[invalid=true]:border-bad"
-                />
-                {err?.email && (
-                  <p id={`${emailId}-error`} className="mt-1.5 text-sm text-bad">
-                    {err.email.message}
-                  </p>
-                )}
-              </div>
+              <TextField
+                id={`attendee-${i}-name`}
+                label="Full name"
+                error={fieldErrors?.name?.message}
+                inputProps={{ autoComplete: isFirstTicket ? "name" : "off", ...form.register(`attendees.${i}.name`) }}
+              />
+              <TextField
+                id={`attendee-${i}-email`}
+                label="Email"
+                hint="the ticket is sent here"
+                error={fieldErrors?.email?.message}
+                inputProps={{
+                  type: "email",
+                  inputMode: "email",
+                  spellCheck: false,
+                  autoComplete: isFirstTicket ? "email" : "off",
+                  ...form.register(`attendees.${i}.email`),
+                }}
+              />
             </div>
           </fieldset>
         );
