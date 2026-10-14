@@ -1,11 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { fillAttendees, pay, reserve, ticketsHeading, toPayment } from "./helpers";
+import { expect, test } from "./fixtures";
 
-test("extras appear only for events that have them", async ({ page }) => {
+test("extras appear only for events that have them", async ({ page, buyer }) => {
   await page.goto("/");
-  await reserve(page, /Frontend Systems Summit/, "General", 1);
-  await fillAttendees(page, 1);
+  await buyer.reserve(/Frontend Systems Summit/, "General", 1);
+  await buyer.fillAttendees(1);
   await expect(page.getByRole("heading", { name: "Add extras" })).toBeVisible();
   await page.getByRole("button", { name: "More: Lunch pass" }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -13,9 +13,9 @@ test("extras appear only for events that have them", async ({ page }) => {
   await expect(page.getByText("1 × Lunch pass").first()).toBeVisible();
 });
 
-test("refresh mid-form keeps what you typed", async ({ page }) => {
+test("refresh mid-form keeps what you typed", async ({ page, buyer }) => {
   await page.goto("/");
-  await reserve(page, /Open Studio/, "Two-hour session", 2);
+  await buyer.reserve(/Open Studio/, "Two-hour session", 2);
   await page.getByLabel("Full name").first().fill("Asha Rao");
   await page
     .getByLabel(/^Email/)
@@ -26,26 +26,26 @@ test("refresh mid-form keeps what you typed", async ({ page }) => {
   await expect(page.getByLabel(/^Email/).first()).toHaveValue("asha@example.com");
 });
 
-test("you can't skip ahead: a deep link to payment lands on the first unfinished step", async ({ page }) => {
+test("you can't skip ahead: a deep link to payment lands on the first unfinished step", async ({ page, buyer }) => {
   await page.goto("/");
-  await reserve(page, /Open Studio/, "Two-hour session", 1);
+  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
   await expect(page).toHaveURL(/\/attendees$/);
   await page.goto(page.url().replace(/attendees$/, "payment"));
   await expect(page).toHaveURL(/\/attendees$/);
   await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
 });
 
-test("focus moves to the new step's heading", async ({ page }) => {
+test("focus moves to the new step's heading", async ({ page, buyer }) => {
   await page.goto("/");
-  await reserve(page, /Open Studio/, "Two-hour session", 1);
-  await fillAttendees(page, 1);
+  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
+  await buyer.fillAttendees(1);
   await expect(page.getByRole("heading", { name: "Review your order" })).toBeFocused();
 });
 
-test("an expired hold offers to reserve the same tickets again, keeping the draft", async ({ page }) => {
+test("an expired hold offers to reserve the same tickets again, keeping the draft", async ({ page, buyer }) => {
   await page.clock.install();
   await page.goto("/");
-  await reserve(page, /Open Studio/, "Two-hour session", 1);
+  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
   await page.getByLabel("Full name").fill("Asha Rao");
   await page.getByLabel(/^Email/).fill("asha@example.com");
   await page.clock.fastForward("05:01");
@@ -55,10 +55,10 @@ test("an expired hold offers to reserve the same tickets again, keeping the draf
   await expect(page.getByLabel("Full name")).toHaveValue("Asha Rao");
 });
 
-test("the countdown announces thresholds, not every second", async ({ page }) => {
+test("the countdown announces thresholds, not every second", async ({ page, buyer }) => {
   await page.clock.install();
   await page.goto("/");
-  await reserve(page, /Open Studio/, "Two-hour session", 1);
+  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
   await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible(); // the hold exists now
   const live = page.locator('[role="status"]').filter({ hasText: /left to complete your order/ });
   await page.clock.fastForward("03:01"); // 5:00 → 1:59
@@ -99,7 +99,7 @@ test.describe("accessibility", () => {
   }
 
   for (const scheme of ["light", "dark"] as const) {
-    test(`no axe violations across the purchase (${scheme})`, async ({ page }) => {
+    test(`no axe violations across the purchase (${scheme})`, async ({ page, buyer }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/");
       await expect(
@@ -132,8 +132,8 @@ test.describe("accessibility", () => {
       await expect(page.getByRole("heading", { name: "Payment", exact: true })).toBeVisible();
       expect(await scan(page), "payment").toEqual([]);
 
-      await pay(page);
-      await expect(ticketsHeading(page)).toBeVisible({ timeout: 10_000 });
+      await buyer.pay();
+      await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
       expect(await scan(page), "tickets").toEqual([]);
 
       await page.getByRole("button", { name: /^Chaos/ }).click();
@@ -143,23 +143,23 @@ test.describe("accessibility", () => {
   }
 });
 
-test("no horizontal scroll at 375px through checkout", async ({ page }) => {
+test("no horizontal scroll at 375px through checkout", async ({ page, buyer }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const noOverflow = async (where: string) =>
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), where).toBeLessThanOrEqual(0);
   await page.goto("/");
   await noOverflow("home");
-  await toPayment(page, 2);
+  await buyer.goToPayment(2);
   await noOverflow("payment");
-  await pay(page);
-  await expect(ticketsHeading(page)).toBeVisible({ timeout: 10_000 });
+  await buyer.pay();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
   await noOverflow("tickets");
 });
 
-test("reduced motion: the whole purchase still works", async ({ page }) => {
+test("reduced motion: the whole purchase still works", async ({ page, buyer }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await toPayment(page);
-  await pay(page);
-  await expect(ticketsHeading(page)).toBeVisible({ timeout: 10_000 });
+  await buyer.goToPayment();
+  await buyer.pay();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
 });
