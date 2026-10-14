@@ -14,7 +14,12 @@ import { Button, Notice, Stepper } from "./ui";
 export function TierPicker({ slug }: { slug: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: event, isPending, isError, refetch } = useQuery({
+  const {
+    data: event,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["event", slug],
     queryFn: () => api.getEvent(slug),
     refetchInterval: 5_000,
@@ -40,7 +45,11 @@ export function TierPicker({ slug }: { slug: string }) {
         const tierId = String(error.details.tierId ?? "");
         const left = Number(error.details.available ?? 0);
         setQty((q) => ({ ...q, [tierId]: Math.min(q[tierId] ?? 0, left) }));
-        setLostRace(left === 0 ? "Someone just got the last of those tickets." : `Someone got there first — only ${left} left now.`);
+        setLostRace(
+          left === 0
+            ? "Someone just got the last of those tickets."
+            : `Someone got there first — only ${left} left now.`,
+        );
         refetch();
       }
     },
@@ -83,7 +92,9 @@ export function TierPicker({ slug }: { slug: string }) {
                 <p className="text-sm text-ink-2">{tier.description}</p>
                 <p className="mt-1 text-sm">
                   <span className="tabular font-medium">{formatMoney(tier.priceCents)}</span>
-                  <span className={`ml-2 tabular text-xs ${tier.available === 0 ? "text-bad" : tier.available <= 5 ? "text-warn" : "text-ink-3"}`}>
+                  <span
+                    className={`tabular ml-2 text-xs ${tier.available === 0 ? "text-bad" : tier.available <= 5 ? "text-warn" : "text-ink-3"}`}
+                  >
                     {tier.available === 0 ? "Sold out" : `${tier.available} left`}
                   </span>
                 </p>
@@ -114,10 +125,15 @@ export function TierPicker({ slug }: { slug: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-ink-2" aria-live="polite">
             {total === 0 ? (
-              soldOut ? "This event is sold out." : `Choose up to ${MAX_TICKETS_PER_ORDER} tickets.`
+              soldOut ? (
+                "This event is sold out."
+              ) : (
+                `Choose up to ${MAX_TICKETS_PER_ORDER} tickets.`
+              )
             ) : (
               <>
-                {total} ticket{total === 1 ? "" : "s"} · <span className="tabular font-medium text-ink">{formatMoney(subtotal)}</span>
+                {total} ticket{total === 1 ? "" : "s"} ·{" "}
+                <span className="tabular font-medium text-ink">{formatMoney(subtotal)}</span>
               </>
             )}
           </p>

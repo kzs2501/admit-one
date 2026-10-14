@@ -17,7 +17,9 @@ describe("money", () => {
     // 3% of $0.50 = 1.5¢ → 2¢; 3% of $0.49 = 1.47¢ → 1¢
     const fake = { ...summit, tiers: [{ ...summit.tiers[0], id: "t", priceCents: 50 }], addOns: [] };
     expect(priceOrder(fake, [{ tierId: "t", qty: 1 }], {}).feesCents).toBe(2);
-    expect(priceOrder({ ...fake, tiers: [{ ...fake.tiers[0], priceCents: 49 }] }, [{ tierId: "t", qty: 1 }], {}).feesCents).toBe(1);
+    expect(
+      priceOrder({ ...fake, tiers: [{ ...fake.tiers[0], priceCents: 49 }] }, [{ tierId: "t", qty: 1 }], {}).feesCents,
+    ).toBe(1);
   });
 
   it("rejects tiers and add-ons from other events", () => {
@@ -27,9 +29,12 @@ describe("money", () => {
 
   it("formats and describes", () => {
     expect(formatMoney(34402)).toBe("$344.02");
-    expect(describeItems("frontend-systems-summit", [{ tierId: "fss-general", qty: 2 }, { tierId: "fss-workshop", qty: 1 }])).toBe(
-      "2 × General, 1 × Workshop + General",
-    );
+    expect(
+      describeItems("frontend-systems-summit", [
+        { tierId: "fss-general", qty: 2 },
+        { tierId: "fss-workshop", qty: 1 },
+      ]),
+    ).toBe("2 × General, 1 × Workshop + General");
   });
 });
 
@@ -43,7 +48,9 @@ describe("validation", () => {
   it("normalises spaces in card numbers and checks expiry and CVC", () => {
     const ok = cardSchema.safeParse({ number: "4242 4242 4242 4242", expiry: "08 / 29", cvc: "123", name: "Asha Rao" });
     expect(ok.success && ok.data.number).toBe("4242424242424242");
-    expect(cardSchema.safeParse({ number: "4242424242424242", expiry: "13/29", cvc: "1", name: "A" }).success).toBe(false);
+    expect(cardSchema.safeParse({ number: "4242424242424242", expiry: "13/29", cvc: "1", name: "A" }).success).toBe(
+      false,
+    );
   });
 
   it("requires exactly one valid attendee per ticket", () => {

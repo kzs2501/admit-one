@@ -101,7 +101,8 @@ export function OrderStatus({ orderId }: { orderId: string }) {
           <Spinner className="mx-auto size-8 text-accent" />
           <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight">Confirming your payment…</h1>
           <p className="mt-3 text-ink-2">
-            We’re waiting for your bank to confirm {formatMoney(order.amounts.totalCents)}. This page updates on its own.
+            We’re waiting for your bank to confirm {formatMoney(order.amounts.totalCents)}. This page updates on its
+            own.
           </p>
           {slow && (
             <p className="mx-auto mt-6 max-w-md rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink-2">
@@ -119,7 +120,11 @@ export function OrderStatus({ orderId }: { orderId: string }) {
       {order.status === "fulfilled" && (
         <>
           <p className="tabular text-xs tracking-[0.14em] text-ok uppercase">Payment confirmed</p>
-          <h1 ref={heading} tabIndex={-1} className="mt-2 font-display text-3xl font-semibold tracking-tight outline-none">
+          <h1
+            ref={heading}
+            tabIndex={-1}
+            className="mt-2 font-display text-3xl font-semibold tracking-tight outline-none"
+          >
             You’re going to {event.name}
           </h1>
           <p className="mt-2 text-ink-2">

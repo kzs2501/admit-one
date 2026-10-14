@@ -19,11 +19,23 @@ afterAll(() => network.close());
 
 const base = "http://admit-one.test";
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
-  fetch(base + path, { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json", ...headers } });
+  fetch(base + path, {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", ...headers },
+  });
 
 async function reserveAndOrder() {
-  const hold = await (await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] })).json();
-  const order = await (await post("/api/orders", { holdId: hold.hold.id, attendees: [{ name: "Asha Rao", email: "asha@example.com" }], addOns: {} })).json();
+  const hold = await (
+    await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] })
+  ).json();
+  const order = await (
+    await post("/api/orders", {
+      holdId: hold.hold.id,
+      attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
+      addOns: {},
+    })
+  ).json();
   return { hold, order };
 }
 
@@ -38,7 +50,10 @@ describe("HTTP contract", () => {
   });
 
   it("returns 201 for a new hold, with the server's clock", async () => {
-    const res = await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 2 }] });
+    const res = await post("/api/holds", {
+      eventSlug: "open-studio-ceramics",
+      items: [{ tierId: "osc-session", qty: 2 }],
+    });
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.hold.status).toBe("active");
@@ -46,7 +61,10 @@ describe("HTTP contract", () => {
   });
 
   it("returns 409 with a machine-readable code when sold out", async () => {
-    const res = await post("/api/holds", { eventSlug: "night-market-jazz", items: [{ tierId: "nmj-standing", qty: 3 }] });
+    const res = await post("/api/holds", {
+      eventSlug: "night-market-jazz",
+      items: [{ tierId: "nmj-standing", qty: 3 }],
+    });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: { code: "sold_out", details: { available: 2 } } });
   });
@@ -74,7 +92,11 @@ describe("HTTP contract", () => {
 
   it("returns 402 for a declined card", async () => {
     const { order } = await reserveAndOrder();
-    const res = await post(`/api/orders/${order.id}/payments`, { ...card, number: "4000000000000002" }, { "Idempotency-Key": "d" });
+    const res = await post(
+      `/api/orders/${order.id}/payments`,
+      { ...card, number: "4000000000000002" },
+      { "Idempotency-Key": "d" },
+    );
     expect(res.status).toBe(402);
     expect((await res.json()).error.code).toBe("card_declined");
   });

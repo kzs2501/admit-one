@@ -6,7 +6,15 @@ import { formatEventDate, formatEventTime } from "@/lib/format";
  * The running order summary. It's priced with the same function the server uses
  * (`priceOrder`), so the total shown here is the total that gets charged.
  */
-export function OrderSummary({ event, items, addOns }: { event: EventView; items: LineItem[]; addOns: Record<string, number> }) {
+export function OrderSummary({
+  event,
+  items,
+  addOns,
+}: {
+  event: EventView;
+  items: LineItem[];
+  addOns: Record<string, number>;
+}) {
   const amounts = priceOrder(event, items, Object.fromEntries(Object.entries(addOns).filter(([, q]) => q > 0)));
   const rows = [
     ...items.map(({ tierId, qty }) => {

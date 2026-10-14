@@ -18,17 +18,17 @@ browser, so your sandbox is yours alone.
 Open the **Chaos** panel (top right), pick a scenario, then buy a ticket. Each scenario
 is also an end-to-end test that checks both what you see and what the server recorded.
 
-| Scenario | What happens | What a correct checkout does |
-|---|---|---|
-| Happy path | Realistic latency | Confirming… for a moment, then tickets |
-| Declined card | The bank says no | Inline error, details kept, retry with another card |
-| 3-D Secure | The bank wants authentication | A challenge dialog; it survives a page refresh |
-| Slow network | Every request takes ~3 s | Loading states; a double-click reserves once and pays once |
-| Webhook arrives twice | At-least-once delivery | One set of tickets; the duplicate is logged and ignored |
-| Webhook before redirect | The provider beats your browser | The order page opens already confirmed |
-| Webhook delayed | 12 s before confirmation | Polling that backs off, then a reassuring note |
-| Hold expires mid-payment | Payment lands after the hold is gone | A full refund, explained in plain words |
-| Crowd buys the last ticket | Someone else gets there first | "Just missed it", live availability, never oversold |
+| Scenario                   | What happens                         | What a correct checkout does                               |
+| -------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| Happy path                 | Realistic latency                    | Confirming… for a moment, then tickets                     |
+| Declined card              | The bank says no                     | Inline error, details kept, retry with another card        |
+| 3-D Secure                 | The bank wants authentication        | A challenge dialog; it survives a page refresh             |
+| Slow network               | Every request takes ~3 s             | Loading states; a double-click reserves once and pays once |
+| Webhook arrives twice      | At-least-once delivery               | One set of tickets; the duplicate is logged and ignored    |
+| Webhook before redirect    | The provider beats your browser      | The order page opens already confirmed                     |
+| Webhook delayed            | 12 s before confirmation             | Polling that backs off, then a reassuring note             |
+| Hold expires mid-payment   | Payment lands after the hold is gone | A full refund, explained in plain words                    |
+| Crowd buys the last ticket | Someone else gets there first        | "Just missed it", live availability, never oversold        |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 `4000 0025 0000 3155` asks for 3-D Secure.
@@ -38,7 +38,7 @@ Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 ### 1. Holds that can't oversell — and expire without a timer
 
 Choosing tickets creates a hold with an `expiresAt`. Availability is
-`capacity − sold − tickets in live holds`, where *live* means `now < expiresAt`.
+`capacity − sold − tickets in live holds`, where _live_ means `now < expiresAt`.
 Expiry is **lazy**: an expired hold simply stops counting. There's no sweeper job, so
 there's no window where a dead hold still blocks a buyer, and reads never write.
 ([decision](docs/decisions/002-holds-and-lazy-expiry.md))
@@ -56,7 +56,7 @@ counts as done if the server's order matches what you typed.
 
 Paying returns `202 processing` — never "paid". The browser goes to the order page,
 which polls with backoff until the provider's webhook settles the order. Payments carry
-an `Idempotency-Key` minted per *attempt* (a retry after a network error reuses it, so
+an `Idempotency-Key` minted per _attempt_ (a retry after a network error reuses it, so
 it can never charge twice); webhooks are deduplicated by event id.
 ([decision](docs/decisions/004-payments-and-webhooks.md))
 
@@ -118,11 +118,11 @@ backend means replacing `src/mocks/`, not the app.
 
 ## Quality
 
-| Check | Coverage |
-|---|---|
-| `npm test` | 71 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency (including when a retry needs a new key), webhook dedupe, persistence across reloads, the step registry, countdown maths, form validation |
-| `npm run test:e2e` | 22 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
-| `npm run lhci` | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100 |
+| Check              | Coverage                                                                                                                                                                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`         | 71 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency (including when a retry needs a new key), webhook dedupe, persistence across reloads, the step registry, countdown maths, form validation |
+| `npm run test:e2e` | 22 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion                                         |
+| `npm run lhci`     | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                               |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to

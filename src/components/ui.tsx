@@ -20,7 +20,7 @@ export function Button({
       {...props}
       aria-busy={busy || undefined}
       disabled={props.disabled || busy}
-      className={`press inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium disabled:cursor-not-allowed ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-11 press items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium disabled:cursor-not-allowed ${variants[variant]} ${className}`}
     >
       {/* The label stays visible while busy, so the button never changes width or meaning. */}
       {busy && <Spinner className="size-4" />}
@@ -48,7 +48,17 @@ const tones: Record<Tone, string> = {
   bad: "border-bad/30 bg-bad-soft text-ink",
 };
 
-export function Notice({ tone = "info", title, children, role }: { tone?: Tone; title?: string; children?: ReactNode; role?: "alert" | "status" }) {
+export function Notice({
+  tone = "info",
+  title,
+  children,
+  role,
+}: {
+  tone?: Tone;
+  title?: string;
+  children?: ReactNode;
+  role?: "alert" | "status";
+}) {
   return (
     <div role={role} className={`rounded-lg border px-4 py-3 text-sm ${tones[tone]}`}>
       {title && <p className="font-medium">{title}</p>}
@@ -81,13 +91,25 @@ export function Stepper({
     "press grid size-11 place-items-center rounded-lg border border-line bg-card text-lg text-ink hover:bg-sunk disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div role="group" aria-label={label} className="inline-flex items-center gap-1.5">
-      <button type="button" className={btn} aria-label={`Fewer: ${label}`} disabled={disabled || value <= min} onClick={() => onChange(value - 1)}>
+      <button
+        type="button"
+        className={btn}
+        aria-label={`Fewer: ${label}`}
+        disabled={disabled || value <= min}
+        onClick={() => onChange(value - 1)}
+      >
         −
       </button>
       <output aria-live="polite" className="tabular w-8 text-center text-base">
         {value}
       </output>
-      <button type="button" className={btn} aria-label={`More: ${label}`} disabled={disabled || value >= max} onClick={() => onChange(value + 1)}>
+      <button
+        type="button"
+        className={btn}
+        aria-label={`More: ${label}`}
+        disabled={disabled || value >= max}
+        onClick={() => onChange(value + 1)}
+      >
         +
       </button>
     </div>

@@ -16,7 +16,10 @@ function setup(preset: PresetId = "happy") {
       t += ms;
     },
   };
-  const server = createServer({ now: clock.now, newId: (p) => `${p}_${++n}`, random: () => 0.42 }, initialState(preset));
+  const server = createServer(
+    { now: clock.now, newId: (p) => `${p}_${++n}`, random: () => 0.42 },
+    initialState(preset),
+  );
   return { server, clock };
 }
 
@@ -26,10 +29,16 @@ function value<T>(r: Result<T>): T {
 }
 
 const card = (number: string = TEST_CARDS.success) => ({ number, expiry: "12 / 30", cvc: "123", name: "Asha Rao" });
-const attendees = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Guest ${i + 1}`, email: `guest${i + 1}@example.com` }));
+const attendees = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({ name: `Guest ${i + 1}`, email: `guest${i + 1}@example.com` }));
 
 /** Reserve → order → pay, ending with a processing payment. */
-function checkout(server: ReturnType<typeof setup>["server"], qty = 2, slug = "open-studio-ceramics", tierId = "osc-session") {
+function checkout(
+  server: ReturnType<typeof setup>["server"],
+  qty = 2,
+  slug = "open-studio-ceramics",
+  tierId = "osc-session",
+) {
   const { hold } = value(server.createHold({ eventSlug: slug, items: [{ tierId, qty }] }));
   const order = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(qty), addOns: {} }));
   const paid = server.createPayment(order.id, card(), `key-${hold.id}`);
@@ -71,10 +80,20 @@ describe("inventory", () => {
 
   it("validates requests", () => {
     const { server } = setup();
-    expect(server.createHold({ eventSlug: "open-studio-ceramics", items: [] })).toMatchObject({ ok: false, error: { status: 422 } });
-    expect(server.createHold({ eventSlug: "nope", items: [{ tierId: "osc-session", qty: 1 }] })).toMatchObject({ ok: false, error: { status: 404 } });
-    expect(server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "nmj-standing", qty: 1 }] })).toMatchObject({ ok: false, error: { status: 422 } });
-    expect(server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 7 }] })).toMatchObject({ ok: false, error: { status: 422 } });
+    expect(server.createHold({ eventSlug: "open-studio-ceramics", items: [] })).toMatchObject({
+      ok: false,
+      error: { status: 422 },
+    });
+    expect(server.createHold({ eventSlug: "nope", items: [{ tierId: "osc-session", qty: 1 }] })).toMatchObject({
+      ok: false,
+      error: { status: 404 },
+    });
+    expect(
+      server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "nmj-standing", qty: 1 }] }),
+    ).toMatchObject({ ok: false, error: { status: 422 } });
+    expect(
+      server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 7 }] }),
+    ).toMatchObject({ ok: false, error: { status: 422 } });
   });
 
   it("with the crowd on, nearly-sold-out tickets go to someone else first", () => {
@@ -98,7 +117,9 @@ describe("inventory", () => {
 describe("orders", () => {
   it("creates one order per hold and updates it on resubmit", () => {
     const { server } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 2 }] }));
+    const { hold } = value(
+      server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 2 }] }),
+    );
     const a = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: {} }));
     const b = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: { "fss-lunch": 2 } }));
     expect(b.id).toBe(a.id);
@@ -107,15 +128,28 @@ describe("orders", () => {
 
   it("requires one attendee per ticket, and known add-ons", () => {
     const { server } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 2 }] }));
-    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} })).toMatchObject({ ok: false, error: { status: 422 } });
-    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: { "fss-lunch": 3 } })).toMatchObject({ ok: false, error: { status: 422 } });
-    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: { nope: 1 } })).toMatchObject({ ok: false, error: { status: 422 } });
+    const { hold } = value(
+      server.createHold({ eventSlug: "frontend-systems-summit", items: [{ tierId: "fss-general", qty: 2 }] }),
+    );
+    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} })).toMatchObject({
+      ok: false,
+      error: { status: 422 },
+    });
+    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: { "fss-lunch": 3 } })).toMatchObject({
+      ok: false,
+      error: { status: 422 },
+    });
+    expect(server.upsertOrder({ holdId: hold.id, attendees: attendees(2), addOns: { nope: 1 } })).toMatchObject({
+      ok: false,
+      error: { status: 422 },
+    });
   });
 
   it("derives expiry on read without writing, and rejects writes once expired", () => {
     const { server, clock } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }));
+    const { hold } = value(
+      server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }),
+    );
     const order = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} }));
     clock.advance(DEFAULT_CHAOS.holdSeconds * 1000);
     expect(value(server.getOrder(order.id)).status).toBe("expired");
@@ -127,10 +161,19 @@ describe("orders", () => {
 
 describe("order state machine", () => {
   const all: OrderStatus[] = ["pending", "paid", "fulfilled", "failed", "expired", "refunded"];
-  const legal = new Set(["pending>paid", "pending>failed", "pending>expired", "failed>pending", "failed>expired", "paid>fulfilled", "paid>refunded"]);
+  const legal = new Set([
+    "pending>paid",
+    "pending>failed",
+    "pending>expired",
+    "failed>pending",
+    "failed>expired",
+    "paid>fulfilled",
+    "paid>refunded",
+  ]);
 
   it("allows exactly the documented transitions", () => {
-    for (const from of all) for (const to of all) expect(canTransition(from, to), `${from} → ${to}`).toBe(legal.has(`${from}>${to}`));
+    for (const from of all)
+      for (const to of all) expect(canTransition(from, to), `${from} → ${to}`).toBe(legal.has(`${from}>${to}`));
   });
 
   it("treats fulfilled, refunded and expired as terminal", () => {
@@ -166,14 +209,22 @@ describe("payments", () => {
   it("blocks a second payment while one is in flight (double submit with new keys)", () => {
     const { server } = setup();
     const { order } = checkout(server);
-    expect(server.createPayment(order.id, card(), "another-key")).toMatchObject({ ok: false, error: { code: "payment_in_progress" } });
+    expect(server.createPayment(order.id, card(), "another-key")).toMatchObject({
+      ok: false,
+      error: { code: "payment_in_progress" },
+    });
   });
 
   it("declines synchronously, fails the order, and allows a retry", () => {
     const { server, clock } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }));
+    const { hold } = value(
+      server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }),
+    );
     const order = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} }));
-    expect(server.createPayment(order.id, card(TEST_CARDS.decline), "k1")).toMatchObject({ ok: false, error: { status: 402, code: "card_declined" } });
+    expect(server.createPayment(order.id, card(TEST_CARDS.decline), "k1")).toMatchObject({
+      ok: false,
+      error: { status: 402, code: "card_declined" },
+    });
     expect(value(server.getOrder(order.id)).status).toBe("failed");
     expect(server.createPayment(order.id, card(), "k2").ok).toBe(true);
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
@@ -183,18 +234,28 @@ describe("payments", () => {
 
   it("rejects invalid card numbers before charging", () => {
     const { server } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }));
+    const { hold } = value(
+      server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }),
+    );
     const order = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} }));
-    expect(server.createPayment(order.id, card("4242424242424241"), "k1")).toMatchObject({ ok: false, error: { status: 422, code: "invalid_card" } });
+    expect(server.createPayment(order.id, card("4242424242424241"), "k1")).toMatchObject({
+      ok: false,
+      error: { status: 422, code: "invalid_card" },
+    });
   });
 
   it("handles the 3-D Secure challenge both ways", () => {
     const { server, clock } = setup();
-    const { hold } = value(server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }));
+    const { hold } = value(
+      server.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] }),
+    );
     const order = value(server.upsertOrder({ holdId: hold.id, attendees: attendees(1), addOns: {} }));
     const first = value(server.createPayment(order.id, card(TEST_CARDS.challenge), "k1"));
     expect(first.payment.status).toBe("requires_action");
-    expect(server.confirmChallenge(first.payment.id, false)).toMatchObject({ ok: false, error: { code: "authentication_failed" } });
+    expect(server.confirmChallenge(first.payment.id, false)).toMatchObject({
+      ok: false,
+      error: { code: "authentication_failed" },
+    });
     expect(value(server.getOrder(order.id)).status).toBe("failed");
 
     const second = value(server.createPayment(order.id, card(TEST_CARDS.challenge), "k2"));
@@ -249,7 +310,9 @@ describe("webhooks", () => {
   it("refunds a payment that lands after the hold expired", () => {
     const { server, clock } = setup("hold-expires");
     const { hold, order } = checkout(server, 1);
-    expect(server.getState().holds[hold.id].expiresAt).toBe(server.getState().payments[server.getState().orders[order.id].paymentId!].createdAt + LAST_SECONDS_MS);
+    expect(server.getState().holds[hold.id].expiresAt).toBe(
+      server.getState().payments[server.getState().orders[order.id].paymentId!].createdAt + LAST_SECONDS_MS,
+    );
     clock.advance(LAST_SECONDS_MS);
     expect(value(server.getOrder(order.id)).status).toBe("pending"); // payment in flight protects it
     clock.advance(6000);
@@ -267,7 +330,13 @@ describe("webhooks", () => {
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
     server.deliverDue();
     const st = server.getState();
-    st.outbox.push({ deliveryId: "x", eventId: "evt_new", type: "payment.succeeded", paymentId: st.orders[order.id].paymentId!, deliverAt: clock.now() });
+    st.outbox.push({
+      deliveryId: "x",
+      eventId: "evt_new",
+      type: "payment.succeeded",
+      paymentId: st.orders[order.id].paymentId!,
+      deliverAt: clock.now(),
+    });
     expect(() => server.deliverDue()).not.toThrow();
     expect(value(server.getOrder(order.id)).status).toBe("fulfilled");
   });

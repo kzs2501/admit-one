@@ -17,7 +17,10 @@ test("refresh mid-form keeps what you typed", async ({ page }) => {
   await page.goto("/");
   await reserve(page, /Open Studio/, "Two-hour session", 2);
   await page.getByLabel("Full name").first().fill("Asha Rao");
-  await page.getByLabel(/^Email/).first().fill("asha@example.com");
+  await page
+    .getByLabel(/^Email/)
+    .first()
+    .fill("asha@example.com");
   await page.reload();
   await expect(page.getByLabel("Full name").first()).toHaveValue("Asha Rao");
   await expect(page.getByLabel(/^Email/).first()).toHaveValue("asha@example.com");
@@ -77,7 +80,12 @@ test.describe("accessibility", () => {
     test(`no axe violations across the purchase (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/");
-      await expect(page.getByRole("main").getByText(/\d+ left|Sold out/).first()).toBeVisible();
+      await expect(
+        page
+          .getByRole("main")
+          .getByText(/\d+ left|Sold out/)
+          .first(),
+      ).toBeVisible();
       expect(await scan(page), "home").toEqual([]);
 
       await page.getByRole("link", { name: /Frontend Systems Summit/ }).click();

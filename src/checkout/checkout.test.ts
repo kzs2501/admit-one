@@ -19,7 +19,8 @@ const hold = (slug: string, tierId: string, qty: number): HoldView => ({
   status: "active",
   orderId: null,
 });
-const people = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Guest ${i + 1}`, email: `g${i + 1}@example.com` }));
+const people = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({ name: `Guest ${i + 1}`, email: `g${i + 1}@example.com` }));
 const order = (draft: Draft, status: OrderView["status"] = "pending"): OrderView => ({
   id: "ord_1",
   holdId: "hold_1",
@@ -51,7 +52,12 @@ const studio = (draft: Draft): StepContext => ({
 
 describe("step registry", () => {
   it("includes extras only for events that have them", () => {
-    expect(applicableSteps(summit(emptyDraft())).map((s) => s.id)).toEqual(["attendees", "add-ons", "review", "payment"]);
+    expect(applicableSteps(summit(emptyDraft())).map((s) => s.id)).toEqual([
+      "attendees",
+      "add-ons",
+      "review",
+      "payment",
+    ]);
     expect(applicableSteps(studio(emptyDraft())).map((s) => s.id)).toEqual(["attendees", "review", "payment"]);
   });
 
@@ -61,7 +67,10 @@ describe("step registry", () => {
   });
 
   it("sends an inapplicable or unknown step to the first incomplete one", () => {
-    expect(resolveStep("add-ons", studio({ ...emptyDraft(), attendees: people(1) }))).toMatchObject({ redirect: true, step: { id: "review" } });
+    expect(resolveStep("add-ons", studio({ ...emptyDraft(), attendees: people(1) }))).toMatchObject({
+      redirect: true,
+      step: { id: "review" },
+    });
     expect(resolveStep("nonsense", summit(emptyDraft()))).toMatchObject({ redirect: true, step: { id: "attendees" } });
   });
 
@@ -73,9 +82,15 @@ describe("step registry", () => {
 
   it("requires a matching order before payment — editing attendees sends you back to review", () => {
     const draft = { ...emptyDraft(), attendees: people(2), addOnsConfirmed: true };
-    expect(resolveStep("payment", summit(draft, order(draft)))).toMatchObject({ redirect: false, step: { id: "payment" } });
+    expect(resolveStep("payment", summit(draft, order(draft)))).toMatchObject({
+      redirect: false,
+      step: { id: "payment" },
+    });
     const edited = { ...draft, attendees: [{ name: "Someone Else", email: "x@example.com" }, draft.attendees[1]] };
-    expect(resolveStep("payment", summit(edited, order(draft)))).toMatchObject({ redirect: true, step: { id: "review" } });
+    expect(resolveStep("payment", summit(edited, order(draft)))).toMatchObject({
+      redirect: true,
+      step: { id: "review" },
+    });
   });
 
   it("treats a settled order as not resumable", () => {

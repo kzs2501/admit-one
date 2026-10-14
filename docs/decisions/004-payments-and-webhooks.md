@@ -5,6 +5,7 @@ order page, which polls until the provider's webhook has settled the order. Paym
 carry an `Idempotency-Key`; webhooks are deduplicated by event id.
 
 **Why.**
+
 - The redirect after payment can be slow, lost, refreshed or replayed. The webhook is
   what the provider guarantees (at least once). Treating the redirect as proof is how
   checkouts ship "paid but no tickets" and "tickets but not paid" bugs.
@@ -13,9 +14,10 @@ carry an `Idempotency-Key`; webhooks are deduplicated by event id.
   that are already settled.
 
 **Idempotency, two ways.**
-- *Orders* have a natural key — one order per hold — so `POST /api/orders` is an upsert
+
+- _Orders_ have a natural key — one order per hold — so `POST /api/orders` is an upsert
   and needs no header.
-- *Payments* have no natural key, so the client sends one. It's minted per *attempt*:
+- _Payments_ have no natural key, so the client sends one. It's minted per _attempt_:
   a retry after a network error reuses it (safe, never a second charge), and only a
   definitive answer — declined, authentication failed — starts a new attempt. A reused
   key with a different body is rejected, as Stripe does.

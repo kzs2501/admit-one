@@ -23,8 +23,14 @@ export async function reserve(page: Page, eventName: RegExp, tierName: string, q
 export async function fillAttendees(page: Page, count: number) {
   await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
   for (let i = 0; i < count; i++) {
-    await page.getByLabel("Full name").nth(i).fill(`Guest ${i + 1}`);
-    await page.getByLabel(/^Email/).nth(i).fill(`guest${i + 1}@example.com`);
+    await page
+      .getByLabel("Full name")
+      .nth(i)
+      .fill(`Guest ${i + 1}`);
+    await page
+      .getByLabel(/^Email/)
+      .nth(i)
+      .fill(`guest${i + 1}@example.com`);
   }
   await page.getByRole("button", { name: "Continue" }).click();
 }

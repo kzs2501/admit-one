@@ -67,7 +67,10 @@ test("slow network: a double click reserves once and pays once", async ({ page }
   const reserveButton = page.getByRole("button", { name: "Reserve tickets" });
   await reserveButton.click();
   await expect(page.getByRole("button", { name: "Reserving…" })).toBeDisabled();
-  await page.getByRole("button", { name: "Reserving…" }).click({ force: true }).catch(() => {});
+  await page
+    .getByRole("button", { name: "Reserving…" })
+    .click({ force: true })
+    .catch(() => {});
   await fillAttendees(page, 1);
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("button", { name: /Succeeds/ }).click({ timeout: 15_000 });
@@ -86,7 +89,9 @@ test("webhook arrives twice: one set of tickets, duplicate logged and ignored", 
   await expect(ticketsHeading(page)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("list", { name: "Your tickets" }).getByRole("listitem")).toHaveCount(2);
 
-  await expect.poll(async () => (await serverState(page)).log.some((l) => /already processed, ignored/.test(l.message))).toBe(true);
+  await expect
+    .poll(async () => (await serverState(page)).log.some((l) => /already processed, ignored/.test(l.message)))
+    .toBe(true);
   expect((await serverState(page)).sold["osc-session"]).toBe(2);
 });
 

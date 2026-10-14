@@ -9,7 +9,9 @@ function strings(value: unknown, path: string): [string, string][] {
   if (typeof value === "string") return [[path, value]];
   if (Array.isArray(value)) return value.flatMap((v, i) => strings(v, `${path}[${i}]`));
   if (value && typeof value === "object") {
-    return Object.entries(value).flatMap(([k, v]) => (["slug", "id", "startsAt"].includes(k) ? [] : strings(v, `${path}.${k}`)));
+    return Object.entries(value).flatMap(([k, v]) =>
+      ["slug", "id", "startsAt"].includes(k) ? [] : strings(v, `${path}.${k}`),
+    );
   }
   return [];
 }
@@ -22,7 +24,10 @@ const validationMessages = [
 describe("visible copy", () => {
   const all = [
     ...strings(catalog, "catalog"),
-    ...strings(presets.map(({ label, description, expectation }) => ({ label, description, expectation })), "presets"),
+    ...strings(
+      presets.map(({ label, description, expectation }) => ({ label, description, expectation })),
+      "presets",
+    ),
     ...validationMessages.map((m, i) => [`validation[${i}]`, m] as [string, string]),
   ];
 

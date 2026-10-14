@@ -34,7 +34,9 @@ export function orderMatchesDraft(ctx: StepContext): boolean {
   if (!order || (order.status !== "pending" && order.status !== "failed")) return false;
   const sameAttendees =
     order.attendees.length === draft.attendees.length &&
-    order.attendees.every((a, i) => a.name === draft.attendees[i]?.name.trim() && a.email === draft.attendees[i]?.email.trim());
+    order.attendees.every(
+      (a, i) => a.name === draft.attendees[i]?.name.trim() && a.email === draft.attendees[i]?.email.trim(),
+    );
   const wanted = Object.fromEntries(Object.entries(draft.addOns).filter(([, q]) => q > 0));
   const sameAddOns =
     Object.keys(wanted).length === Object.keys(order.addOns).length &&

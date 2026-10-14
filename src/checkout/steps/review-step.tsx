@@ -16,12 +16,18 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
   const save = useMutation({
     mutationFn: () => api.upsertOrder(holdId, draft.attendees, draft.addOns),
     onSuccess: (order) => {
-      queryClient.setQueryData<HoldResponse>(["hold", holdId], (old) => (old ? { ...old, order, hold: { ...old.hold, orderId: order.id } } : old));
+      queryClient.setQueryData<HoldResponse>(["hold", holdId], (old) =>
+        old ? { ...old, order, hold: { ...old.hold, orderId: order.id } } : old,
+      );
       goNext();
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 410) onExpired();
-      if (error instanceof ApiError && (error.code === "payment_in_progress" || error.code === "already_completed") && ctx.order) {
+      if (
+        error instanceof ApiError &&
+        (error.code === "payment_in_progress" || error.code === "already_completed") &&
+        ctx.order
+      ) {
         router.push(`/orders/${ctx.order.id}`);
       }
     },

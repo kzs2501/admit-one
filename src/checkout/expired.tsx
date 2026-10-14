@@ -56,7 +56,7 @@ export function ExpiredPanel({ hold, step }: { hold: HoldView; step: StepId }) {
           </Button>
           <Link
             href={`/events/${hold.eventSlug}`}
-            className="press inline-flex min-h-11 items-center rounded-lg border border-line bg-card px-5 text-sm font-medium hover:bg-sunk"
+            className="inline-flex min-h-11 press items-center rounded-lg border border-line bg-card px-5 text-sm font-medium hover:bg-sunk"
           >
             Back to the event
           </Link>

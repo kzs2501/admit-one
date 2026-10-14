@@ -148,7 +148,11 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
         className="space-y-4 rounded-xl border border-line bg-card p-5"
       >
         {field("name", "Name on card", { autoComplete: "cc-name" })}
-        {field("number", "Card number", { autoComplete: "cc-number", inputMode: "numeric", placeholder: "4242 4242 4242 4242" })}
+        {field("number", "Card number", {
+          autoComplete: "cc-number",
+          inputMode: "numeric",
+          placeholder: "4242 4242 4242 4242",
+        })}
         <div className="grid grid-cols-2 gap-4">
           {field("expiry", "Expiry", { autoComplete: "cc-exp", inputMode: "numeric", placeholder: "MM / YY" })}
           {field("cvc", "Security code", { autoComplete: "cc-csc", inputMode: "numeric", placeholder: "123" })}
@@ -193,8 +197,8 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
           Confirm it’s you
         </h2>
         <p className="mt-2 text-sm text-ink-2">
-          Your bank wants to check this {formatMoney(order.amounts.totalCents)} payment. (Simulated 3-D Secure —
-          choose an outcome.)
+          Your bank wants to check this {formatMoney(order.amounts.totalCents)} payment. (Simulated 3-D Secure — choose
+          an outcome.)
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={() => authenticate.mutate(false)} disabled={authenticate.isPending}>

@@ -5,12 +5,14 @@ backed by a plain-TypeScript server module (`src/server/`). The app talks to `/a
 with ordinary `fetch` and can't tell the difference.
 
 **Why.**
+
 - Anyone can run the demo with zero setup: no database, no keys, no accounts, no cost.
 - Every visitor gets an isolated sandbox, so nobody's chaos affects anyone else.
 - The chaos panel needs to control the server. Owning the server makes that honest
   rather than hacked in.
 
 **Consequences.**
+
 - MSW runs handlers in the page, so the server's memory is the page's memory. State is
   persisted to sessionStorage, including the webhook outbox, so a reload resumes.
 - True multi-client concurrency isn't exercised. In a real database the

@@ -11,7 +11,15 @@ import { clockOffset } from "./countdown";
 import { useDraft } from "./draft";
 import { ExpiredPanel } from "./expired";
 import { HoldTimer } from "./hold-timer";
-import { applicableSteps, nextStep, previousStep, resolveStep, stepHref, type StepId, type StepContext } from "./registry";
+import {
+  applicableSteps,
+  nextStep,
+  previousStep,
+  resolveStep,
+  stepHref,
+  type StepId,
+  type StepContext,
+} from "./registry";
 import { OrderSummary } from "./summary";
 import { AddOnsStep } from "./steps/add-ons-step";
 import { AttendeesStep } from "./steps/attendees-step";
@@ -44,9 +52,11 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
   const data = query.data;
   const offset = data ? clockOffset(data.serverNow, query.dataUpdatedAt) : 0;
 
-  const ctx: StepContext | null = data && mounted ? { event: data.event, hold: data.hold, draft, order: data.order } : null;
+  const ctx: StepContext | null =
+    data && mounted ? { event: data.event, hold: data.hold, draft, order: data.order } : null;
   const paymentInFlight = data?.order?.payment?.status === "processing";
-  const settled = data && (data.hold.status === "converted" || ["paid", "fulfilled", "refunded"].includes(data.order?.status ?? ""));
+  const settled =
+    data && (data.hold.status === "converted" || ["paid", "fulfilled", "refunded"].includes(data.order?.status ?? ""));
   const expired = data && !paymentInFlight && !settled && (expiredLocally || data.hold.status === "expired");
   const resolved = ctx ? resolveStep(step, ctx) : null;
 
@@ -57,7 +67,8 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
 
   // Keep the URL honest: if this step isn't allowed yet, go to the one that is.
   useEffect(() => {
-    if (resolved?.redirect && !expired && !settled && !paymentInFlight) router.replace(stepHref(holdId, resolved.step.id));
+    if (resolved?.redirect && !expired && !settled && !paymentInFlight)
+      router.replace(stepHref(holdId, resolved.step.id));
   }, [resolved, expired, settled, paymentInFlight, holdId, router]);
 
   // Move focus to the new step's heading, so keyboard and screen-reader users land
@@ -78,7 +89,11 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
     const missing = query.error instanceof ApiError && query.error.status === 404;
     return (
       <div className="mx-auto max-w-lg px-5 py-16 sm:px-8">
-        <Notice tone="bad" title={missing ? "We can’t find that reservation" : "Couldn’t load your checkout"} role="alert">
+        <Notice
+          tone="bad"
+          title={missing ? "We can’t find that reservation" : "Couldn’t load your checkout"}
+          role="alert"
+        >
           {missing
             ? "It may belong to another browser tab, or the sandbox was reset."
             : "Check your connection and try again."}{" "}
@@ -113,13 +128,23 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             {flow.map((s, i) => (
               <li key={s.id} className="flex items-center gap-2">
-                {i > 0 && <span aria-hidden="true" className="text-ink-3">›</span>}
+                {i > 0 && (
+                  <span aria-hidden="true" className="text-ink-3">
+                    ›
+                  </span>
+                )}
                 {i < index ? (
-                  <Link href={stepHref(holdId, s.id)} className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
+                  <Link
+                    href={stepHref(holdId, s.id)}
+                    className="text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                  >
                     {s.label}
                   </Link>
                 ) : (
-                  <span aria-current={i === index ? "step" : undefined} className={i === index ? "font-medium" : "text-ink-3"}>
+                  <span
+                    aria-current={i === index ? "step" : undefined}
+                    className={i === index ? "font-medium" : "text-ink-3"}
+                  >
                     {s.label}
                   </span>
                 )}
@@ -135,7 +160,12 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
           <p className="tabular text-xs tracking-[0.14em] text-ink-3 uppercase">
             Step {index + 1} of {flow.length}
           </p>
-          <h1 ref={heading} id="step-title" tabIndex={-1} className="mt-1 mb-6 font-display text-3xl font-semibold tracking-tight outline-none">
+          <h1
+            ref={heading}
+            id="step-title"
+            tabIndex={-1}
+            className="mt-1 mb-6 font-display text-3xl font-semibold tracking-tight outline-none"
+          >
             {resolved.step.title}
           </h1>
           <Step

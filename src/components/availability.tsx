@@ -16,7 +16,9 @@ export function AvailabilityBadge({ slug }: { slug: string }) {
   const tone =
     left === 0 ? "bg-bad-soft text-bad" : left / capacity <= 0.1 ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok";
   return (
-    <span className={`tabular inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap ${tone}`}>
+    <span
+      className={`tabular inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap ${tone}`}
+    >
       {left === 0 ? "Sold out" : left <= 5 ? `Only ${left} left` : `${left} left`}
     </span>
   );

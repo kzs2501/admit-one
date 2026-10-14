@@ -23,7 +23,10 @@ export function createHandlers(server: Server, { sleep, random }: Options) {
     server.log("request", `${method} ${path} → ${status}`);
     return result.ok
       ? HttpResponse.json(result.value as object, { status })
-      : HttpResponse.json({ error: { code: result.error.code, message: result.error.message, details: result.error.details } }, { status });
+      : HttpResponse.json(
+          { error: { code: result.error.code, message: result.error.message, details: result.error.details } },
+          { status },
+        );
   };
 
   const json = async (request: Request) => {
@@ -81,7 +84,11 @@ export function createHandlers(server: Server, { sleep, random }: Options) {
     http.post("*/api/payments/:id/challenge", async ({ params, request }) => {
       const body = (await json(request)) as { approve?: unknown } | undefined;
       await latency();
-      return respond("POST", `/api/payments/${params.id}/challenge`, server.confirmChallenge(String(params.id), body?.approve === true));
+      return respond(
+        "POST",
+        `/api/payments/${params.id}/challenge`,
+        server.confirmChallenge(String(params.id), body?.approve === true),
+      );
     }),
   ];
 }

@@ -24,7 +24,8 @@ function useSandbox() {
   return server;
 }
 
-const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const time = (at: number) =>
+  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 const kindStyle: Record<string, string> = {
   webhook: "text-accent",
@@ -69,7 +70,7 @@ export function ChaosPanel() {
       <button
         type="button"
         onClick={open}
-        className="press inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm hover:bg-sunk"
+        className="inline-flex min-h-10 press items-center gap-2 rounded-full border border-line bg-card px-4 text-sm hover:bg-sunk"
       >
         <span aria-hidden="true" className={`size-2 rounded-full ${presetId === "happy" ? "bg-ok" : "bg-accent"}`} />
         <span>
@@ -97,7 +98,7 @@ export function ChaosPanel() {
           <button
             type="button"
             onClick={() => dialog.current?.close()}
-            className="press grid size-10 shrink-0 place-items-center rounded-lg text-ink-2 hover:bg-sunk hover:text-ink"
+            className="grid size-10 shrink-0 press place-items-center rounded-lg text-ink-2 hover:bg-sunk hover:text-ink"
             aria-label="Close chaos panel"
           >
             ✕
@@ -106,7 +107,9 @@ export function ChaosPanel() {
 
         {/* A floated legend escapes the fieldset border, so it lays out like a normal heading. */}
         <fieldset className="px-5 pb-4">
-          <legend className="tabular float-left w-full pt-4 pb-2 text-[11px] tracking-[0.14em] text-ink-3 uppercase">Scenario</legend>
+          <legend className="tabular float-left w-full pt-4 pb-2 text-[11px] tracking-[0.14em] text-ink-3 uppercase">
+            Scenario
+          </legend>
           <div className="clear-left space-y-1.5">
             {presets.map((p) => (
               <label
@@ -129,7 +132,9 @@ export function ChaosPanel() {
                 <span className="mt-0.5 block pl-6.5 text-sm text-ink-2">{p.description}</span>
                 {/* Only the chosen scenario spells out what to expect — keeps the list short
                     enough that the server log stays in view. */}
-                {p.id === presetId && <span className="mt-1.5 block pl-6.5 text-xs text-ink-2">Expect: {p.expectation}</span>}
+                {p.id === presetId && (
+                  <span className="mt-1.5 block pl-6.5 text-xs text-ink-2">Expect: {p.expectation}</span>
+                )}
               </label>
             ))}
           </div>
@@ -148,7 +153,11 @@ export function ChaosPanel() {
               {confirmReset ? "Confirm: reset sandbox" : "Reset sandbox"}
             </button>
           </div>
-          <ol tabIndex={0} aria-label="Server log, newest first" className="mt-2 max-h-72 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed">
+          <ol
+            tabIndex={0}
+            aria-label="Server log, newest first"
+            className="mt-2 max-h-72 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed"
+          >
             {log.length === 0 && <li className="text-ink-3">Nothing yet.</li>}
             {log.map((entry) => (
               <li key={entry.id} className="flex gap-2">

@@ -7,14 +7,7 @@
  * turn into a Response. This file is the "controller + service" layer of a real API.
  */
 import { catalog, findTier, getEventInfo, type EventInfo } from "@/shared/catalog";
-import type {
-  EventView,
-  HoldResponse,
-  HoldView,
-  OrderStatus,
-  OrderView,
-  PaymentView,
-} from "@/shared/api-types";
+import type { EventView, HoldResponse, HoldView, OrderStatus, OrderView, PaymentView } from "@/shared/api-types";
 import { priceOrder, ticketCount } from "@/shared/money";
 import { cardSchema, createHoldSchema, upsertOrderSchema } from "@/shared/schemas";
 import { getPreset, type ChaosConfig, type PresetId } from "./chaos";
@@ -205,7 +198,13 @@ export function createServer(deps: Deps, initial: ServerState = initialState()) 
   function enqueueSucceeded(payment: PaymentRecord) {
     const eventId = deps.newId("evt");
     const deliverAt = deps.now() + chaos().webhookDelayMs;
-    state.outbox.push({ deliveryId: deps.newId("dlv"), eventId, type: "payment.succeeded", paymentId: payment.id, deliverAt });
+    state.outbox.push({
+      deliveryId: deps.newId("dlv"),
+      eventId,
+      type: "payment.succeeded",
+      paymentId: payment.id,
+      deliverAt,
+    });
     if (chaos().duplicateWebhook) {
       state.outbox.push({
         deliveryId: deps.newId("dlv"),
@@ -343,7 +342,10 @@ export function createServer(deps: Deps, initial: ServerState = initialState()) 
         orderId: null,
       };
       state.holds[hold.id] = hold;
-      log("hold", `Hold ${hold.id} created: ${items.map((i) => `${i.qty} × ${findTier(i.tierId)?.tier.name}`).join(", ")}.`);
+      log(
+        "hold",
+        `Hold ${hold.id} created: ${items.map((i) => `${i.qty} × ${findTier(i.tierId)?.tier.name}`).join(", ")}.`,
+      );
       notify();
       return ok({ hold: holdView(hold), event: eventView(event), order: null, serverNow: now }, 201);
     },
@@ -436,7 +438,11 @@ export function createServer(deps: Deps, initial: ServerState = initialState()) 
      * gets the same response, so a double-click or a retried request can never
      * charge twice.
      */
-    createPayment(orderId: string, body: unknown, idempotencyKey: string | null): Result<{ payment: PaymentView; order: OrderView }> {
+    createPayment(
+      orderId: string,
+      body: unknown,
+      idempotencyKey: string | null,
+    ): Result<{ payment: PaymentView; order: OrderView }> {
       if (!idempotencyKey) return fail(400, "missing_idempotency_key", "Payments need an Idempotency-Key header.");
 
       const parsedCard = cardSchema.safeParse(body);
@@ -520,7 +526,8 @@ export function createServer(deps: Deps, initial: ServerState = initialState()) 
     confirmChallenge(paymentId: string, approve: boolean): Result<{ payment: PaymentView; order: OrderView }> {
       const payment = state.payments[paymentId];
       if (!payment) return fail(404, "not_found", "That payment doesn’t exist.");
-      if (payment.status !== "requires_action") return fail(409, "invalid_state", "That payment isn’t waiting for authentication.");
+      if (payment.status !== "requires_action")
+        return fail(409, "invalid_state", "That payment isn’t waiting for authentication.");
       const order = state.orders[payment.orderId];
 
       if (approve) {
