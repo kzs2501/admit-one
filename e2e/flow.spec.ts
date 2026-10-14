@@ -77,6 +77,18 @@ test.describe("accessibility", () => {
   };
 
   for (const scheme of ["light", "dark"] as const) {
+    test(`a hovered primary button keeps its contrast (${scheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/events/frontend-systems-summit");
+      await page.getByRole("button", { name: "More: General" }).click();
+      await page.getByRole("button", { name: "Reserve tickets" }).hover();
+      await page.waitForTimeout(300); // let the hover transition finish
+      const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).include("form").analyze();
+      expect(results.violations.map((v) => v.id)).toEqual([]);
+    });
+  }
+
+  for (const scheme of ["light", "dark"] as const) {
     test(`no axe violations across the purchase (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/");

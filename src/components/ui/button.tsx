@@ -4,7 +4,7 @@ import { Spinner } from "./spinner";
 type Variant = "primary" | "secondary" | "ghost";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-accent-ink hover:opacity-90 disabled:opacity-60",
+  primary: "bg-accent text-accent-ink hover:bg-accent-hover disabled:opacity-60",
   secondary: "border border-line bg-card text-ink hover:bg-sunk disabled:opacity-60",
   ghost: "text-ink-2 hover:bg-sunk hover:text-ink disabled:opacity-60",
 };

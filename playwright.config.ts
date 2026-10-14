@@ -10,7 +10,9 @@ export default defineConfig({
   webServer: {
     command: "npx next start -p 4180",
     port: 4180,
-    reuseExistingServer: !process.env.CI,
+    // Always start our own server: silently reusing one left over from before a rebuild
+    // would test a stale build.
+    reuseExistingServer: false,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
