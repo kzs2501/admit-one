@@ -1,24 +1,35 @@
 # 001 — The backend runs in the browser
 
-**Decision.** The API is served by [MSW](https://mswjs.io) in the visitor's browser,
-backed by a plain-TypeScript server module (`src/server/`). The app talks to `/api/*`
-with ordinary `fetch` and can't tell the difference.
+**Status:** Accepted (revised by [005](005-layers-and-enforced-boundaries.md): the backend is now reached only through HTTP or its public port)
 
-**Why.**
+## Context
 
-- Anyone can run the demo with zero setup: no database, no keys, no accounts, no cost.
-- Every visitor gets an isolated sandbox, so nobody's chaos affects anyone else.
-- The chaos panel needs to control the server. Owning the server makes that honest
-  rather than hacked in.
+The demo has to run for anyone, instantly, with nothing to sign up for and nothing to
+pay for. It also needs a chaos panel that genuinely controls the server's behaviour —
+duplicate webhooks, expiring holds, a crowd of other buyers — and every visitor's
+chaos must stay their own.
 
-**Consequences.**
+## Decision
 
-- MSW runs handlers in the page, so the server's memory is the page's memory. State is
-  persisted to sessionStorage, including the webhook outbox, so a reload resumes.
-- True multi-client concurrency isn't exercised. In a real database the
-  availability check and the hold insert would be one transaction (or a conditional
-  `UPDATE … WHERE available >= qty`). Here the server is single-threaded, so it's
-  atomic by construction. Contention is simulated by a "crowd" of bot buyers.
-- The server is written as a real one would be — validation, status codes,
-  idempotency, a state machine — so swapping in a real backend means replacing
-  `src/mocks/`, not the app.
+The API is served by [MSW](https://mswjs.io) in the visitor's browser, backed by a
+plain-TypeScript backend (`src/backend/`). The app talks to `/api/*` with ordinary
+`fetch` and can't tell the difference. The backend starts in
+`src/instrumentation-client.ts`, before the app is interactive, and the API client
+holds requests until its service worker answers.
+
+The backend's state, including webhooks still in the outbox, is persisted to
+sessionStorage under a versioned key and parsed against a schema on every restore. A
+save from an older shape is simply ignored: it's a per-tab demo sandbox, so a fresh one
+is the right answer, and a migration framework would be weight without value.
+
+## Consequences
+
+- Zero setup, an isolated sandbox per tab, and a chaos panel that controls the real
+  code paths rather than faking their results.
+- True multi-client concurrency isn't exercised. In a real database the availability
+  check and the hold insert would be one transaction (or a conditional
+  `UPDATE … WHERE available >= quantity`); here the backend is single-threaded, so it's
+  atomic by construction. Contention is simulated by a crowd of bot buyers.
+- Swapping in a real backend means deleting `src/backend/` and the line in
+  `instrumentation-client.ts` that starts it. Lint enforces that nothing else depends
+  on it.

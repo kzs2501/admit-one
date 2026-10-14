@@ -72,8 +72,8 @@ the page says why — rather than overselling or quietly keeping the money.
 flowchart LR
   subgraph Browser tab
     UI["Next.js UI<br/>(TanStack Query, RHF + Zod)"] -->|"fetch /api/*"| SW["MSW service worker"]
-    SW --> H["HTTP handlers<br/>status codes · latency · headers"]
-    H --> S["Simulated server<br/>holds · orders · payments · webhooks"]
+    SW --> H["HTTP adapter<br/>problem+json · idempotency · ISO times"]
+    H --> S["Domain<br/>holds · orders · payments · webhooks"]
     S <--> P[("sessionStorage<br/>state + webhook outbox")]
     S --> R["Runtime<br/>delivers due webhooks"]
     R --> S
@@ -82,8 +82,10 @@ flowchart LR
 ```
 
 The app's code is written exactly as it would be against a real API: plain `fetch`, real
-status codes, real headers. The server (`src/server/`) is plain TypeScript with an
-injectable clock, so every rule is unit-tested without a browser.
+status codes, real headers, and every response parsed against the contract's schemas.
+The backend (`src/backend/`) is plain TypeScript with an injectable clock, so every rule
+is unit-tested without a browser. The layers, and the lint rules that enforce them, are
+in [docs/architecture.md](docs/architecture.md).
 
 ```mermaid
 sequenceDiagram
@@ -111,26 +113,30 @@ sessionStorage and resumes after a reload: the outbox pattern.
 
 **What this doesn't exercise:** true multi-client concurrency. In a real database the
 availability check and the hold insert would be one transaction or a conditional
-`UPDATE … WHERE available >= qty`; here the server is single-threaded, so it's atomic by
-construction. Contention is simulated by a crowd of bot buyers. Swapping in a real
-backend means replacing `src/mocks/`, not the app.
+`UPDATE … WHERE available >= quantity`; here the backend is single-threaded, so it's
+atomic by construction. Contention is simulated by a crowd of bot buyers. Swapping in a
+real backend means deleting `src/backend/` and the line that starts it — lint guarantees
+nothing else depends on it.
 ([decision](docs/decisions/001-simulated-backend.md))
 
 ## Quality
 
-| Check              | Coverage                                                                                                                                                                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`         | 71 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency (including when a retry needs a new key), webhook dedupe, persistence across reloads, the step registry, countdown maths, form validation |
-| `npm run test:e2e` | 22 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion                                         |
-| `npm run lhci`     | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                               |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                  |
+| `npm test`                   | 103 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation |
+| `npm run test:e2e`           | 25 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion                                                        |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                              |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
 their fields and the first one gets focus; the chaos panel and 3-D Secure challenge are
 native `<dialog>`s.
 
-Money is integer cents throughout, priced by one shared function (`priceOrder`) on both
-the client and the server, so the total you see is the total that's charged.
+Money is an integer amount in minor units together with its currency (the events are
+priced in INR), priced by one shared function (`priceOrder`) on both the client and the
+server, so the total you see is the total that's charged. Errors are RFC 9457 problem
+details — see [docs/api.md](docs/api.md).
 
 ## Running it
 
@@ -147,15 +153,20 @@ No environment variables, keys or accounts needed.
 
 ```
 src/
-  shared/        catalogue, API types, money, Zod schemas — used by client and server
-  server/        the simulated backend: holds, orders, payments, webhooks, chaos presets
-  mocks/         MSW handlers, the per-tab sandbox, persistence and the webhook runtime
-  checkout/      step registry, drafts, countdown, the checkout flow and its steps
-  components/    tier picker, order status, chaos panel, UI primitives
-  app/           routes: /, /events/[slug], /checkout/[holdId]/[step], /orders/[orderId]
-docs/decisions/  why things are the way they are
-e2e/             Playwright: chaos presets and flows
+  app/              routes, error boundaries, providers; /problems documents every error type
+  features/         events · checkout · orders · sandbox — view-model hooks and their components
+  components/ui/    design-system primitives (Button, TextField, Notice, ErrorState, …)
+  lib/              API client, query factories, routes, safe storage, formatting
+  contract/         the HTTP contract: routes, DTO and request schemas, problem types
+  core/             the shared kernel: catalogue, money, statuses, validation
+  backend/          the simulated service: domain, HTTP adapter, runtime, chaos presets
+  instrumentation-client.ts   starts the backend before the app is interactive
+docs/               architecture, conventions, API, and decision records
+e2e/                Playwright, with page objects in fixtures.ts
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the checks, commit conventions and review
+checklist.
 
 ## Not in v0.1
 
