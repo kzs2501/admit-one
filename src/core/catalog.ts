@@ -7,7 +7,7 @@
  */
 import type { CurrencyCode } from "./money";
 
-export type TierInfo = {
+export interface TierInfo {
   id: string;
   name: string;
   description: string;
@@ -15,16 +15,16 @@ export type TierInfo = {
   capacity: number;
   /** Tickets already sold before this sandbox started. */
   baselineSold: number;
-};
+}
 
-export type AddOnInfo = {
+export interface AddOnInfo {
   id: string;
   name: string;
   description: string;
   priceMinor: number;
-};
+}
 
-export type EventInfo = {
+export interface EventInfo {
   slug: string;
   name: string;
   tagline: string;
@@ -39,9 +39,9 @@ export type EventInfo = {
   description: string;
   tiers: TierInfo[];
   addOns: AddOnInfo[];
-};
+}
 
-export const catalog: EventInfo[] = [
+export const CATALOG: EventInfo[] = [
   {
     slug: "frontend-systems-summit",
     name: "Frontend Systems Summit",
@@ -124,7 +124,7 @@ export const catalog: EventInfo[] = [
   },
 ];
 
-export const findEvent = (slug: string): EventInfo | undefined => catalog.find((event) => event.slug === slug);
+export const findEvent = (slug: string): EventInfo | undefined => CATALOG.find((event) => event.slug === slug);
 
 /** For slugs that must exist (records only reference catalogue events): a miss is a bug. */
 export function getEvent(slug: string): EventInfo {
@@ -134,11 +134,11 @@ export function getEvent(slug: string): EventInfo {
 }
 
 export const findTier = (tierId: string) => {
-  for (const event of catalog) {
-    const tier = event.tiers.find((t) => t.id === tierId);
+  for (const event of CATALOG) {
+    const tier = event.tiers.find((candidate) => candidate.id === tierId);
     if (tier) return { event, tier };
   }
   return undefined;
 };
 
-export const lowestPriceMinor = (event: EventInfo) => Math.min(...event.tiers.map((t) => t.priceMinor));
+export const lowestPriceMinor = (event: EventInfo) => Math.min(...event.tiers.map((tier) => tier.priceMinor));

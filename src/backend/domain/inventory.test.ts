@@ -20,7 +20,7 @@ describe("inventory", () => {
   it("releases an expired hold lazily — no timer has to run", () => {
     const { backend, clock } = createTestBackend();
     valueOf(backend.createHold(ceramics(4)));
-    clock.advance(DEFAULT_CHAOS.holdSeconds * 1000 - 1);
+    clock.advance(DEFAULT_CHAOS.holdDurationMs - 1);
     expect(backend.available("osc-session")).toBe(5);
     clock.advance(1);
     expect(backend.available("osc-session")).toBe(9);

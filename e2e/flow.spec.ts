@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { fillAttendees, pay, reserve, ticketsHeading, toPayment } from "./helpers";
 
@@ -79,9 +79,11 @@ test("an unknown reservation explains itself", async ({ page }) => {
 });
 
 test.describe("accessibility", () => {
-  const scan = async (page: import("@playwright/test").Page) => {
+  const scan = async (page: Page) => {
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-    return results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
+    return results.violations.map(
+      (violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
+    );
   };
 
   for (const scheme of ["light", "dark"] as const) {
@@ -92,7 +94,7 @@ test.describe("accessibility", () => {
       await page.getByRole("button", { name: "Reserve tickets" }).hover();
       await page.waitForTimeout(300); // let the hover transition finish
       const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).include("form").analyze();
-      expect(results.violations.map((v) => v.id)).toEqual([]);
+      expect(results.violations.map((violation) => violation.id)).toEqual([]);
     });
   }
 

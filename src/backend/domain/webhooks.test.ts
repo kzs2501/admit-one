@@ -29,7 +29,7 @@ describe("webhooks", () => {
     const fulfilled = valueOf(backend.getOrder(order.id));
     expect(fulfilled.status).toBe("fulfilled");
     expect(fulfilled.tickets).toHaveLength(1);
-    expect(backend.getState().log.some((entry) => /already processed, ignored/.test(entry.message))).toBe(true);
+    expect(backend.getState().log.some((entry) => entry.message.includes("already processed, ignored"))).toBe(true);
   });
 
   it("can complete the order before the browser even hears back", () => {

@@ -23,7 +23,10 @@ export const TEST_CARDS = {
   challenge: "4000002500003155",
 } as const;
 
-export type PaymentAttempt = { payment: PaymentRecord; order: OrderRecord };
+export interface PaymentAttempt {
+  payment: PaymentRecord;
+  order: OrderRecord;
+}
 
 export type ChallengeDecision = "approve" | "reject";
 
@@ -43,7 +46,7 @@ export function createPayment(context: BackendContext, orderId: string, card: Ca
   const nowMs = context.deps.now();
   const { number } = card;
   const outcome =
-    context.chaos().forceOutcome ??
+    context.chaos().forcedOutcome ??
     (number === TEST_CARDS.decline ? "decline" : number === TEST_CARDS.challenge ? "challenge" : "success");
 
   if (order.status === "failed") setOrderStatus(context, order, "pending", "retrying payment");
@@ -69,7 +72,7 @@ export function createPayment(context: BackendContext, orderId: string, card: Ca
   }
 
   const hold = state.holds[order.holdId];
-  if (hold && context.chaos().expireHoldDuringPayment) {
+  if (hold && context.chaos().shouldExpireHoldDuringPayment) {
     hold.expiresAtMs = nowMs + LAST_SECONDS_MS;
     context.log("hold", `Hold ${hold.id} has ${LAST_SECONDS_MS / 1000}s left as payment starts.`);
   } else if (hold && !hold.isExtended) {

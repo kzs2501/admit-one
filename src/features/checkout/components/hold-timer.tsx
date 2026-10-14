@@ -14,6 +14,9 @@ import {
  * "Tickets held for 4:32". The visible clock updates every second; screen readers
  * hear it only at 2 minutes, 1 minute and 30 seconds — not sixty times a minute.
  */
+/** In the last minute, the timer turns amber. */
+const URGENT_BELOW_MS = 60_000;
+
 export function HoldTimer({
   expiresAtMs,
   offset,
@@ -40,17 +43,17 @@ export function HoldTimer({
     }
   }, [left, onExpire]);
 
-  const urgent = left <= 60_000;
+  const isUrgent = left <= URGENT_BELOW_MS;
   return (
     <div
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
-        urgent ? "border-warn/40 bg-warn-soft" : "border-line bg-card"
+        isUrgent ? "border-warn/40 bg-warn-soft" : "border-line bg-card"
       }`}
     >
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className={`size-4 ${urgent ? "text-warn" : "text-ink-3"}`}
+        className={`size-4 ${isUrgent ? "text-warn" : "text-ink-3"}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="2"

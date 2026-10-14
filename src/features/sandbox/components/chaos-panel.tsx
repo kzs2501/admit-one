@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { presets, type LogKind, type PresetId } from "@/backend";
+import { PRESETS, type LogKind, type PresetId } from "@/backend";
 import { useSandboxControl } from "@/features/sandbox/hooks/use-sandbox-control";
 
 const formatLogTime = (epochMs: number) =>
@@ -26,7 +26,7 @@ export function ChaosPanel() {
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const presetId = sandbox?.getPresetId() ?? "happy";
-  const activePreset = presets.find((preset) => preset.id === presetId);
+  const activePreset = PRESETS.find((preset) => preset.id === presetId);
   const log = sandbox ? [...sandbox.getLog()].reverse().slice(0, 40) : [];
 
   const open = () => {
@@ -93,7 +93,7 @@ export function ChaosPanel() {
             Scenario
           </legend>
           <div className="clear-left space-y-1.5">
-            {presets.map((preset) => (
+            {PRESETS.map((preset) => (
               <label
                 key={preset.id}
                 className={`block cursor-pointer rounded-lg border px-3.5 py-2.5 transition-colors ${

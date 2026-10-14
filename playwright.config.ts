@@ -1,14 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const isCI = Boolean(process.env["CI"]);
+
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,
   // Launching a browser per core can stall a busy laptop; four is plenty for 25 tests.
-  workers: process.env.CI ? undefined : 4,
-  retries: process.env.CI ? 1 : 0,
+  ...(isCI ? {} : { workers: 4 }),
+  retries: isCI ? 1 : 0,
   // A hung browser launch should fail the run, not stall it.
   globalTimeout: 10 * 60_000,
-  reporter: process.env.CI ? "github" : "list",
+  reporter: isCI ? "github" : "list",
   use: { baseURL: "http://localhost:4180", trace: "retain-on-failure" },
   // Runs against the production build (`npm run build` first) — what actually ships.
   webServer: {

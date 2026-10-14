@@ -6,7 +6,7 @@ import { problemOf } from "@/lib/api-client";
 import { orderQueries } from "@/lib/queries";
 
 /** After this long waiting for the webhook, reassure the buyer. */
-export const SLOW_CONFIRMATION_MS = 8_000;
+const SLOW_CONFIRMATION_MS = 8_000;
 
 const POLL_FIRST_MS = 500;
 const POLL_MAX_MS = 4_000;

@@ -47,7 +47,7 @@ describe("orders", () => {
       backend.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] }),
     );
     const { order } = valueOf(backend.upsertOrder({ holdId: hold.id, attendees: testAttendees(1), addOns: {} }));
-    clock.advance(DEFAULT_CHAOS.holdSeconds * 1000);
+    clock.advance(DEFAULT_CHAOS.holdDurationMs);
     expect(valueOf(backend.getOrder(order.id)).status).toBe("expired");
     expect(backend.getState().orders[order.id]?.status).toBe("pending"); // the read didn't write
     expect(backend.createPayment(order.id, testCard())).toMatchObject({ ok: false, error: { code: "hold_expired" } });

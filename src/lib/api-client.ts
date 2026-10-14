@@ -43,14 +43,12 @@ async function request<Schema extends z.ZodType>(
   await readiness;
   let response: Response;
   try {
-    response = await fetch(path, {
-      ...init,
-      headers: {
-        Accept: `application/json, ${PROBLEM_CONTENT_TYPE}`,
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
-    });
+    // `new Headers(...)` accepts every HeadersInit shape (object, tuples, Headers);
+    // spreading would silently drop the last two.
+    const headers = new Headers(init.headers);
+    if (!headers.has("Accept")) headers.set("Accept", `application/json, ${PROBLEM_CONTENT_TYPE}`);
+    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    response = await fetch(path, { ...init, headers });
   } catch (cause) {
     throw new NetworkError("Couldn’t reach the server. Check your connection and try again.", { cause });
   }

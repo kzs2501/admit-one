@@ -10,13 +10,13 @@ import type { LineItem } from "./ticketing";
 export const CURRENCIES = ["INR", "USD"] as const;
 export type CurrencyCode = (typeof CURRENCIES)[number];
 
-export type Amounts = {
+export interface Amounts {
   currency: CurrencyCode;
   ticketsMinor: number;
   addOnsMinor: number;
   feesMinor: number;
   totalMinor: number;
-};
+}
 
 /** Service fee: 3% of the tickets and add-ons, rounded half-up to the minor unit. */
 export const SERVICE_FEE_BASIS_POINTS = 300;
@@ -25,12 +25,12 @@ export const SERVICE_FEE_BASIS_POINTS = 300;
 export const SERVICE_FEE_LABEL = `${SERVICE_FEE_BASIS_POINTS / 100}%`;
 
 /** All that pricing needs from an event: its prices. Both the catalogue and the API's events have them. */
-export type PricedEvent = {
+export interface PricedEvent {
   slug: string;
   currency: CurrencyCode;
   tiers: readonly { id: string; priceMinor: number }[];
   addOns: readonly { id: string; priceMinor: number }[];
-};
+}
 
 export function priceOrder(
   event: PricedEvent,

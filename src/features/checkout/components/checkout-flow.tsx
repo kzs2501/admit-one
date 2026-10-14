@@ -30,7 +30,7 @@ const STEP_COMPONENTS: Record<StepId, ComponentType<StepProps>> = {
  * the countdown, expiry — is rendered here once, for every step.
  */
 export function CheckoutFlow({ holdId }: { holdId: string }) {
-  const requestedStep = useParams<{ step: string }>().step ?? "";
+  const requestedStep = useParams<{ step?: string }>().step ?? "";
   const { state, updateDraft, expire } = useCheckout(holdId, requestedStep);
   const heading = useRef<HTMLHeadingElement>(null);
   const shownStepId = useRef<StepId | null>(null);

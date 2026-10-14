@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-const noop = () => () => {};
+/** Nothing to subscribe to: mounting is a one-way change. */
+const subscribeToNothing = () => () => {
+  // nothing to unsubscribe
+};
 
 /**
  * False during server render and hydration, true after. Lets components that depend
@@ -9,7 +12,7 @@ const noop = () => () => {};
  */
 export const useMounted = () =>
   useSyncExternalStore(
-    noop,
+    subscribeToNothing,
     () => true,
     () => false,
   );

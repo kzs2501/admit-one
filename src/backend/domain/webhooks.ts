@@ -16,7 +16,7 @@ export function enqueuePaymentSucceeded(context: BackendContext, payment: Paymen
   const deliverAtMs = context.deps.now() + context.chaos().webhookDelayMs;
   const delivery = { eventId, type: "payment.succeeded" as const, paymentId: payment.id };
   context.state.outbox.push({ deliveryId: context.deps.newId("dlv"), ...delivery, deliverAtMs });
-  if (context.chaos().duplicateWebhook) {
+  if (context.chaos().shouldDuplicateWebhook) {
     context.state.outbox.push({
       deliveryId: context.deps.newId("dlv"),
       ...delivery,
@@ -81,7 +81,7 @@ export function deliverDue(context: BackendContext): number {
   const nowMs = context.deps.now();
   const due = context.state.outbox
     .filter((delivery) => delivery.deliverAtMs <= nowMs)
-    .sort((a, b) => a.deliverAtMs - b.deliverAtMs);
+    .sort((earlier, later) => earlier.deliverAtMs - later.deliverAtMs);
   if (!due.length) return 0;
   context.state.outbox = context.state.outbox.filter((delivery) => delivery.deliverAtMs > nowMs);
   for (const delivery of due) processPaymentSucceeded(context, delivery.eventId, delivery.paymentId);

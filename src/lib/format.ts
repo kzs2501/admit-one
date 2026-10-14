@@ -2,7 +2,7 @@ import type { CurrencyCode } from "@/core/money";
 import type { LineItem } from "@/core/ticketing";
 
 /** The visitor-facing locale: the venues are in India, and so is the audience. */
-export const DISPLAY_LOCALE = "en-IN";
+const DISPLAY_LOCALE = "en-IN";
 
 /** Event dates are shown in the venue's own time zone, whatever the visitor's is. */
 export const formatEventDate = (iso: string, timeZone: string) =>

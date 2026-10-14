@@ -12,40 +12,42 @@ import { routes } from "@/lib/routes";
 
 export type StepId = "attendees" | "add-ons" | "review" | "payment";
 
-export type StepContext = {
+export interface StepContext {
   event: EventDto;
   hold: HoldDto;
   draft: Draft;
   order: OrderDto | null;
-};
+}
 
-export type Step = {
+export interface Step {
   id: StepId;
   /** Short label for the progress list. */
   label: string;
   /** The step's heading. */
   title: string;
-  isApplicable: (ctx: StepContext) => boolean;
-  isComplete: (ctx: StepContext) => boolean;
-};
-
-/** The order on the server matches what's in the draft — nothing edited since. */
-export function orderMatchesDraft(ctx: StepContext): boolean {
-  const { order, draft } = ctx;
-  if (!order || (order.status !== "pending" && order.status !== "failed")) return false;
-  const sameAttendees =
-    order.attendees.length === draft.attendees.length &&
-    order.attendees.every(
-      (a, i) => a.name === draft.attendees[i]?.name.trim() && a.email === draft.attendees[i]?.email.trim(),
-    );
-  const wanted = Object.fromEntries(Object.entries(draft.addOns).filter(([, q]) => q > 0));
-  const sameAddOns =
-    Object.keys(wanted).length === Object.keys(order.addOns).length &&
-    Object.entries(wanted).every(([id, q]) => order.addOns[id] === q);
-  return sameAttendees && sameAddOns;
+  isApplicable: (context: StepContext) => boolean;
+  isComplete: (context: StepContext) => boolean;
 }
 
-export const steps: Step[] = [
+/** The order on the server matches what's in the draft — nothing edited since. */
+export function orderMatchesDraft(context: StepContext): boolean {
+  const { order, draft } = context;
+  if (!order || (order.status !== "pending" && order.status !== "failed")) return false;
+  const hasSameAttendees =
+    order.attendees.length === draft.attendees.length &&
+    order.attendees.every((attendee, i) => {
+      const typed = draft.attendees[i];
+      if (!typed) return false;
+      return attendee.name === typed.name.trim() && attendee.email === typed.email.trim();
+    });
+  const chosenAddOns = Object.entries(draft.addOns).filter(([, quantity]) => quantity > 0);
+  const hasSameAddOns =
+    chosenAddOns.length === Object.keys(order.addOns).length &&
+    chosenAddOns.every(([addOnId, quantity]) => order.addOns[addOnId] === quantity);
+  return hasSameAttendees && hasSameAddOns;
+}
+
+const STEPS: readonly Step[] = [
   {
     id: "attendees",
     label: "Attendees",
@@ -76,32 +78,37 @@ export const steps: Step[] = [
   },
 ];
 
-export const applicableSteps = (ctx: StepContext) => steps.filter((s) => s.isApplicable(ctx));
+export const applicableSteps = (context: StepContext) => STEPS.filter((step) => step.isApplicable(context));
 
-export const isStepId = (value: string): value is StepId => steps.some((s) => s.id === value);
+export interface StepResolution {
+  step: Step;
+  shouldRedirect: boolean;
+}
 
 /**
  * Where should a buyer asking for `requested` actually be? On it if every earlier
  * step is complete; otherwise on the first incomplete step. An inapplicable or
  * unknown step sends them to the first step they still need.
  */
-export function resolveStep(requested: string, ctx: StepContext): { step: Step; redirect: boolean } {
-  const flow = applicableSteps(ctx);
-  const firstIncomplete = flow.find((s) => !s.isComplete(ctx)) ?? flow[flow.length - 1];
-  const index = flow.findIndex((s) => s.id === requested);
-  if (index === -1) return { step: firstIncomplete, redirect: true };
-  const blocked = flow.slice(0, index).some((s) => !s.isComplete(ctx));
-  return blocked ? { step: firstIncomplete, redirect: true } : { step: flow[index], redirect: false };
+export function resolveStep(requested: string, context: StepContext): StepResolution {
+  const flow = applicableSteps(context);
+  const fallback = flow.find((step) => !step.isComplete(context)) ?? flow.at(-1);
+  if (!fallback) throw new Error("A checkout always has at least one step.");
+  const index = flow.findIndex((step) => step.id === requested);
+  const target = flow[index];
+  if (!target) return { step: fallback, shouldRedirect: true };
+  const isBlocked = flow.slice(0, index).some((step) => !step.isComplete(context));
+  return isBlocked ? { step: fallback, shouldRedirect: true } : { step: target, shouldRedirect: false };
 }
 
-export function nextStep(current: StepId, ctx: StepContext): Step | null {
-  const flow = applicableSteps(ctx);
-  return flow[flow.findIndex((s) => s.id === current) + 1] ?? null;
+export function nextStep(current: StepId, context: StepContext): Step | null {
+  const flow = applicableSteps(context);
+  return flow[flow.findIndex((step) => step.id === current) + 1] ?? null;
 }
 
-export function previousStep(current: StepId, ctx: StepContext): Step | null {
-  const flow = applicableSteps(ctx);
-  return flow[flow.findIndex((s) => s.id === current) - 1] ?? null;
+export function previousStep(current: StepId, context: StepContext): Step | null {
+  const flow = applicableSteps(context);
+  return flow[flow.findIndex((step) => step.id === current) - 1] ?? null;
 }
 
 export const stepHref = (holdId: string, step: StepId) => routes.checkoutStep(holdId, step);

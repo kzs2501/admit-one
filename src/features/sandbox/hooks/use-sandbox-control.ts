@@ -1,7 +1,10 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { getSandboxControl, type SandboxControl } from "@/backend";
 
-const noSubscription = () => () => {};
+/** Before the sandbox loads there is nothing to watch. */
+const noSubscription = () => () => {
+  // nothing to unsubscribe
+};
 
 /**
  * The tab's sandbox, through the backend's public control port — loaded lazily, and

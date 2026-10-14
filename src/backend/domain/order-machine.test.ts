@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { ORDER_STATUSES } from "@/core/statuses";
-import { canTransition, isTerminal, transitions } from "./order-machine";
+import { canTransition, isTerminal, ORDER_TRANSITIONS } from "./order-machine";
 
 describe("order state machine", () => {
   const legal = new Set([
@@ -14,7 +14,7 @@ describe("order state machine", () => {
     "paid>refunded",
   ]);
 
-  it("allows exactly the documented transitions", () => {
+  it("allows exactly the documented ORDER_TRANSITIONS", () => {
     for (const from of ORDER_STATUSES) {
       for (const to of ORDER_STATUSES) {
         expect(canTransition(from, to), `${from} → ${to}`).toBe(legal.has(`${from}>${to}`));
@@ -24,6 +24,6 @@ describe("order state machine", () => {
 
   it("treats fulfilled, refunded and expired as terminal", () => {
     expect(ORDER_STATUSES.filter(isTerminal).sort()).toEqual(["expired", "fulfilled", "refunded"]);
-    expect(Object.keys(transitions).sort()).toEqual([...ORDER_STATUSES].sort());
+    expect(Object.keys(ORDER_TRANSITIONS).sort()).toEqual([...ORDER_STATUSES].sort());
   });
 });

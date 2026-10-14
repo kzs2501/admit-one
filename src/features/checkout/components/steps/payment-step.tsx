@@ -178,7 +178,7 @@ function PaymentForm({
 
         <div className="pt-1">
           <FormActions onBack={goBack} isBackDisabled={payment.isPaying}>
-            <Button type="submit" busy={payment.isPaying}>
+            <Button type="submit" isBusy={payment.isPaying}>
               {payment.isPaying ? "Processing…" : `Pay ${total}`}
             </Button>
           </FormActions>
@@ -207,7 +207,7 @@ function PaymentForm({
           >
             Fail authentication
           </Button>
-          <Button onClick={() => payment.authenticate("approve")} busy={payment.isAuthenticating} autoFocus>
+          <Button onClick={() => payment.authenticate("approve")} isBusy={payment.isAuthenticating} autoFocus>
             Approve
           </Button>
         </div>

@@ -1,28 +1,28 @@
-/** Quantity stepper: buttons for pointer users, a native number input for everything else. */
+/** Quantity stepper: − and + buttons around a live, announced count. */
 export function Stepper({
   label,
   value,
   min = 0,
   max,
   onChange,
-  disabled,
+  isDisabled = false,
 }: {
   label: string;
   value: number;
   min?: number;
   max: number;
-  onChange: (n: number) => void;
-  disabled?: boolean;
+  onChange: (quantity: number) => void;
+  isDisabled?: boolean;
 }) {
-  const btn =
+  const buttonClassName =
     "press grid size-11 place-items-center rounded-lg border border-line bg-card text-lg text-ink hover:bg-sunk disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div role="group" aria-label={label} className="inline-flex items-center gap-1.5">
       <button
         type="button"
-        className={btn}
+        className={buttonClassName}
         aria-label={`Fewer: ${label}`}
-        disabled={disabled || value <= min}
+        disabled={isDisabled || value <= min}
         onClick={() => onChange(value - 1)}
       >
         −
@@ -32,9 +32,9 @@ export function Stepper({
       </output>
       <button
         type="button"
-        className={btn}
+        className={buttonClassName}
         aria-label={`More: ${label}`}
-        disabled={disabled || value >= max}
+        disabled={isDisabled || value >= max}
         onClick={() => onChange(value + 1)}
       >
         +

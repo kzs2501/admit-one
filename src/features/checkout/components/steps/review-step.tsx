@@ -82,7 +82,7 @@ export function ReviewStep({ context, goNext, goBack, onExpired }: StepProps) {
       )}
 
       <FormActions onBack={goBack}>
-        <Button type="button" onClick={() => save.mutate()} busy={save.isPending}>
+        <Button type="button" onClick={() => save.mutate()} isBusy={save.isPending}>
           {save.isPending ? "Saving…" : "Continue to payment"}
         </Button>
       </FormActions>

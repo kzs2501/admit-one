@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { catalog, findEvent } from "@/core/catalog";
+import { CATALOG, findEvent } from "@/core/catalog";
 import { formatEventDate, formatEventTime } from "@/lib/format";
 import { TierPicker } from "@/features/events/components/tier-picker";
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return catalog.map((event) => ({ slug: event.slug }));
+  return CATALOG.map((event) => ({ slug: event.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {

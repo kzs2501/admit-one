@@ -20,35 +20,41 @@ describe("step registry", () => {
 
   it("won't let a buyer skip ahead", () => {
     const resolution = resolveStep("payment", summitContext(createEmptyDraft()));
-    expect(resolution).toMatchObject({ redirect: true, step: { id: "attendees" } });
+    expect(resolution).toMatchObject({ shouldRedirect: true, step: { id: "attendees" } });
   });
 
   it("sends an inapplicable or unknown step to the first incomplete one", () => {
     expect(resolveStep("add-ons", studioContext({ ...createEmptyDraft(), attendees: testPeople(1) }))).toMatchObject({
-      redirect: true,
+      shouldRedirect: true,
       step: { id: "review" },
     });
     expect(resolveStep("nonsense", summitContext(createEmptyDraft()))).toMatchObject({
-      redirect: true,
+      shouldRedirect: true,
       step: { id: "attendees" },
     });
   });
 
   it("allows any step whose earlier steps are complete, including going back", () => {
     const draft = { ...createEmptyDraft(), attendees: testPeople(2), hasConfirmedAddOns: true };
-    expect(resolveStep("review", summitContext(draft))).toMatchObject({ redirect: false, step: { id: "review" } });
-    expect(resolveStep("attendees", summitContext(draft))).toMatchObject({ redirect: false });
+    expect(resolveStep("review", summitContext(draft))).toMatchObject({
+      shouldRedirect: false,
+      step: { id: "review" },
+    });
+    expect(resolveStep("attendees", summitContext(draft))).toMatchObject({ shouldRedirect: false });
   });
 
   it("requires a matching order before payment — editing attendees sends you back to review", () => {
     const draft = { ...createEmptyDraft(), attendees: testPeople(2), hasConfirmedAddOns: true };
     expect(resolveStep("payment", summitContext(draft, orderDtoFor(draft)))).toMatchObject({
-      redirect: false,
+      shouldRedirect: false,
       step: { id: "payment" },
     });
-    const edited = { ...draft, attendees: [{ name: "Someone Else", email: "x@example.com" }, draft.attendees[1]] };
+    const edited = {
+      ...draft,
+      attendees: [{ name: "Someone Else", email: "x@example.com" }, ...draft.attendees.slice(1)],
+    };
     expect(resolveStep("payment", summitContext(edited, orderDtoFor(draft)))).toMatchObject({
-      redirect: true,
+      shouldRedirect: true,
       step: { id: "review" },
     });
   });

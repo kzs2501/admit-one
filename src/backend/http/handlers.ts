@@ -20,14 +20,17 @@ import { API_ROUTES, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
 import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto } from "./mappers";
 import { toProblem } from "./problems";
 
-type HandlerOptions = {
+interface HandlerOptions {
   /** Wait helper — real timers in the browser, instant in tests. */
   sleep: (ms: number) => Promise<void>;
   random: () => number;
-};
+}
 
 /** A response before it's sent: a status and a JSON body (a DTO or a problem). */
-type Reply = { status: number; body: JsonValue };
+interface Reply {
+  status: number;
+  body: JsonValue;
+}
 
 const PAYMENT_FAILURE_DETAILS = {
   card_declined: "Your card was declined. Try a different card.",
@@ -48,7 +51,7 @@ async function readJson(request: Request): Promise<unknown> {
 
 export function createHandlers(backend: Backend, { sleep, random }: HandlerOptions) {
   const latency = (extraMs = 0) => {
-    const [minMs, maxMs] = backend.chaos().latencyMs;
+    const [minMs, maxMs] = backend.chaos().latencyRangeMs;
     return sleep(minMs + random() * (maxMs - minMs) + extraMs);
   };
 
@@ -174,7 +177,7 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
       })();
       // The work happens *before* the response is delayed: that's what lets a webhook
       // beat the browser in the "webhook before redirect" preset.
-      await latency(backend.chaos().paymentLatencyMs);
+      await latency(backend.chaos().extraPaymentLatencyMs);
       return send(request, reply);
     }),
 

@@ -73,7 +73,7 @@ export function TierPicker({ slug }: { slug: string }) {
                 onChange={(quantity) => {
                   setQuantity(tier.id, quantity);
                 }}
-                disabled={tier.available === 0 || isReserving}
+                isDisabled={tier.available === 0 || isReserving}
               />
             </li>
           );
@@ -106,7 +106,7 @@ export function TierPicker({ slug }: { slug: string }) {
               </>
             )}
           </p>
-          <Button type="submit" disabled={total === 0 || isSoldOut} busy={isReserving}>
+          <Button type="submit" disabled={total === 0 || isSoldOut} isBusy={isReserving}>
             {isSoldOut ? "Sold out" : isReserving ? "Reserving…" : "Reserve tickets"}
           </Button>
         </div>

@@ -16,7 +16,11 @@ import type { OrderRecord } from "./state";
 const TICKET_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no look-alikes: 0/O, 1/I/L
 const TICKET_CODE_LENGTH = 8;
 
-export type UpsertOrderCommand = { holdId: string; attendees: Attendee[]; addOns: Record<string, number> };
+export interface UpsertOrderCommand {
+  holdId: string;
+  attendees: Attendee[];
+  addOns: Record<string, number>;
+}
 
 /** A payment is underway: its webhook, not the hold's clock, decides what happens next. */
 export function isPaymentInFlight(context: BackendContext, order: OrderRecord): boolean {

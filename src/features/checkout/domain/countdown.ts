@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 
 /** Moments worth announcing to screen readers. Anything more frequent is noise. */
-export const ANNOUNCE_AT_SECONDS = [120, 60, 30] as const;
+const ANNOUNCE_AT_SECONDS = [120, 60, 30] as const;
 
 /**
  * Client clock correction: if the server says it's later than our clock does, add
@@ -24,12 +24,12 @@ export function formatRemaining(ms: number) {
 
 /** "4 minutes 5 seconds" — what a screen reader should say instead of "4:05". */
 export function spokenRemaining(ms: number) {
-  const total = Math.ceil(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  const part = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
-  if (m && s) return `${part(m, "minute")} ${part(s, "second")}`;
-  return m ? part(m, "minute") : part(s, "second");
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const part = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"}`;
+  if (minutes && seconds) return `${part(minutes, "minute")} ${part(seconds, "second")}`;
+  return minutes ? part(minutes, "minute") : part(seconds, "second");
 }
 
 /**
@@ -39,8 +39,8 @@ export function spokenRemaining(ms: number) {
  * one wins: a tab that slept from 2:10 to 0:25 has crossed 30 s, not 2 min.
  */
 export function crossedThreshold(previousMs: number, currentMs: number): number | null {
-  for (const s of [...ANNOUNCE_AT_SECONDS].reverse()) {
-    if (previousMs > s * 1000 && currentMs <= s * 1000) return s;
+  for (const thresholdSeconds of [...ANNOUNCE_AT_SECONDS].reverse()) {
+    if (previousMs > thresholdSeconds * 1000 && currentMs <= thresholdSeconds * 1000) return thresholdSeconds;
   }
   return null;
 }
@@ -56,14 +56,14 @@ export const announcedMs = (thresholdSeconds: number, leftMs: number) =>
   thresholdSeconds * 1000 - leftMs < ON_TIME_MS ? thresholdSeconds * 1000 : leftMs;
 
 /**
- * The current time, re-read at the top of every wall-clock second while `active`.
+ * The current time, re-read at the top of every wall-clock second while `isActive`.
  * Aligning to the second boundary keeps the display changing on the beat instead of
  * at an arbitrary offset from it.
  */
-export function useNow(active: boolean) {
+export function useNow(isActive: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!active) return;
+    if (!isActive) return;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
       setNow(Date.now());
@@ -71,6 +71,6 @@ export function useNow(active: boolean) {
     };
     tick();
     return () => clearTimeout(timer);
-  }, [active]);
+  }, [isActive]);
   return now;
 }

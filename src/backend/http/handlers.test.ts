@@ -17,7 +17,7 @@ const backend = createBackend(
   { now: Date.now, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
   createInitialState(),
 );
-const network = setupServer(...createHandlers(backend, { sleep: async () => {}, random: () => 0 }));
+const network = setupServer(...createHandlers(backend, { sleep: () => Promise.resolve(), random: () => 0 }));
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
 afterEach(() => backend.reset());
@@ -124,7 +124,8 @@ describe("HTTP contract", () => {
     expect(first.status).toBe(202);
     const replay = await post(`/api/orders/${order.id}/payments`, card, headers);
     expect(replay.status).toBe(202);
-    const [firstBody, replayBody] = [await first.json(), await replay.json()];
+    const firstBody: unknown = await first.json();
+    const replayBody: unknown = await replay.json();
     expect(replayBody).toEqual(firstBody);
     expect(paymentResultDtoSchema.parse(replayBody).payment.status).toBe("processing");
     expect(Object.keys(backend.getState().payments)).toHaveLength(1);

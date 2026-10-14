@@ -38,7 +38,7 @@ export type CheckoutState =
       clockOffsetMs: number;
     };
 
-export type CheckoutInputs = {
+export interface CheckoutInputs {
   requestedStep: string;
   details: HoldDetailsDto | undefined;
   error: unknown;
@@ -48,7 +48,7 @@ export type CheckoutInputs = {
   /** False until the browser's sessionStorage (and so the draft) can be read. */
   isMounted: boolean;
   hasExpiredLocally: boolean;
-};
+}
 
 /** Where the checkout should be, and where the URL should go — a pure function of its inputs. */
 export function deriveCheckout(inputs: CheckoutInputs): {
@@ -69,17 +69,17 @@ export function deriveCheckout(inputs: CheckoutInputs): {
   const resolution = context ? resolveStep(inputs.requestedStep, context) : null;
 
   const orderPageId = isOver ? (order?.id ?? null) : null;
-  const redirectStepId = resolution?.redirect && !isOver && !isExpired ? resolution.step.id : null;
+  const redirectStepId = resolution?.shouldRedirect && !isOver && !isExpired ? resolution.step.id : null;
   const derive = (state: CheckoutState) => ({ state, orderPageId, redirectStepId });
 
   if (inputs.error) {
     return derive({ kind: problemOf(inputs.error)?.code === "not_found" ? "not-found" : "load-error" });
   }
   if (details && context && isExpired) {
-    const stepId = resolution && !resolution.redirect ? resolution.step.id : "attendees";
+    const stepId = resolution && !resolution.shouldRedirect ? resolution.step.id : "attendees";
     return derive({ kind: "expired", hold: details.hold, event: details.event, stepId });
   }
-  if (!details || !context || !resolution || resolution.redirect || isOver) return derive({ kind: "loading" });
+  if (!details || !context || !resolution || resolution.shouldRedirect || isOver) return derive({ kind: "loading" });
 
   const flow = applicableSteps(context);
   return derive({

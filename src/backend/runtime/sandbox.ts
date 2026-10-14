@@ -47,7 +47,7 @@ function startRuntime(sandbox: Backend) {
       webhookTimer = setTimeout(() => sandbox.deliverDue(), Math.max(0, dueAtMs - Date.now()));
     }
 
-    const isCrowdEnabled = sandbox.chaos().crowd;
+    const isCrowdEnabled = sandbox.chaos().isCrowdEnabled;
     if (isCrowdEnabled && !crowdTimer) crowdTimer = setInterval(() => sandbox.runCrowdTick(), CROWD_INTERVAL_MS);
     if (!isCrowdEnabled && crowdTimer) {
       clearInterval(crowdTimer);

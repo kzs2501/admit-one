@@ -10,7 +10,7 @@
  */
 import type { OrderStatus } from "@/core/statuses";
 
-export const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
+export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["paid", "failed", "expired"],
   failed: ["pending", "expired"],
   paid: ["fulfilled", "refunded"],
@@ -19,9 +19,9 @@ export const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
   expired: [],
 };
 
-export const canTransition = (from: OrderStatus, to: OrderStatus) => transitions[from].includes(to);
+export const canTransition = (from: OrderStatus, to: OrderStatus) => ORDER_TRANSITIONS[from].includes(to);
 
-export const isTerminal = (status: OrderStatus) => transitions[status].length === 0;
+export const isTerminal = (status: OrderStatus) => ORDER_TRANSITIONS[status].length === 0;
 
 export class IllegalTransitionError extends Error {
   constructor(from: OrderStatus, to: OrderStatus) {

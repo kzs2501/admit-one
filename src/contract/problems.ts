@@ -46,6 +46,9 @@ export const problemSchema = z.discriminatedUnion("code", [
 ]);
 
 export type Problem = z.infer<typeof problemSchema>;
+
+/** A problem as the server sends it: `instance` (the request path) is always set. */
+export type ProblemDocument = Problem & { instance: string };
 export type ProblemCode = Problem["code"];
 
 export const PROBLEM_CODES: readonly ProblemCode[] = [
@@ -55,7 +58,11 @@ export const PROBLEM_CODES: readonly ProblemCode[] = [
   ...plainProblemCodeSchema.options,
 ];
 
-type ProblemDefinition = { status: number; title: string; description: string };
+interface ProblemDefinition {
+  status: number;
+  title: string;
+  description: string;
+}
 
 /** The status and title of every problem — one table, so the server and the docs can't disagree. */
 export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { catalog, lowestPriceMinor } from "@/core/catalog";
+import { CATALOG, lowestPriceMinor } from "@/core/catalog";
 import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { AvailabilityBadge } from "@/features/events/components/availability-badge";
 import { routes } from "@/lib/routes";
@@ -18,7 +18,7 @@ export default function Home() {
       </p>
 
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {catalog.map((event) => (
+        {CATALOG.map((event) => (
           <li key={event.slug}>
             <Link
               href={routes.event(event.slug)}

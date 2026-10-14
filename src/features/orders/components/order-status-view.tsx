@@ -8,7 +8,6 @@ import { routes } from "@/lib/routes";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
-import { stepHref } from "@/features/checkout/domain/step-registry";
 import { useOrderStatus } from "@/features/orders/hooks/use-order-status";
 
 /** The order page: renders whatever `useOrderStatus` says the order is doing. */
@@ -43,7 +42,7 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
       return (
         <Shell>
           <Outcome headingRef={heading} tone="warn" title="This order isn’t paid yet" reason={null}>
-            <Link href={stepHref(state.order.holdId, "payment")} className="underline underline-offset-4">
+            <Link href={routes.checkoutStep(state.order.holdId, "payment")} className="underline underline-offset-4">
               Continue to payment
             </Link>
           </Outcome>
@@ -128,7 +127,7 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
       return (
         <Shell>
           <Outcome headingRef={heading} tone="bad" title="Payment didn’t go through" reason={state.order.statusReason}>
-            <Link href={stepHref(state.order.holdId, "payment")} className="underline underline-offset-4">
+            <Link href={routes.checkoutStep(state.order.holdId, "payment")} className="underline underline-offset-4">
               Try another card
             </Link>{" "}
             — your tickets are still held for now.

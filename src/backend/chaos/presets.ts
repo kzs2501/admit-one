@@ -1,26 +1,26 @@
 /**
- * Chaos presets: each one bends the simulated server in a specific way so a visitor
+ * Chaos PRESETS: each one bends the simulated backend in a specific way so a visitor
  * can watch the checkout handle it. A preset is only configuration — the code paths
  * it exercises are the same ones a real backend would take.
  */
-export type ChaosConfig = {
-  /** Network latency for every request, ms [min, max]. */
-  latencyMs: [number, number];
-  /** Extra latency on the payment request only, ms. */
-  paymentLatencyMs: number;
+export interface ChaosConfig {
+  /** Network latency for every request: [min, max]. */
+  latencyRangeMs: readonly [number, number];
+  /** Extra latency on the payment request only. */
+  extraPaymentLatencyMs: number;
   /** How long a hold lasts. */
-  holdSeconds: number;
+  holdDurationMs: number;
   /** When the payment provider's webhook arrives, after the payment succeeds. */
   webhookDelayMs: number;
   /** Deliver the same webhook event twice. */
-  duplicateWebhook: boolean;
+  shouldDuplicateWebhook: boolean;
   /** Override the card's outcome. */
-  forceOutcome: "decline" | "challenge" | null;
+  forcedOutcome: "decline" | "challenge" | null;
   /** Simulate a buyer who starts paying with seconds left on the clock. */
-  expireHoldDuringPayment: boolean;
+  shouldExpireHoldDuringPayment: boolean;
   /** Other buyers compete for the same tickets. */
-  crowd: boolean;
-};
+  isCrowdEnabled: boolean;
+}
 
 export const PRESET_IDS = [
   "happy",
@@ -36,7 +36,7 @@ export const PRESET_IDS = [
 
 export type PresetId = (typeof PRESET_IDS)[number];
 
-export type Preset = {
+export interface Preset {
   id: PresetId;
   label: string;
   /** What the preset does, in one sentence. */
@@ -44,87 +44,84 @@ export type Preset = {
   /** What a correct checkout does about it — and what the e2e test asserts. */
   expectation: string;
   config: ChaosConfig;
-};
+}
 
 export const DEFAULT_CHAOS: ChaosConfig = {
-  latencyMs: [180, 420],
-  paymentLatencyMs: 300,
-  holdSeconds: 300,
-  webhookDelayMs: 1500,
-  duplicateWebhook: false,
-  forceOutcome: null,
-  expireHoldDuringPayment: false,
-  crowd: false,
+  latencyRangeMs: [180, 420],
+  extraPaymentLatencyMs: 300,
+  holdDurationMs: 5 * 60_000,
+  webhookDelayMs: 1_500,
+  shouldDuplicateWebhook: false,
+  forcedOutcome: null,
+  shouldExpireHoldDuringPayment: false,
+  isCrowdEnabled: false,
 };
 
-const preset = (p: Omit<Preset, "config"> & { config?: Partial<ChaosConfig> }): Preset => ({
-  ...p,
-  config: { ...DEFAULT_CHAOS, ...p.config },
-});
+type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
 
-export const presets: Preset[] = [
-  preset({
-    id: "happy",
+/** Keyed by id, so every preset id has exactly one definition — the compiler checks it. */
+const DEFINITIONS: Record<PresetId, PresetDefinition> = {
+  happy: {
     label: "Happy path",
     description: "Everything works, with realistic latency.",
     expectation: "Confirming… for about a second, then your tickets.",
-  }),
-  preset({
-    id: "declined",
+  },
+  declined: {
     label: "Declined card",
     description: "The bank declines whatever card you use.",
     expectation: "An inline error, your details kept, and the chance to try another card.",
-    config: { forceOutcome: "decline" },
-  }),
-  preset({
-    id: "challenge",
+    config: { forcedOutcome: "decline" },
+  },
+  challenge: {
     label: "3-D Secure",
     description: "The bank asks you to authenticate the payment.",
     expectation: "An authentication dialog. Approve and the order completes; fail and you can try again.",
-    config: { forceOutcome: "challenge" },
-  }),
-  preset({
-    id: "slow-network",
+    config: { forcedOutcome: "challenge" },
+  },
+  "slow-network": {
     label: "Slow network",
     description: "Every request takes around three seconds.",
     expectation: "Loading states everywhere, no double submissions, nothing jumps around.",
-    config: { latencyMs: [2600, 3400], paymentLatencyMs: 0 },
-  }),
-  preset({
-    id: "webhook-twice",
+    config: { latencyRangeMs: [2_600, 3_400], extraPaymentLatencyMs: 0 },
+  },
+  "webhook-twice": {
     label: "Webhook arrives twice",
     description: "The payment provider delivers the same webhook event twice.",
     expectation: "One set of tickets. The server log shows the duplicate being ignored.",
-    config: { duplicateWebhook: true },
-  }),
-  preset({
-    id: "webhook-first",
+    config: { shouldDuplicateWebhook: true },
+  },
+  "webhook-first": {
     label: "Webhook before redirect",
     description: "The webhook lands before your browser gets the payment response.",
     expectation: "The order page opens already confirmed — the redirect isn’t the source of truth.",
-    config: { webhookDelayMs: 0, paymentLatencyMs: 1800 },
-  }),
-  preset({
-    id: "webhook-delayed",
+    config: { webhookDelayMs: 0, extraPaymentLatencyMs: 1_800 },
+  },
+  "webhook-delayed": {
     label: "Webhook delayed",
     description: "The provider takes twelve seconds to send the webhook.",
     expectation: "Confirming… with polling that backs off, then a reassuring note, then your tickets.",
-    config: { webhookDelayMs: 12000 },
-  }),
-  preset({
-    id: "hold-expires",
+    config: { webhookDelayMs: 12_000 },
+  },
+  "hold-expires": {
     label: "Hold expires mid-payment",
     description: "You start paying with three seconds left, and the bank is slower than that.",
     expectation: "The payment succeeds after your hold is gone, so the order is refunded and explained.",
-    config: { expireHoldDuringPayment: true, webhookDelayMs: 6000 },
-  }),
-  preset({
-    id: "crowd",
+    config: { shouldExpireHoldDuringPayment: true, webhookDelayMs: 6_000 },
+  },
+  crowd: {
     label: "Crowd buys the last ticket",
     description: "Other buyers grab nearly-sold-out tickets moments before you.",
     expectation: "“Someone just got the last tickets” with live availability, never an oversold event.",
-    config: { crowd: true },
-  }),
-];
+    config: { isCrowdEnabled: true },
+  },
+};
 
-export const getPreset = (id: PresetId) => presets.find((p) => p.id === id) ?? presets[0];
+const toPreset = (id: PresetId): Preset => {
+  const { config, ...definition } = DEFINITIONS[id];
+  return { id, ...definition, config: { ...DEFAULT_CHAOS, ...config } };
+};
+
+/** In display order. */
+export const PRESETS: readonly Preset[] = PRESET_IDS.map(toPreset);
+
+export const getPreset = (id: PresetId): Preset => toPreset(id);

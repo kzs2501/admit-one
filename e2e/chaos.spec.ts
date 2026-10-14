@@ -17,8 +17,8 @@ test("happy path: confirming, then exactly one ticket per attendee", async ({ pa
   await expect(page.getByRole("list", { name: "Your tickets" }).getByRole("listitem")).toHaveCount(2);
 
   const state = await serverState(page);
-  const order = Object.values(state.orders)[0];
-  expect(order.status).toBe("fulfilled");
+  const [order] = Object.values(state.orders);
+  expect(order?.status).toBe("fulfilled");
   expect(state.sold["osc-session"]).toBe(2);
 });
 
@@ -33,7 +33,7 @@ test("declined card: inline error, details kept, and a retry succeeds", async ({
   await pay(page);
   await expect(ticketsHeading(page)).toBeVisible({ timeout: 10_000 });
   const payments = Object.values((await serverState(page)).payments);
-  expect(payments.map((p) => p.status).sort()).toEqual(["failed", "succeeded"]);
+  expect(payments.map((payment) => payment.status).sort()).toEqual(["failed", "succeeded"]);
 });
 
 test("3-D Secure: failing lets you retry, approving completes the order", async ({ page }) => {
@@ -70,7 +70,7 @@ test("slow network: a double click reserves once and pays once", async ({ page }
   await page
     .getByRole("button", { name: "Reserving…" })
     .click({ force: true })
-    .catch(() => {});
+    .catch(() => undefined); // a disabled button may refuse the click — the point is that nothing doubles
   await fillAttendees(page, 1);
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("button", { name: /Succeeds/ }).click({ timeout: 15_000 });
@@ -90,7 +90,9 @@ test("webhook arrives twice: one set of tickets, duplicate logged and ignored", 
   await expect(page.getByRole("list", { name: "Your tickets" }).getByRole("listitem")).toHaveCount(2);
 
   await expect
-    .poll(async () => (await serverState(page)).log.some((l) => /already processed, ignored/.test(l.message)))
+    .poll(async () =>
+      (await serverState(page)).log.some((entry) => entry.message.includes("already processed, ignored")),
+    )
     .toBe(true);
   expect((await serverState(page)).sold["osc-session"]).toBe(2);
 });
@@ -100,8 +102,8 @@ test("webhook before redirect: the order is already fulfilled when the browser a
   await toPayment(page);
   await pay(page);
   await page.waitForURL(/\/orders\//);
-  const order = Object.values((await serverState(page)).orders)[0];
-  expect(order.status).toBe("fulfilled");
+  const [order] = Object.values((await serverState(page)).orders);
+  expect(order?.status).toBe("fulfilled");
   await expect(ticketsHeading(page)).toBeVisible();
 });
 
@@ -137,7 +139,7 @@ test("hold expires mid-payment: the late payment is refunded and explained", asy
   await expect(page.getByRole("main").getByText(/refunded it in full/)).toBeVisible();
 
   const state = await serverState(page);
-  expect(Object.values(state.payments)[0].status).toBe("refunded");
+  expect(Object.values(state.payments)[0]?.status).toBe("refunded");
   expect(state.sold["osc-session"] ?? 0).toBe(0);
 });
 

@@ -9,7 +9,7 @@ const toIso = (epochMs: number) => new Date(epochMs).toISOString();
 
 export const toEventDto = (event: EventView): EventDto => event;
 
-export function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
+function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
   return { ...hold, createdAt: toIso(createdAtMs), expiresAt: toIso(expiresAtMs) };
 }
 

@@ -7,7 +7,7 @@
  * idempotency keys, ISO timestamps — live in `http/*`. This file only orchestrates,
  * and returns read models (`domain/views`) or domain errors.
  */
-import { catalog, findEvent } from "@/core/catalog";
+import { CATALOG, findEvent } from "@/core/catalog";
 import type { CardDetails } from "@/core/schemas";
 import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { BackendContext, Deps } from "./domain/context";
@@ -94,7 +94,7 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
       });
     },
 
-    listEvents: (): EventView[] => catalog.map((event) => toEventView(context, event)),
+    listEvents: (): EventView[] => CATALOG.map((event) => toEventView(context, event)),
     getEvent(slug: string): Result<EventView> {
       const event = findEvent(slug);
       return event ? ok(toEventView(context, event)) : fail({ code: "not_found", detail: "No such event." });

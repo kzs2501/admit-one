@@ -8,7 +8,10 @@
  */
 import { normalizeCardNumber } from "@/core/schemas";
 
-export type Attempt = { key: string; card: string };
+export interface Attempt {
+  key: string;
+  card: string;
+}
 
 export function attemptFor(previous: Attempt | null, cardNumber: string, mint: () => string): Attempt {
   const card = normalizeCardNumber(cardNumber);

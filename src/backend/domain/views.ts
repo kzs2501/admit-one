@@ -13,11 +13,17 @@ import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus } from "./orders";
 import type { HoldRecord, OrderRecord, PaymentRecord } from "./state";
 
-export type TierView = { id: string; name: string; description: string; priceMinor: number; available: number };
+export interface TierView {
+  id: string;
+  name: string;
+  description: string;
+  priceMinor: number;
+  available: number;
+}
 
 export type EventView = Omit<EventInfo, "tiers" | "addOns"> & { tiers: TierView[]; addOns: AddOnInfo[] };
 
-export type HoldView = {
+export interface HoldView {
   id: string;
   eventSlug: string;
   items: LineItem[];
@@ -25,16 +31,16 @@ export type HoldView = {
   expiresAtMs: number;
   status: HoldStatus;
   orderId: string | null;
-};
+}
 
-export type PaymentView = {
+export interface PaymentView {
   id: string;
   status: PaymentStatus;
   last4: string;
   failureCode: PaymentFailureCode | null;
-};
+}
 
-export type OrderView = {
+export interface OrderView {
   id: string;
   holdId: string;
   eventSlug: string;
@@ -48,11 +54,19 @@ export type OrderView = {
   payment: PaymentView | null;
   createdAtMs: number;
   updatedAtMs: number;
-};
+}
 
-export type HoldDetailsView = { hold: HoldView; event: EventView; order: OrderView | null; serverTimeMs: number };
+export interface HoldDetailsView {
+  hold: HoldView;
+  event: EventView;
+  order: OrderView | null;
+  serverTimeMs: number;
+}
 
-export type PaymentResultView = { payment: PaymentView; order: OrderView };
+export interface PaymentResultView {
+  payment: PaymentView;
+  order: OrderView;
+}
 
 export const toEventView = (context: BackendContext, event: EventInfo): EventView => ({
   slug: event.slug,
@@ -75,7 +89,7 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
   addOns: event.addOns,
 });
 
-export const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
+const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
   id: hold.id,
   eventSlug: hold.eventSlug,
   items: hold.items,

@@ -1,16 +1,26 @@
 // @vitest-environment node
+/** Copy standards for everything a visitor can read: curly quotes and real ellipses. */
 import { describe, expect, it } from "vitest";
-import { catalog } from "@/core/catalog";
-import { presets } from "@/backend/chaos/presets";
+import { PRESETS } from "@/backend/chaos/presets";
+import { PROBLEM_CATALOG } from "@/contract/problems";
+import { CATALOG } from "@/core/catalog";
 import { attendeeSchema, cardSchema } from "@/core/schemas";
 
-/** Every string a visitor can read from the content modules. */
-function strings(value: unknown, path: string): [string, string][] {
-  if (typeof value === "string") return [[path, value]];
-  if (Array.isArray(value)) return value.flatMap((v, i) => strings(v, `${path}[${i}]`));
+interface LabelledString {
+  path: string;
+  text: string;
+}
+
+/** Keys that hold identifiers or machine values, not copy. */
+const NON_COPY_KEYS = new Set(["slug", "id", "startsAt", "timeZone", "currency"]);
+
+/** Every string a visitor can read from a content module, with where it came from. */
+function collectStrings(value: unknown, path: string): LabelledString[] {
+  if (typeof value === "string") return [{ path, text: value }];
+  if (Array.isArray(value)) return value.flatMap((item, i) => collectStrings(item, `${path}[${i}]`));
   if (value && typeof value === "object") {
-    return Object.entries(value).flatMap(([k, v]) =>
-      ["slug", "id", "startsAt"].includes(k) ? [] : strings(v, `${path}.${k}`),
+    return Object.entries(value).flatMap(([key, child]) =>
+      NON_COPY_KEYS.has(key) ? [] : collectStrings(child, `${path}.${key}`),
     );
   }
   return [];
@@ -19,27 +29,29 @@ function strings(value: unknown, path: string): [string, string][] {
 const validationMessages = [
   ...(attendeeSchema.safeParse({ name: "", email: "x" }).error?.issues ?? []),
   ...(cardSchema.safeParse({ number: "1", expiry: "", cvc: "", name: "" }).error?.issues ?? []),
-].map((i) => i.message);
+].map((issue) => issue.message);
 
 describe("visible copy", () => {
-  const all = [
-    ...strings(catalog, "catalog"),
-    ...strings(
-      presets.map(({ label, description, expectation }) => ({ label, description, expectation })),
-      "presets",
+  const copy = [
+    ...collectStrings(CATALOG, "CATALOG"),
+    ...collectStrings(
+      PRESETS.map(({ label, description, expectation }) => ({ label, description, expectation })),
+      "PRESETS",
     ),
-    ...validationMessages.map((m, i) => [`validation[${i}]`, m] as [string, string]),
+    ...collectStrings(PROBLEM_CATALOG, "PROBLEM_CATALOG"),
+    ...validationMessages.map((text, i) => ({ path: `validation[${i}]`, text })),
   ];
 
   it("uses curly apostrophes and quotes, never straight ones", () => {
-    expect(all.filter(([, s]) => /['"]/.test(s)).map(([p, s]) => `${p}: ${s}`)).toEqual([]);
+    // Backticks are allowed: problem descriptions use them to mark code, like `available`.
+    expect(copy.filter(({ text }) => /['"]/.test(text)).map(({ path, text }) => `${path}: ${text}`)).toEqual([]);
   });
 
   it("uses a real ellipsis", () => {
-    expect(all.filter(([, s]) => s.includes("...")).map(([p]) => p)).toEqual([]);
+    expect(copy.filter(({ text }) => text.includes("...")).map(({ path }) => path)).toEqual([]);
   });
 
   it("actually checks something", () => {
-    expect(all.length).toBeGreaterThan(40);
+    expect(copy.length).toBeGreaterThan(60);
   });
 });

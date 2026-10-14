@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
 import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
-import { site } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -55,11 +55,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <p>All events, venues and people are fictional. The backend runs in your browser.</p>
               <p>
                 Built by{" "}
-                <a className="underline underline-offset-4 hover:text-ink" href={site.authorUrl}>
-                  {site.author}
+                <a className="underline underline-offset-4 hover:text-ink" href={SITE.authorUrl}>
+                  {SITE.author}
                 </a>{" "}
                 ·{" "}
-                <a className="underline underline-offset-4 hover:text-ink" href={site.repoUrl}>
+                <a className="underline underline-offset-4 hover:text-ink" href={SITE.repoUrl}>
                   Source
                 </a>
               </p>

@@ -37,7 +37,7 @@ describe("AttendeesStep", () => {
         updateDraft={updateDraft}
         goNext={goNext}
         goBack={null}
-        onExpired={() => {}}
+        onExpired={vi.fn()}
       />,
     );
     return { updateDraft, goNext, user: userEvent.setup() };

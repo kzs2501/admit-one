@@ -2,11 +2,11 @@ import type { Draft } from "@/features/checkout/hooks/use-draft";
 import type { StepContext } from "@/features/checkout/domain/step-registry";
 
 /** What every checkout step receives from the flow. */
-export type StepProps = {
+export interface StepProps {
   context: StepContext;
   updateDraft: (patch: Partial<Draft>) => void;
   goNext: () => void;
   goBack: (() => void) | null;
   /** The server said the hold is gone: re-read it so the flow shows the expired state. */
   onExpired: () => void;
-};
+}

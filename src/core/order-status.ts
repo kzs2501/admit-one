@@ -5,7 +5,10 @@
  */
 import type { OrderStatus, PaymentStatus } from "./statuses";
 
-type OrderProgress = { status: OrderStatus; payment: { status: PaymentStatus } | null };
+interface OrderProgress {
+  status: OrderStatus;
+  payment: { status: PaymentStatus } | null;
+}
 
 /** A charge is with the provider: its webhook will settle the order. Worth polling for. */
 export const isAwaitingConfirmation = (order: OrderProgress) =>

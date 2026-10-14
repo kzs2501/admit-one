@@ -3,7 +3,7 @@
  * counting. Nothing runs on a timer to "release" it, so there's no window where a
  * dead hold still blocks a buyer, and reads never write.
  */
-import { catalog, findEvent, findTier } from "@/core/catalog";
+import { CATALOG, findEvent, findTier } from "@/core/catalog";
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { fail, ok, type Result } from "./errors";
@@ -14,7 +14,10 @@ const CROWD_SNIPE_AT_MOST = 2;
 /** The background crowd only buys from tiers with more than this many left. */
 const CROWD_BACKGROUND_ABOVE = 3;
 
-export type CreateHoldCommand = { eventSlug: string; items: LineItem[] };
+export interface CreateHoldCommand {
+  eventSlug: string;
+  items: LineItem[];
+}
 
 export const isHoldLive = (hold: HoldRecord, nowMs: number) => !hold.isConverted && nowMs < hold.expiresAtMs;
 
@@ -46,7 +49,7 @@ export function createHold(context: BackendContext, { eventSlug, items }: Create
   }
 
   // The crowd snipes nearly-sold-out tiers a moment before the visitor's request.
-  if (context.chaos().crowd) {
+  if (context.chaos().isCrowdEnabled) {
     for (const { tierId } of items) {
       const left = availableQuantity(context, tierId);
       if (left > 0 && left <= CROWD_SNIPE_AT_MOST) recordCrowdPurchase(context, tierId, left, "a moment before you");
@@ -74,7 +77,7 @@ export function createHold(context: BackendContext, { eventSlug, items }: Create
     eventSlug,
     items,
     createdAtMs: nowMs,
-    expiresAtMs: nowMs + context.chaos().holdSeconds * 1000,
+    expiresAtMs: nowMs + context.chaos().holdDurationMs,
     isConverted: false,
     isExtended: false,
     orderId: null,
@@ -92,10 +95,10 @@ export function findHold(context: BackendContext, holdId: string): Result<HoldRe
 
 /** Background buying, so availability visibly moves while the crowd preset is on. */
 export function runCrowdTick(context: BackendContext): boolean {
-  if (!context.chaos().crowd) return false;
-  const candidates = catalog
-    .flatMap((event) => event.tiers)
-    .filter((tier) => availableQuantity(context, tier.id) > CROWD_BACKGROUND_ABOVE);
+  if (!context.chaos().isCrowdEnabled) return false;
+  const candidates = CATALOG.flatMap((event) => event.tiers).filter(
+    (tier) => availableQuantity(context, tier.id) > CROWD_BACKGROUND_ABOVE,
+  );
   const tier = candidates[Math.floor(context.deps.random() * candidates.length)];
   if (!tier) return false;
   recordCrowdPurchase(context, tier.id, 1, "in the background");

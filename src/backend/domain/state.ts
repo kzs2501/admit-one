@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/core/money";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-export const STATE_VERSION = 3;
+const STATE_VERSION = 3;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -83,7 +83,7 @@ const outboxItemSchema = z.object({
   deliverAtMs: epochMsSchema,
 });
 
-export const LOG_KINDS = ["request", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
+const LOG_KINDS = ["request", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
 
 const logEntrySchema = z.object({
   id: z.number().int(),
@@ -112,7 +112,6 @@ export type HoldRecord = z.infer<typeof holdRecordSchema>;
 export type OrderRecord = z.infer<typeof orderRecordSchema>;
 export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
 export type IdempotencyRecord = z.infer<typeof idempotencyRecordSchema>;
-export type OutboxItem = z.infer<typeof outboxItemSchema>;
 export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;

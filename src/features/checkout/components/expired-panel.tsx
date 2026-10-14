@@ -55,7 +55,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
           )
         )}
         <div className="flex flex-wrap justify-center gap-3">
-          <Button onClick={() => again.mutate()} busy={again.isPending} disabled={isGoneAgain}>
+          <Button onClick={() => again.mutate()} isBusy={again.isPending} disabled={isGoneAgain}>
             {again.isPending ? "Reserving…" : "Reserve the same tickets again"}
           </Button>
           <ButtonLink href={routes.event(hold.eventSlug)}>Back to the event</ButtonLink>
