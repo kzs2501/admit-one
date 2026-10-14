@@ -1,28 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { presets, type PresetId } from "@/backend/chaos/presets";
-import type { Backend } from "@/backend/backend";
-
-/** The tab's simulated server — loaded lazily, and only in the browser. */
-function useSandbox() {
-  const [server, setServer] = useState<Backend | null>(null);
-  useEffect(() => {
-    let alive = true;
-    import("@/backend/runtime/sandbox").then(({ getServer }) => alive && setServer(getServer()));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  // Re-render whenever the server changes (it mutates in place, so watch its version).
-  useSyncExternalStore(
-    (cb) => (server ? server.subscribe(cb) : () => {}),
-    () => server?.getVersion() ?? -1,
-    () => -1,
-  );
-  return server;
-}
+import { presets, type PresetId } from "@/backend";
+import { useSandboxControl } from "@/features/sandbox/hooks/use-sandbox-control";
 
 const time = (at: number) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -39,28 +20,28 @@ const kindStyle: Record<string, string> = {
  * go through checkout and watch the app handle it — and the server log explain it.
  */
 export function ChaosPanel() {
-  const server = useSandbox();
+  const sandbox = useSandboxControl();
   const queryClient = useQueryClient();
   const dialog = useRef<HTMLDialogElement>(null);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const presetId = server?.getState().presetId ?? "happy";
+  const presetId = sandbox?.getPresetId() ?? "happy";
   const active = presets.find((p) => p.id === presetId)!;
-  const log = server ? [...server.getState().log].reverse().slice(0, 40) : [];
+  const log = sandbox ? [...sandbox.getLog()].reverse().slice(0, 40) : [];
 
   const open = () => {
     setConfirmReset(false);
     dialog.current?.showModal();
   };
 
-  const choose = (id: PresetId) => server?.setPreset(id);
+  const choose = (id: PresetId) => sandbox?.setPreset(id);
 
   const reset = () => {
     if (!confirmReset) {
       setConfirmReset(true);
       return;
     }
-    server?.reset();
+    sandbox?.reset();
     queryClient.invalidateQueries();
     setConfirmReset(false);
   };

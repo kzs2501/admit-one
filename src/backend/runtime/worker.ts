@@ -1,25 +1,25 @@
 /**
- * Starts the service worker that answers `/api/*` requests. Every API call awaits
- * this first, so no request can slip past to a real network before the simulated
- * backend is ready.
+ * Starts the service worker that answers `/api/*` requests. The API client waits for
+ * this before its first request (see `instrumentation-client.ts`), so no request can
+ * slip past to a real network before the simulated backend is ready.
  */
-let ready: Promise<void> | null = null;
+let started: Promise<void> | null = null;
 
-export function startMocks(): Promise<void> {
-  ready ??= (async () => {
-    const [{ setupWorker }, { createHandlers }, { getServer }] = await Promise.all([
+export function startWorker(): Promise<void> {
+  started ??= (async () => {
+    const [{ setupWorker }, { createHandlers }, { getSandbox }] = await Promise.all([
       import("msw/browser"),
       import("@/backend/http/handlers"),
       import("./sandbox"),
     ]);
     const worker = setupWorker(
-      ...createHandlers(getServer(), {
-        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      ...createHandlers(getSandbox(), {
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         random: Math.random,
       }),
     );
     // Anything that isn't /api/* (pages, scripts, fonts) goes to the network as usual.
     await worker.start({ onUnhandledFrame: "bypass", quiet: true });
   })();
-  return ready;
+  return started;
 }

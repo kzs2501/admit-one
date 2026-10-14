@@ -61,7 +61,7 @@ function startRuntime(s: Backend) {
 }
 
 /** The tab's simulated server, created (and restored) on first use. Browser only. */
-export function getServer(): Backend {
+export function getSandbox(): Backend {
   if (!server) {
     server = createBackend({ now: Date.now, newId, random: Math.random }, load() ?? initialState());
     startRuntime(server);

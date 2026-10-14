@@ -1,7 +1,7 @@
 /**
  * The app's API client. Plain fetch against `/api/*` — written exactly as it would
- * be against a real backend. The only concession to the simulation is waiting for
- * the service worker before the first request.
+ * be against a real backend. It knows nothing about the simulation: whoever starts
+ * the app can hold requests until a dependency is ready (`setApiReadiness`).
  */
 import type { ApiErrorBody, EventView, HoldResponse, LineItem, OrderView, PaymentView } from "@/contract/dto";
 import type { CardInput } from "@/core/schemas";
@@ -17,11 +17,15 @@ export class ApiError extends Error {
   }
 }
 
+let readiness: Promise<unknown> = Promise.resolve();
+
+/** Hold every request until `ready` settles. Set once, at startup. */
+export function setApiReadiness(ready: Promise<unknown>) {
+  readiness = ready;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (typeof window !== "undefined") {
-    const { startMocks } = await import("@/backend/runtime/worker");
-    await startMocks();
-  }
+  await readiness;
   const res = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...init.headers },
