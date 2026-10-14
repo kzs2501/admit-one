@@ -65,6 +65,14 @@ test("the countdown announces thresholds, not every second", async ({ page }) =>
   await expect(live).toHaveText("2 minutes left to complete your order.");
 });
 
+test("a problem's type URI opens its documentation", async ({ page }) => {
+  await page.goto("/problems/sold-out");
+  await expect(page.getByRole("heading", { level: 1, name: "Not enough tickets left" })).toBeVisible();
+  await expect(page.getByRole("main")).toContainText("sold_out");
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  expect(results.violations.map((violation) => violation.id)).toEqual([]);
+});
+
 test("an unknown reservation explains itself", async ({ page }) => {
   await page.goto("/checkout/hold_doesnotexist/attendees");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("We can’t find that reservation");

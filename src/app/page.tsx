@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { catalog, lowestPriceCents } from "@/core/catalog";
-import { formatMoney } from "@/core/money";
-import { formatEventDate, formatEventTime } from "@/lib/format";
+import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { AvailabilityBadge } from "@/features/events/components/availability-badge";
 
 export default function Home() {

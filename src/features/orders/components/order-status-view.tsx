@@ -3,17 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import type { OrderView } from "@/contract/dto";
-import { getEventInfo } from "@/core/catalog";
-import { formatMoney } from "@/core/money";
-import { api, ApiError } from "@/lib/api-client";
-import { formatEventDate, formatEventTime } from "@/lib/format";
+import type { OrderDto } from "@/contract/dto";
+import { getEvent } from "@/core/catalog";
+import type { OrderStatus } from "@/core/statuses";
+import { apiClient, problemOf } from "@/lib/api-client";
+import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { stepHref } from "@/features/checkout/domain/step-registry";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
 
 /** Statuses that need nothing more from the server — stop polling. */
-const SETTLED: OrderView["status"][] = ["fulfilled", "refunded", "expired", "failed"];
+const SETTLED_STATUSES: readonly OrderStatus[] = ["fulfilled", "refunded", "expired", "failed"];
 
 /** 0.5s, 1s, 2s, then every 4s: fast when it's likely to finish, gentle when it isn't. */
 export const pollDelay = (attempt: number) => Math.min(4_000, 500 * 2 ** attempt);
@@ -21,11 +21,12 @@ export const pollDelay = (attempt: number) => Math.min(4_000, 500 * 2 ** attempt
 const SLOW_AFTER_MS = 8_000;
 
 /** Pending, but nothing is in flight: the buyer hasn't paid (or abandoned 3-D Secure). */
-const isUnpaid = (o: OrderView) =>
-  o.status === "pending" && (!o.payment || o.payment.status === "requires_action" || o.payment.status === "failed");
+const isUnpaid = (order: OrderDto) =>
+  order.status === "pending" &&
+  (!order.payment || order.payment.status === "requires_action" || order.payment.status === "failed");
 
 /** Only worth polling while a payment is genuinely in flight. */
-const isWaiting = (o: OrderView) => !SETTLED.includes(o.status) && !isUnpaid(o);
+const isWaiting = (order: OrderDto) => !SETTLED_STATUSES.includes(order.status) && !isUnpaid(order);
 
 /**
  * The order page — where the browser lands after paying. It never assumes the
@@ -38,8 +39,9 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
 
   const query = useQuery({
     queryKey: ["order", orderId],
-    queryFn: () => api.getOrder(orderId),
-    refetchInterval: (q) => (q.state.data && !isWaiting(q.state.data) ? false : pollDelay(q.state.dataUpdateCount)),
+    queryFn: () => apiClient.getOrder(orderId),
+    refetchInterval: (current) =>
+      current.state.data && !isWaiting(current.state.data) ? false : pollDelay(current.state.dataUpdateCount),
   });
   const order = query.data;
   const waiting = order ? isWaiting(order) : false;
@@ -54,15 +56,15 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
   // When the outcome arrives, move focus to it so it's announced and in view.
   const status = order?.status;
   useEffect(() => {
-    if (status && SETTLED.includes(status)) heading.current?.focus();
+    if (status && SETTLED_STATUSES.includes(status)) heading.current?.focus();
   }, [status]);
 
   if (query.isError) {
-    const missing = query.error instanceof ApiError && query.error.status === 404;
+    const isMissing = problemOf(query.error)?.code === "not_found";
     return (
       <Shell>
-        <Notice tone="bad" title={missing ? "We can’t find that order" : "Couldn’t load your order"} role="alert">
-          {missing ? "It may belong to another tab, or the sandbox was reset." : "We’ll keep trying."}{" "}
+        <Notice tone="bad" title={isMissing ? "We can’t find that order" : "Couldn’t load your order"} role="alert">
+          {isMissing ? "It may belong to another tab, or the sandbox was reset." : "We’ll keep trying."}{" "}
           <Link href="/" className="underline underline-offset-4">
             Browse events
           </Link>
@@ -81,7 +83,7 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
     );
   }
 
-  const event = getEventInfo(order.eventSlug)!;
+  const event = getEvent(order.eventSlug);
 
   if (isUnpaid(order)) {
     return (

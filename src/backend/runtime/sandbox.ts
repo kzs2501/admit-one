@@ -8,26 +8,25 @@
  * it, the outbox survives the reload and the runtime picks up where it left off.
  */
 import { createBackend, type Backend } from "@/backend/backend";
-import { deserialize, initialState, serialize } from "@/backend/domain/state";
+import { createInitialState, deserializeState, SANDBOX_STORAGE_KEY, serializeState } from "@/backend/domain/state";
 
-const STORAGE_KEY = "admit-one:sandbox:v1";
-const CROWD_INTERVAL_MS = 6000;
+const CROWD_INTERVAL_MS = 6_000;
 
-let server: Backend | null = null;
+let sandboxInstance: Backend | null = null;
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 
 function load() {
   try {
-    return deserialize(sessionStorage.getItem(STORAGE_KEY));
+    return deserializeState(sessionStorage.getItem(SANDBOX_STORAGE_KEY));
   } catch {
     return null; // storage blocked: the sandbox just won't survive a reload
   }
 }
 
-function save(s: Backend) {
+function save(sandbox: Backend) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, serialize(s.getState()));
+    sessionStorage.setItem(SANDBOX_STORAGE_KEY, serializeState(sandbox.getState()));
   } catch {
     // Quota or privacy mode — nothing useful to do.
   }
@@ -37,34 +36,37 @@ function save(s: Backend) {
  * Keeps time-based behaviour running: delivers webhooks when they're due, and lets
  * the crowd buy tickets while that preset is on.
  */
-function startRuntime(s: Backend) {
+function startRuntime(sandbox: Backend) {
   let webhookTimer: ReturnType<typeof setTimeout> | undefined;
   let crowdTimer: ReturnType<typeof setInterval> | undefined;
 
   const schedule = () => {
     clearTimeout(webhookTimer);
-    const at = s.nextDeliveryAt();
-    if (at !== null) webhookTimer = setTimeout(() => s.deliverDue(), Math.max(0, at - Date.now()));
+    const dueAtMs = sandbox.nextDeliveryAtMs();
+    if (dueAtMs !== null) {
+      webhookTimer = setTimeout(() => sandbox.deliverDue(), Math.max(0, dueAtMs - Date.now()));
+    }
 
-    if (s.chaos().crowd && !crowdTimer) crowdTimer = setInterval(() => s.crowdTick(), CROWD_INTERVAL_MS);
-    if (!s.chaos().crowd && crowdTimer) {
+    const isCrowdEnabled = sandbox.chaos().crowd;
+    if (isCrowdEnabled && !crowdTimer) crowdTimer = setInterval(() => sandbox.runCrowdTick(), CROWD_INTERVAL_MS);
+    if (!isCrowdEnabled && crowdTimer) {
       clearInterval(crowdTimer);
       crowdTimer = undefined;
     }
   };
 
-  s.subscribe(() => {
-    save(s);
+  sandbox.subscribe(() => {
+    save(sandbox);
     schedule();
   });
   schedule(); // resume: deliver anything that came due while the page was closed
 }
 
-/** The tab's simulated server, created (and restored) on first use. Browser only. */
+/** The tab's sandbox, created (and restored) on first use. Browser only. */
 export function getSandbox(): Backend {
-  if (!server) {
-    server = createBackend({ now: Date.now, newId, random: Math.random }, load() ?? initialState());
-    startRuntime(server);
+  if (!sandboxInstance) {
+    sandboxInstance = createBackend({ now: Date.now, newId, random: Math.random }, load() ?? createInitialState());
+    startRuntime(sandboxInstance);
   }
-  return server;
+  return sandboxInstance;
 }

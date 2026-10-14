@@ -15,16 +15,16 @@ import {
  * hear it only at 2 minutes, 1 minute and 30 seconds — not sixty times a minute.
  */
 export function HoldTimer({
-  expiresAt,
+  expiresAtMs,
   offset,
   onExpire,
 }: {
-  expiresAt: number;
+  expiresAtMs: number;
   offset: number;
   onExpire: () => void;
 }) {
   const now = useNow(true);
-  const left = remainingMs(expiresAt, now, offset);
+  const left = remainingMs(expiresAtMs, now, offset);
   const previous = useRef(left);
   const [announcement, setAnnouncement] = useState("");
   const expired = useRef(false);

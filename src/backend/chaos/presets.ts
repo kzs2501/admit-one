@@ -22,16 +22,19 @@ export type ChaosConfig = {
   crowd: boolean;
 };
 
-export type PresetId =
-  | "happy"
-  | "declined"
-  | "challenge"
-  | "slow-network"
-  | "webhook-twice"
-  | "webhook-first"
-  | "webhook-delayed"
-  | "hold-expires"
-  | "crowd";
+export const PRESET_IDS = [
+  "happy",
+  "declined",
+  "challenge",
+  "slow-network",
+  "webhook-twice",
+  "webhook-first",
+  "webhook-delayed",
+  "hold-expires",
+  "crowd",
+] as const;
+
+export type PresetId = (typeof PRESET_IDS)[number];
 
 export type Preset = {
   id: PresetId;

@@ -1,6 +1,7 @@
 "use client";
 
-import { ticketCount, formatMoney } from "@/core/money";
+import { ticketCount } from "@/core/ticketing";
+import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
 import type { StepProps } from "./step-props";
@@ -22,7 +23,7 @@ export function AddOnsStep({ ctx, draft, updateDraft, goNext, goBack }: StepProp
               label={addOn.name}
               value={draft.addOns[addOn.id] ?? 0}
               max={count}
-              onChange={(n) => updateDraft({ addOns: { ...draft.addOns, [addOn.id]: n } })}
+              onChange={(quantity) => updateDraft({ addOns: { ...draft.addOns, [addOn.id]: quantity } })}
             />
           </li>
         ))}
@@ -38,11 +39,11 @@ export function AddOnsStep({ ctx, draft, updateDraft, goNext, goBack }: StepProp
         <Button
           type="button"
           onClick={() => {
-            updateDraft({ addOnsConfirmed: true });
+            updateDraft({ hasConfirmedAddOns: true });
             goNext();
           }}
         >
-          {Object.values(draft.addOns).some((n) => n > 0) ? "Continue" : "Continue without extras"}
+          {Object.values(draft.addOns).some((quantity) => quantity > 0) ? "Continue" : "Continue without extras"}
         </Button>
       </div>
     </div>

@@ -5,21 +5,19 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { z } from "zod";
 
-export type Draft = {
-  attendees: { name: string; email: string }[];
-  addOns: Record<string, number>;
-  addOnsConfirmed: boolean;
-};
-
+/** Unvalidated: the draft holds whatever was typed, including half-finished input. */
 const draftSchema = z.object({
   attendees: z.array(z.object({ name: z.string(), email: z.string() })),
   addOns: z.record(z.string(), z.number().int().min(0)),
-  addOnsConfirmed: z.boolean(),
+  hasConfirmedAddOns: z.boolean(),
 });
 
-export const emptyDraft = (): Draft => ({ attendees: [], addOns: {}, addOnsConfirmed: false });
+export type Draft = z.infer<typeof draftSchema>;
 
-const key = (holdId: string) => `admit-one:draft:${holdId}`;
+export const createEmptyDraft = (): Draft => ({ attendees: [], addOns: {}, hasConfirmedAddOns: false });
+
+/** One sessionStorage entry per hold. */
+export const draftStorageKey = (holdId: string) => `admit-one:draft:${holdId}`;
 const listeners = new Set<() => void>();
 const cache = new Map<string, Draft>();
 
@@ -27,9 +25,9 @@ const cache = new Map<string, Draft>();
 export function readDraft(holdId: string): Draft {
   const cached = cache.get(holdId);
   if (cached) return cached;
-  let draft = emptyDraft();
+  let draft = createEmptyDraft();
   try {
-    const parsed = draftSchema.safeParse(JSON.parse(sessionStorage.getItem(key(holdId)) ?? "null"));
+    const parsed = draftSchema.safeParse(JSON.parse(sessionStorage.getItem(draftStorageKey(holdId)) ?? "null"));
     if (parsed.success) draft = parsed.data;
   } catch {
     // Unreadable storage: start empty.
@@ -42,11 +40,13 @@ export function writeDraft(holdId: string, patch: Partial<Draft>) {
   const next = { ...readDraft(holdId), ...patch };
   cache.set(holdId, next);
   try {
-    sessionStorage.setItem(key(holdId), JSON.stringify(next));
+    sessionStorage.setItem(draftStorageKey(holdId), JSON.stringify(next));
   } catch {
     // Quota or privacy mode: the draft lives for this page only.
   }
-  listeners.forEach((l) => l());
+  listeners.forEach((listener) => {
+    listener();
+  });
 }
 
 /** Carry a draft over to a new hold — used by "Reserve again" after expiry. */
@@ -57,17 +57,19 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
-const EMPTY = emptyDraft();
+const EMPTY_DRAFT = createEmptyDraft();
 
 export function useDraft(holdId: string) {
   const draft = useSyncExternalStore(
     subscribe,
     () => readDraft(holdId),
-    () => EMPTY,
+    () => EMPTY_DRAFT,
   );
   const update = useCallback((patch: Partial<Draft>) => writeDraft(holdId, patch), [holdId]);
   return [draft, update] as const;
 }
 
-/** For tests. */
-export const __resetDraftCache = () => cache.clear();
+/** Forget cached drafts, as a reload would. For tests. */
+export const resetDraftCacheForTests = () => {
+  cache.clear();
+};

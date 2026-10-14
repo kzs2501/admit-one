@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from "re
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api-client";
+import { apiClient, problemOf } from "@/lib/api-client";
 import { useMounted } from "@/lib/use-mounted";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
@@ -49,9 +49,9 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const shownStep = useRef<string | null>(null);
 
-  const query = useQuery({ queryKey: ["hold", holdId], queryFn: () => api.getHold(holdId) });
+  const query = useQuery({ queryKey: ["hold", holdId], queryFn: () => apiClient.getHold(holdId) });
   const data = query.data;
-  const offset = data ? clockOffset(data.serverNow, query.dataUpdatedAt) : 0;
+  const offset = data ? clockOffset(Date.parse(data.serverTime), query.dataUpdatedAt) : 0;
 
   const ctx: StepContext | null =
     data && mounted ? { event: data.event, hold: data.hold, draft, order: data.order } : null;
@@ -87,15 +87,15 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
   }, [query]);
 
   if (query.isError) {
-    const missing = query.error instanceof ApiError && query.error.status === 404;
+    const isMissing = problemOf(query.error)?.code === "not_found";
     return (
       <div className="mx-auto max-w-lg px-5 py-16 sm:px-8">
         <Notice
           tone="bad"
-          title={missing ? "We can’t find that reservation" : "Couldn’t load your checkout"}
+          title={isMissing ? "We can’t find that reservation" : "Couldn’t load your checkout"}
           role="alert"
         >
-          {missing
+          {isMissing
             ? "It may belong to another browser tab, or the sandbox was reset."
             : "Check your connection and try again."}{" "}
           <Link href="/" className="underline underline-offset-4">
@@ -106,7 +106,8 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
     );
   }
 
-  if (data && expired && ctx) return <ExpiredPanel hold={data.hold} step={currentId ?? "attendees"} />;
+  if (data && expired && ctx)
+    return <ExpiredPanel hold={data.hold} event={data.event} step={currentId ?? "attendees"} />;
 
   if (!ctx || !resolved || resolved.redirect || settled || paymentInFlight) {
     return (
@@ -153,7 +154,7 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
             ))}
           </ol>
         </nav>
-        <HoldTimer expiresAt={ctx.hold.expiresAt} offset={offset} onExpire={onExpire} />
+        <HoldTimer expiresAtMs={Date.parse(ctx.hold.expiresAt)} offset={offset} onExpire={onExpire} />
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">

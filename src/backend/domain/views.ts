@@ -1,27 +1,85 @@
 /**
  * Read models: what the backend shows the outside world. Derived values — live
  * availability, a hold's status, an order's effective status — are computed here, at
- * read time, never stored.
+ * read time, never stored. Times stay epoch milliseconds; the HTTP layer turns them
+ * into ISO 8601 strings.
  */
-import { getEventInfo, type EventInfo } from "@/core/catalog";
-import type { EventView, HoldResponse, HoldView, OrderView, PaymentView } from "@/contract/dto";
+import { getEvent, type AddOnInfo, type EventInfo } from "@/core/catalog";
+import type { Amounts } from "@/core/money";
+import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
+import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus } from "./orders";
 import type { HoldRecord, OrderRecord, PaymentRecord } from "./state";
 
+export type TierView = { id: string; name: string; description: string; priceCents: number; available: number };
+
+export type EventView = Omit<EventInfo, "tiers" | "addOns"> & { tiers: TierView[]; addOns: AddOnInfo[] };
+
+export type HoldView = {
+  id: string;
+  eventSlug: string;
+  items: LineItem[];
+  createdAtMs: number;
+  expiresAtMs: number;
+  status: HoldStatus;
+  orderId: string | null;
+};
+
+export type PaymentView = {
+  id: string;
+  status: PaymentStatus;
+  last4: string;
+  failureCode: PaymentFailureCode | null;
+};
+
+export type OrderView = {
+  id: string;
+  holdId: string;
+  eventSlug: string;
+  items: LineItem[];
+  attendees: { name: string; email: string }[];
+  addOns: Record<string, number>;
+  amounts: Amounts;
+  status: OrderStatus;
+  statusReason: string | null;
+  tickets: { code: string; attendeeName: string; tierName: string }[];
+  payment: PaymentView | null;
+  createdAtMs: number;
+  updatedAtMs: number;
+};
+
+export type HoldDetailsView = { hold: HoldView; event: EventView; order: OrderView | null; serverTimeMs: number };
+
+export type PaymentResultView = { payment: PaymentView; order: OrderView };
+
 export const toEventView = (context: BackendContext, event: EventInfo): EventView => ({
-  ...event,
-  tiers: event.tiers.map((tier) => ({ ...tier, available: availableQuantity(context, tier.id) })),
+  slug: event.slug,
+  name: event.name,
+  tagline: event.tagline,
+  startsAt: event.startsAt,
+  venue: event.venue,
+  city: event.city,
+  description: event.description,
+  // Public fields only: capacity and baseline sales stay inside the backend.
+  tiers: event.tiers.map((tier) => ({
+    id: tier.id,
+    name: tier.name,
+    description: tier.description,
+    priceCents: tier.priceCents,
+    available: availableQuantity(context, tier.id),
+  })),
+  addOns: event.addOns,
 });
 
 export const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
   id: hold.id,
   eventSlug: hold.eventSlug,
   items: hold.items,
-  createdAt: hold.createdAt,
-  expiresAt: hold.expiresAt,
-  status: hold.converted ? "converted" : isHoldLive(hold, context.deps.now()) ? "active" : "expired",
+  createdAtMs: hold.createdAtMs,
+  expiresAtMs: hold.expiresAtMs,
+  status: hold.isConverted ? "converted" : isHoldLive(hold, context.deps.now()) ? "active" : "expired",
   orderId: hold.orderId,
 });
 
@@ -47,18 +105,17 @@ export function toOrderView(context: BackendContext, order: OrderRecord): OrderV
     statusReason: reason,
     tickets: order.tickets,
     payment: payment ? toPaymentView(payment) : null,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
+    createdAtMs: order.createdAtMs,
+    updatedAtMs: order.updatedAtMs,
   };
 }
 
-/** A hold with its event and order, plus the server's clock so the client can correct for skew. */
-export function toHoldResponse(context: BackendContext, hold: HoldRecord): HoldResponse {
+export function toHoldDetailsView(context: BackendContext, hold: HoldRecord): HoldDetailsView {
   const order = hold.orderId ? context.state.orders[hold.orderId] : undefined;
   return {
     hold: toHoldView(context, hold),
-    event: toEventView(context, getEventInfo(hold.eventSlug)!),
+    event: toEventView(context, getEvent(hold.eventSlug)),
     order: order ? toOrderView(context, order) : null,
-    serverNow: context.deps.now(),
+    serverTimeMs: context.deps.now(),
   };
 }

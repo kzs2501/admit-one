@@ -6,9 +6,11 @@
  * one order is still impossible — the server refuses a second payment while one
  * is in flight or done.)
  */
+import { normalizeCardNumber } from "@/core/schemas";
+
 export type Attempt = { key: string; card: string };
 
 export function attemptFor(previous: Attempt | null, cardNumber: string, mint: () => string): Attempt {
-  const card = cardNumber.replace(/[\s-]/g, "");
+  const card = normalizeCardNumber(cardNumber);
   return previous?.card === card ? previous : { key: mint(), card };
 }

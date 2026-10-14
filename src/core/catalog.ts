@@ -5,7 +5,7 @@
  *
  * All events, venues and people are fictional.
  */
-export type Tier = {
+export type TierInfo = {
   id: string;
   name: string;
   description: string;
@@ -15,7 +15,7 @@ export type Tier = {
   baselineSold: number;
 };
 
-export type AddOn = {
+export type AddOnInfo = {
   id: string;
   name: string;
   description: string;
@@ -30,11 +30,9 @@ export type EventInfo = {
   venue: string;
   city: string;
   description: string;
-  tiers: Tier[];
-  addOns: AddOn[];
+  tiers: TierInfo[];
+  addOns: AddOnInfo[];
 };
-
-export const MAX_TICKETS_PER_ORDER = 6;
 
 export const catalog: EventInfo[] = [
   {
@@ -113,7 +111,14 @@ export const catalog: EventInfo[] = [
   },
 ];
 
-export const getEventInfo = (slug: string) => catalog.find((e) => e.slug === slug);
+export const findEvent = (slug: string): EventInfo | undefined => catalog.find((event) => event.slug === slug);
+
+/** For slugs that must exist (records only reference catalogue events): a miss is a bug. */
+export function getEvent(slug: string): EventInfo {
+  const event = findEvent(slug);
+  if (!event) throw new Error(`Unknown event ${slug}`);
+  return event;
+}
 
 export const findTier = (tierId: string) => {
   for (const event of catalog) {

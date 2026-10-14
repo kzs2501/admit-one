@@ -8,7 +8,7 @@
  *     ▼  │
  *   failed         pending/failed ──► expired   (hold ran out before payment)
  */
-import type { OrderStatus } from "@/contract/dto";
+import type { OrderStatus } from "@/core/statuses";
 
 export const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["paid", "failed", "expired"],

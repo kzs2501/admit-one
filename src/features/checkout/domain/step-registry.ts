@@ -4,18 +4,18 @@
  * Navigation, progress and guards are written once against this list — no step
  * knows about any other step.
  */
-import type { EventView, HoldView, OrderView } from "@/contract/dto";
-import { ticketCount } from "@/core/money";
+import type { EventDto, HoldDto, OrderDto } from "@/contract/dto";
+import { ticketCount } from "@/core/ticketing";
 import { attendeesSchema } from "@/core/schemas";
 import type { Draft } from "@/features/checkout/hooks/use-draft";
 
 export type StepId = "attendees" | "add-ons" | "review" | "payment";
 
 export type StepContext = {
-  event: EventView;
-  hold: HoldView;
+  event: EventDto;
+  hold: HoldDto;
   draft: Draft;
-  order: OrderView | null;
+  order: OrderDto | null;
 };
 
 export type Step = {
@@ -57,7 +57,7 @@ export const steps: Step[] = [
     label: "Extras",
     title: "Add extras",
     isApplicable: ({ event }) => event.addOns.length > 0,
-    isComplete: ({ draft }) => draft.addOnsConfirmed,
+    isComplete: ({ draft }) => draft.hasConfirmedAddOns,
   },
   {
     id: "review",

@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ticketCount } from "@/core/money";
+import { ticketCount } from "@/core/ticketing";
 import { attendeesSchema } from "@/core/schemas";
 import { Button } from "@/components/ui/button";
 import type { StepProps } from "./step-props";
@@ -17,8 +17,8 @@ export function AttendeesStep({ ctx, draft, updateDraft, goNext }: StepProps) {
   // "Ticket 2 · Workshop + General" — one label per ticket, in order.
   const labels = useMemo(
     () =>
-      hold.items.flatMap(({ tierId, qty }) =>
-        Array.from({ length: qty }, () => event.tiers.find((t) => t.id === tierId)?.name ?? "Ticket"),
+      hold.items.flatMap(({ tierId, quantity }) =>
+        Array.from({ length: quantity }, () => event.tiers.find((tier) => tier.id === tierId)?.name ?? "Ticket"),
       ),
     [hold.items, event.tiers],
   );

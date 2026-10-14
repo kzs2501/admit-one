@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { HoldResponse } from "@/contract/dto";
-import { api, ApiError } from "@/lib/api-client";
+import type { HoldDetailsDto } from "@/contract/dto";
+import { apiClient, problemOf } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import type { StepProps } from "./step-props";
@@ -15,21 +15,25 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
   const extras = Object.entries(draft.addOns).filter(([, n]) => n > 0);
 
   const save = useMutation({
-    mutationFn: () => api.upsertOrder(holdId, draft.attendees, draft.addOns),
+    mutationFn: () => apiClient.upsertOrder({ holdId, attendees: draft.attendees, addOns: draft.addOns }),
     onSuccess: (order) => {
-      queryClient.setQueryData<HoldResponse>(["hold", holdId], (old) =>
+      queryClient.setQueryData<HoldDetailsDto>(["hold", holdId], (old) =>
         old ? { ...old, order, hold: { ...old.hold, orderId: order.id } } : old,
       );
       goNext();
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.status === 410) onExpired();
-      if (
-        error instanceof ApiError &&
-        (error.code === "payment_in_progress" || error.code === "already_completed") &&
-        ctx.order
-      ) {
-        router.push(`/orders/${ctx.order.id}`);
+      const problem = problemOf(error);
+      switch (problem?.code) {
+        case "hold_expired":
+          onExpired();
+          break;
+        case "payment_in_progress":
+        case "already_completed":
+          if (ctx.order) router.push(`/orders/${ctx.order.id}`);
+          break;
+        default:
+          break; // shown in the notice below
       }
     },
   });
@@ -63,7 +67,7 @@ export function ReviewStep({ ctx, holdId, draft, goNext, goBack, onExpired }: St
         </section>
       )}
 
-      {save.isError && !(save.error instanceof ApiError && save.error.status === 410) && (
+      {save.isError && problemOf(save.error)?.code !== "hold_expired" && (
         <Notice tone="bad" title="Couldn’t save your order" role="alert">
           {save.error.message}
         </Notice>

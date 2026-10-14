@@ -1,73 +1,119 @@
 /**
- * The HTTP contract between the app and the server. The app only ever sees these
- * shapes — it can't tell the server is simulated in the browser.
+ * The HTTP contract: what every response looks like. The Zod schemas are the source
+ * of truth — the types are inferred from them, and the client parses every response
+ * against them at the boundary ("parse, don't validate").
+ *
+ * Timestamps are ISO 8601 strings; money is integer minor units (cents).
  */
-import type { AddOn, EventInfo, Tier } from "@/core/catalog";
+import { z } from "zod";
+import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
-export type TierAvailability = Tier & { available: number };
+const isoDateTimeSchema = z.iso.datetime({ offset: true });
+const centsSchema = z.number().int().nonnegative();
 
-export type EventView = Omit<EventInfo, "tiers"> & { tiers: TierAvailability[] };
+export const lineItemDtoSchema = z.object({ tierId: z.string(), quantity: z.number().int().positive() });
 
-export type LineItem = { tierId: string; qty: number };
+export const tierDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  priceCents: centsSchema,
+  /** Live: tickets left right now, after sales and other buyers' holds. */
+  available: z.number().int().nonnegative(),
+});
 
-export type HoldStatus = "active" | "expired" | "converted";
+export const addOnDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  priceCents: centsSchema,
+});
 
-export type HoldView = {
-  id: string;
-  eventSlug: string;
-  items: LineItem[];
-  createdAt: number;
-  expiresAt: number;
-  status: HoldStatus;
-  orderId: string | null;
-};
+export const eventDtoSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  tagline: z.string(),
+  startsAt: isoDateTimeSchema,
+  venue: z.string(),
+  city: z.string(),
+  description: z.string(),
+  tiers: z.array(tierDtoSchema),
+  addOns: z.array(addOnDtoSchema),
+});
 
-export type Attendee = { name: string; email: string };
+export const holdStatusSchema = z.enum(HOLD_STATUSES);
 
-export type OrderStatus = "pending" | "paid" | "fulfilled" | "failed" | "expired" | "refunded";
+export const holdDtoSchema = z.object({
+  id: z.string(),
+  eventSlug: z.string(),
+  items: z.array(lineItemDtoSchema),
+  createdAt: isoDateTimeSchema,
+  expiresAt: isoDateTimeSchema,
+  status: holdStatusSchema,
+  orderId: z.string().nullable(),
+});
 
-export type Amounts = {
-  ticketsCents: number;
-  addOnsCents: number;
-  feesCents: number;
-  totalCents: number;
-};
+export const attendeeDtoSchema = z.object({ name: z.string(), email: z.string() });
 
-export type Ticket = { code: string; attendeeName: string; tierName: string };
+export const orderStatusSchema = z.enum(ORDER_STATUSES);
 
-export type PaymentStatus = "processing" | "requires_action" | "succeeded" | "failed" | "refunded";
+export const amountsDtoSchema = z.object({
+  ticketsCents: centsSchema,
+  addOnsCents: centsSchema,
+  feesCents: centsSchema,
+  totalCents: centsSchema,
+});
 
-export type PaymentView = {
-  id: string;
-  status: PaymentStatus;
-  last4: string;
-  failureCode: string | null;
-};
+export const ticketDtoSchema = z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string() });
 
-export type OrderView = {
-  id: string;
-  holdId: string;
-  eventSlug: string;
-  items: LineItem[];
-  attendees: Attendee[];
-  addOns: Record<string, number>;
-  amounts: Amounts;
-  status: OrderStatus;
+export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
+
+export const paymentFailureCodeSchema = z.enum(PAYMENT_FAILURE_CODES);
+
+export const paymentDtoSchema = z.object({
+  id: z.string(),
+  status: paymentStatusSchema,
+  last4: z.string(),
+  failureCode: paymentFailureCodeSchema.nullable(),
+});
+
+export const orderDtoSchema = z.object({
+  id: z.string(),
+  holdId: z.string(),
+  eventSlug: z.string(),
+  items: z.array(lineItemDtoSchema),
+  attendees: z.array(attendeeDtoSchema),
+  /** Add-on id → quantity; only add-ons that were chosen. */
+  addOns: z.record(z.string(), z.number().int().positive()),
+  amounts: amountsDtoSchema,
+  status: orderStatusSchema,
   /** Why an order ended up refunded or expired, in plain words. */
-  statusReason: string | null;
-  tickets: Ticket[];
-  payment: PaymentView | null;
-  createdAt: number;
-  updatedAt: number;
-};
+  statusReason: z.string().nullable(),
+  tickets: z.array(ticketDtoSchema),
+  payment: paymentDtoSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
 
-/** Returned with holds so the client can correct for clock skew. */
-export type WithServerTime<T> = T & { serverNow: number };
+/** A hold with its event and order, plus the server's clock so the client can correct for skew. */
+export const holdDetailsDtoSchema = z.object({
+  hold: holdDtoSchema,
+  event: eventDtoSchema,
+  order: orderDtoSchema.nullable(),
+  serverTime: isoDateTimeSchema,
+});
 
-export type HoldResponse = WithServerTime<{ hold: HoldView; event: EventView; order: OrderView | null }>;
+export const paymentResultDtoSchema = z.object({ payment: paymentDtoSchema, order: orderDtoSchema });
 
-export type ApiErrorBody = {
-  error: { code: string; message: string; details?: Record<string, unknown> };
-};
-
-export type { AddOn, EventInfo, Tier };
+export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
+export type TierDto = z.infer<typeof tierDtoSchema>;
+export type AddOnDto = z.infer<typeof addOnDtoSchema>;
+export type EventDto = z.infer<typeof eventDtoSchema>;
+export type HoldDto = z.infer<typeof holdDtoSchema>;
+export type AttendeeDto = z.infer<typeof attendeeDtoSchema>;
+export type AmountsDto = z.infer<typeof amountsDtoSchema>;
+export type TicketDto = z.infer<typeof ticketDtoSchema>;
+export type PaymentDto = z.infer<typeof paymentDtoSchema>;
+export type OrderDto = z.infer<typeof orderDtoSchema>;
+export type HoldDetailsDto = z.infer<typeof holdDetailsDtoSchema>;
+export type PaymentResultDto = z.infer<typeof paymentResultDtoSchema>;

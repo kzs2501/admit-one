@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api-client";
 
 /** Client errors (4xx) are answers, not glitches — retrying them just repeats the answer. */
 const retry = (failureCount: number, error: unknown) =>
-  !(error instanceof ApiError && error.status < 500) && failureCount < 2;
+  !(error instanceof ApiError && error.problem.status < 500) && failureCount < 2;
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(

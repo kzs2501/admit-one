@@ -1,25 +1,30 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api-client";
+import { stockLevel, type StockLevel } from "@/core/ticketing";
+import { apiClient } from "@/lib/api-client";
 
-/** "12 left" / "Almost gone" / "Sold out" — live, while the static card renders instantly. */
+const TONES: Record<StockLevel, string> = {
+  "sold-out": "bg-bad-soft text-bad",
+  low: "bg-warn-soft text-warn",
+  plenty: "bg-ok-soft text-ok",
+};
+
+/** "12 left" / "Only 2 left" / "Sold out" — live, while the static card renders instantly. */
 export function AvailabilityBadge({ slug }: { slug: string }) {
-  const { data } = useQuery({ queryKey: ["events"], queryFn: api.listEvents, refetchInterval: 8_000 });
-  const event = data?.find((e) => e.slug === slug);
+  const { data } = useQuery({ queryKey: ["events"], queryFn: apiClient.listEvents, refetchInterval: 8_000 });
+  const event = data?.find((candidate) => candidate.slug === slug);
 
   // Reserve the badge's space before data arrives, so nothing shifts when it does.
   if (!event) return <span aria-hidden="true" className="inline-block h-6 w-20 shrink-0 rounded-full bg-sunk" />;
 
-  const left = event.tiers.reduce((n, t) => n + t.available, 0);
-  const capacity = event.tiers.reduce((n, t) => n + t.capacity, 0);
-  const tone =
-    left === 0 ? "bg-bad-soft text-bad" : left / capacity <= 0.1 ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok";
+  const available = event.tiers.reduce((total, tier) => total + tier.available, 0);
+  const level = stockLevel(available);
   return (
     <span
-      className={`tabular inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap ${tone}`}
+      className={`tabular inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap ${TONES[level]}`}
     >
-      {left === 0 ? "Sold out" : left <= 5 ? `Only ${left} left` : `${left} left`}
+      {level === "sold-out" ? "Sold out" : level === "low" ? `Only ${available} left` : `${available} left`}
     </span>
   );
 }

@@ -1,6 +1,7 @@
-import type { EventView, LineItem } from "@/contract/dto";
-import { formatMoney, priceOrder } from "@/core/money";
-import { formatEventDate, formatEventTime } from "@/lib/format";
+import type { EventDto } from "@/contract/dto";
+import { priceOrder, SERVICE_FEE_LABEL } from "@/core/money";
+import type { LineItem } from "@/core/ticketing";
+import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 
 /**
  * The running order summary. It's priced with the same function the server uses
@@ -11,22 +12,29 @@ export function OrderSummary({
   items,
   addOns,
 }: {
-  event: EventView;
+  event: EventDto;
   items: LineItem[];
   addOns: Record<string, number>;
 }) {
-  const amounts = priceOrder(event, items, Object.fromEntries(Object.entries(addOns).filter(([, q]) => q > 0)));
+  const chosenAddOns = Object.fromEntries(Object.entries(addOns).filter(([, quantity]) => quantity > 0));
+  const amounts = priceOrder(event, items, chosenAddOns);
   const rows = [
-    ...items.map(({ tierId, qty }) => {
-      const tier = event.tiers.find((t) => t.id === tierId)!;
-      return { key: tierId, label: `${qty} × ${tier.name}`, cents: tier.priceCents * qty };
+    ...items.map(({ tierId, quantity }) => {
+      const tier = event.tiers.find((candidate) => candidate.id === tierId);
+      return {
+        key: tierId,
+        label: `${quantity} × ${tier?.name ?? tierId}`,
+        cents: (tier?.priceCents ?? 0) * quantity,
+      };
     }),
-    ...Object.entries(addOns)
-      .filter(([, q]) => q > 0)
-      .map(([id, qty]) => {
-        const addOn = event.addOns.find((a) => a.id === id)!;
-        return { key: id, label: `${qty} × ${addOn.name}`, cents: addOn.priceCents * qty };
-      }),
+    ...Object.entries(chosenAddOns).map(([addOnId, quantity]) => {
+      const addOn = event.addOns.find((candidate) => candidate.id === addOnId);
+      return {
+        key: addOnId,
+        label: `${quantity} × ${addOn?.name ?? addOnId}`,
+        cents: (addOn?.priceCents ?? 0) * quantity,
+      };
+    }),
   ];
 
   return (
@@ -38,14 +46,14 @@ export function OrderSummary({
         {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)} · {event.city}
       </p>
       <dl className="mt-4 space-y-2 text-sm">
-        {rows.map((r) => (
-          <div key={r.key} className="flex justify-between gap-4">
-            <dt className="text-ink-2">{r.label}</dt>
-            <dd className="tabular">{formatMoney(r.cents)}</dd>
+        {rows.map((row) => (
+          <div key={row.key} className="flex justify-between gap-4">
+            <dt className="text-ink-2">{row.label}</dt>
+            <dd className="tabular">{formatMoney(row.cents)}</dd>
           </div>
         ))}
         <div className="flex justify-between gap-4">
-          <dt className="text-ink-2">Service fee (3%)</dt>
+          <dt className="text-ink-2">Service fee ({SERVICE_FEE_LABEL})</dt>
           <dd className="tabular">{formatMoney(amounts.feesCents)}</dd>
         </div>
         <div className="flex justify-between gap-4 border-t border-line pt-3 font-medium">

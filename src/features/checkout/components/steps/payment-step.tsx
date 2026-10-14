@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import type { PaymentResultDto } from "@/contract/dto";
+import type { ConfirmChallengeRequest } from "@/contract/requests";
 import { cardSchema, type CardInput } from "@/core/schemas";
-import { formatMoney } from "@/core/money";
-import { api, ApiError, type PaymentResponse } from "@/lib/api-client";
+import { apiClient, NetworkError, problemOf } from "@/lib/api-client";
+import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import type { StepProps } from "./step-props";
@@ -39,7 +41,7 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
   const [challengePaymentId, setChallengePaymentId] = useState<string | null>(() =>
     order.payment?.status === "requires_action" ? order.payment.id : null,
   );
-  const [declined, setDeclined] = useState<string | null>(null);
+  const [declineMessage, setDeclineMessage] = useState<string | null>(null);
 
   const form = useForm<CardInput>({
     resolver: zodResolver(cardSchema),
@@ -49,13 +51,13 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
 
   const failedDefinitively = (message: string) => {
     attempt.current = null;
-    setDeclined(message);
+    setDeclineMessage(message);
     requestAnimationFrame(() => errorRef.current?.focus());
   };
 
-  const handleResponse = (res: PaymentResponse) => {
-    if (res.payment.status === "requires_action") {
-      setChallengePaymentId(res.payment.id);
+  const handleResponse = (result: PaymentResultDto) => {
+    if (result.payment.status === "requires_action") {
+      setChallengePaymentId(result.payment.id);
       return;
     }
     router.push(orderPage);
@@ -64,27 +66,46 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
   const pay = useMutation({
     mutationFn: (card: CardInput) => {
       attempt.current = attemptFor(attempt.current, card.number, newKey);
-      return api.createPayment(order.id, card, attempt.current.key);
+      return apiClient.createPayment(order.id, card, attempt.current.key);
     },
     onSuccess: handleResponse,
     onError: (error) => {
-      if (!(error instanceof ApiError)) return;
-      if (error.status === 402) failedDefinitively(error.message);
-      else if (error.status === 410) onExpired();
-      else if (error.code === "payment_in_progress" || error.code === "already_completed") router.push(orderPage);
-      else if (error.code === "invalid_card") form.setError("number", { message: error.message });
+      const problem = problemOf(error);
+      switch (problem?.code) {
+        case "card_declined":
+        case "authentication_failed":
+          failedDefinitively(problem.detail);
+          break;
+        case "hold_expired":
+          onExpired();
+          break;
+        case "payment_in_progress":
+        case "already_completed":
+          router.push(orderPage);
+          break;
+        case "invalid_card":
+          form.setError("number", { message: problem.detail });
+          break;
+        default:
+          // A network failure or an unexpected problem: shown by the notices below.
+          break;
+      }
     },
   });
 
   const authenticate = useMutation({
-    mutationFn: (approve: boolean) => api.confirmChallenge(challengePaymentId!, approve),
-    onSuccess: (res) => {
+    mutationFn: (decision: ConfirmChallengeRequest["decision"]) => {
+      if (!challengePaymentId) throw new Error("No payment is waiting for authentication.");
+      return apiClient.confirmChallenge(challengePaymentId, { decision });
+    },
+    onSuccess: (result) => {
       setChallengePaymentId(null);
-      handleResponse(res);
+      handleResponse(result);
     },
     onError: (error) => {
       setChallengePaymentId(null);
-      if (error instanceof ApiError && error.status === 402) failedDefinitively(error.message);
+      const problem = problemOf(error);
+      if (problem?.code === "authentication_failed") failedDefinitively(problem.detail);
     },
   });
 
@@ -143,7 +164,7 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
       <form
         noValidate
         onSubmit={form.handleSubmit((card) => {
-          setDeclined(null);
+          setDeclineMessage(null);
           pay.mutate(card);
         })}
         className="space-y-4 rounded-xl border border-line bg-card p-5"
@@ -159,16 +180,16 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
           {field("cvc", "Security code", { autoComplete: "cc-csc", inputMode: "numeric", placeholder: "123" })}
         </div>
 
-        {declined && (
+        {declineMessage && (
           <div ref={errorRef} tabIndex={-1} className="outline-none">
             <Notice tone="bad" title="Payment didn’t go through" role="alert">
-              {declined} Your tickets are still held.
+              {declineMessage} Your tickets are still held.
             </Notice>
           </div>
         )}
-        {pay.isError && !(pay.error instanceof ApiError && pay.error.status < 500) && (
-          // A dropped connection (fetch throws) or a server error: the outcome is
-          // unknown, so the same attempt key is kept and a retry is safe.
+        {pay.error instanceof NetworkError && (
+          // A dropped connection or an unreadable answer: the outcome is unknown, so
+          // the same attempt key is kept and a retry is safe.
           <Notice tone="warn" title="Connection problem" role="alert">
             Nothing was charged twice — press Pay again to retry safely.
           </Notice>
@@ -202,10 +223,10 @@ export function PaymentStep({ ctx, goBack, onExpired }: StepProps) {
           an outcome.)
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={() => authenticate.mutate(false)} disabled={authenticate.isPending}>
+          <Button variant="secondary" onClick={() => authenticate.mutate("reject")} disabled={authenticate.isPending}>
             Fail authentication
           </Button>
-          <Button onClick={() => authenticate.mutate(true)} busy={authenticate.isPending} autoFocus>
+          <Button onClick={() => authenticate.mutate("approve")} busy={authenticate.isPending} autoFocus>
             Approve
           </Button>
         </div>

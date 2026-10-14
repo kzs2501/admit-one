@@ -1,108 +1,169 @@
 // @vitest-environment node
 /**
- * The HTTP contract, exercised through real fetch calls: status codes, headers and
- * error bodies, as the browser will see them.
+ * The HTTP contract, exercised through real fetch calls: status codes, headers,
+ * RFC 9457 problem bodies, ISO timestamps and idempotency — as the browser sees them.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { createBackend } from "@/backend/backend";
-import { initialState } from "@/backend/domain/state";
+import { createInitialState } from "@/backend/domain/state";
+import { eventDtoSchema, holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
+import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
+import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
 import { createHandlers } from "./handlers";
 
-let n = 0;
-const sim = createBackend({ now: Date.now, newId: (p) => `${p}_${++n}`, random: () => 0.5 }, initialState());
-const network = setupServer(...createHandlers(sim, { sleep: async () => {}, random: () => 0 }));
+let idCount = 0;
+const backend = createBackend(
+  { now: Date.now, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
+  createInitialState(),
+);
+const network = setupServer(...createHandlers(backend, { sleep: async () => {}, random: () => 0 }));
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
-afterEach(() => sim.reset());
+afterEach(() => backend.reset());
 afterAll(() => network.close());
 
-const base = "http://admit-one.test";
+const BASE_URL = "http://admit-one.test";
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
-  fetch(base + path, {
+  fetch(BASE_URL + path, {
     method: "POST",
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json", ...headers },
   });
 
-async function reserveAndOrder() {
-  const hold = await (
-    await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", qty: 1 }] })
-  ).json();
-  const order = await (
-    await post("/api/orders", {
-      holdId: hold.hold.id,
-      attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
-      addOns: {},
-    })
-  ).json();
-  return { hold, order };
-}
-
 const card = { number: "4242 4242 4242 4242", expiry: "12 / 30", cvc: "123", name: "Asha Rao" };
 
+async function reserveAndOrder() {
+  const details = holdDetailsDtoSchema.parse(
+    await (
+      await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] })
+    ).json(),
+  );
+  const order = orderDtoSchema.parse(
+    await (
+      await post("/api/orders", {
+        holdId: details.hold.id,
+        attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
+        addOns: {},
+      })
+    ).json(),
+  );
+  return { details, order };
+}
+
+/** Assert an RFC 9457 response and return its parsed problem. */
+async function expectProblem(response: Response, status: number, code: string) {
+  expect(response.status).toBe(status);
+  expect(response.headers.get("Content-Type")).toContain(PROBLEM_CONTENT_TYPE);
+  const problem = problemSchema.parse(await response.json());
+  expect(problem).toMatchObject({ status, code, type: `/problems/${code.replaceAll("_", "-")}` });
+  return problem;
+}
+
 describe("HTTP contract", () => {
-  it("lists events with live availability", async () => {
-    const res = await fetch(`${base}/api/events`);
-    expect(res.status).toBe(200);
-    const events = await res.json();
-    expect(events.find((e: { slug: string }) => e.slug === "night-market-jazz").tiers[0].available).toBe(2);
+  it("lists events with live availability, and only public tier fields", async () => {
+    const response = await fetch(`${BASE_URL}/api/events`);
+    expect(response.status).toBe(200);
+    const events = eventDtoSchema.array().parse(await response.json());
+    const jazz = events.find((event) => event.slug === "night-market-jazz");
+    expect(jazz?.tiers[0]?.available).toBe(2);
+    expect(jazz?.tiers[0]).not.toHaveProperty("capacity");
   });
 
-  it("returns 201 for a new hold, with the server's clock", async () => {
-    const res = await post("/api/holds", {
+  it("returns 201 for a new hold, with ISO timestamps and the server's clock", async () => {
+    const response = await post("/api/holds", {
       eventSlug: "open-studio-ceramics",
-      items: [{ tierId: "osc-session", qty: 2 }],
+      items: [{ tierId: "osc-session", quantity: 2 }],
     });
-    expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body.hold.status).toBe("active");
-    expect(typeof body.serverNow).toBe("number");
+    expect(response.status).toBe(201);
+    const details = holdDetailsDtoSchema.parse(await response.json());
+    expect(details.hold.status).toBe("active");
+    expect(Date.parse(details.hold.expiresAt) - Date.parse(details.hold.createdAt)).toBe(300_000);
+    expect(Number.isNaN(Date.parse(details.serverTime))).toBe(false);
   });
 
-  it("returns 409 with a machine-readable code when sold out", async () => {
-    const res = await post("/api/holds", {
+  it("answers a sold-out tier with a problem that says how many are left", async () => {
+    const response = await post("/api/holds", {
       eventSlug: "night-market-jazz",
-      items: [{ tierId: "nmj-standing", qty: 3 }],
+      items: [{ tierId: "nmj-standing", quantity: 3 }],
     });
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: { code: "sold_out", details: { available: 2 } } });
+    const problem = await expectProblem(response, 409, "sold_out");
+    expect(problem).toMatchObject({ tierId: "nmj-standing", available: 2, instance: "/api/holds" });
   });
 
-  it("returns 404 and 422 with error bodies", async () => {
-    expect((await fetch(`${base}/api/holds/hold_missing`)).status).toBe(404);
-    const bad = await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [] });
-    expect(bad.status).toBe(422);
-    expect((await bad.json()).error.message).toMatch(/at least one/);
+  it("rejects malformed bodies before they reach the domain", async () => {
+    const empty = await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [] });
+    expect((await expectProblem(empty, 422, "invalid_request")).detail).toMatch(/at least one/);
+    const tooMany = await post("/api/holds", {
+      eventSlug: "frontend-systems-summit",
+      items: [{ tierId: "fss-general", quantity: 7 }],
+    });
+    await expectProblem(tooMany, 422, "invalid_request");
+    await expectProblem(await fetch(`${BASE_URL}/api/holds/hold_missing`), 404, "not_found");
+  });
+
+  it("creates an order with 201 and updates it with 200", async () => {
+    const { details } = await reserveAndOrder();
+    const again = await post("/api/orders", {
+      holdId: details.hold.id,
+      attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
+      addOns: {},
+    });
+    expect(again.status).toBe(200);
   });
 
   it("requires the Idempotency-Key header on payments", async () => {
     const { order } = await reserveAndOrder();
-    expect((await post(`/api/orders/${order.id}/payments`, card)).status).toBe(400);
+    await expectProblem(await post(`/api/orders/${order.id}/payments`, card), 400, "missing_idempotency_key");
   });
 
-  it("accepts a payment with 202 and replays it for the same key", async () => {
+  it("accepts a payment with 202 and replays the same response for the same key", async () => {
     const { order } = await reserveAndOrder();
-    const first = await post(`/api/orders/${order.id}/payments`, card, { "Idempotency-Key": "abc" });
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-1" };
+    const first = await post(`/api/orders/${order.id}/payments`, card, headers);
     expect(first.status).toBe(202);
-    const replay = await post(`/api/orders/${order.id}/payments`, card, { "Idempotency-Key": "abc" });
+    const replay = await post(`/api/orders/${order.id}/payments`, card, headers);
     expect(replay.status).toBe(202);
-    expect((await replay.json()).payment.id).toBe((await first.json()).payment.id);
+    const [firstBody, replayBody] = [await first.json(), await replay.json()];
+    expect(replayBody).toEqual(firstBody);
+    expect(paymentResultDtoSchema.parse(replayBody).payment.status).toBe("processing");
+    expect(Object.keys(backend.getState().payments)).toHaveLength(1);
   });
 
-  it("returns 402 for a declined card", async () => {
+  it("rejects a reused key for a different request", async () => {
     const { order } = await reserveAndOrder();
-    const res = await post(
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-2" };
+    await post(`/api/orders/${order.id}/payments`, card, headers);
+    const different = await post(
+      `/api/orders/${order.id}/payments`,
+      { ...card, number: "4000 0000 0000 0002" },
+      headers,
+    );
+    await expectProblem(different, 422, "idempotency_key_reused");
+  });
+
+  it("answers a declined card with 402 and the failed payment's id", async () => {
+    const { order } = await reserveAndOrder();
+    const response = await post(
       `/api/orders/${order.id}/payments`,
       { ...card, number: "4000000000000002" },
-      { "Idempotency-Key": "d" },
+      { [IDEMPOTENCY_KEY_HEADER]: "key-3" },
     );
-    expect(res.status).toBe(402);
-    expect((await res.json()).error.code).toBe("card_declined");
+    const problem = await expectProblem(response, 402, "card_declined");
+    expect(problem).toHaveProperty("paymentId");
+  });
+
+  it("doesn't store a request rejected before charging, so the same key can retry once fixed", async () => {
+    const { order } = await reserveAndOrder();
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-4" };
+    const invalid = await post(`/api/orders/${order.id}/payments`, { ...card, number: "4242 4242 4242 4241" }, headers);
+    await expectProblem(invalid, 422, "invalid_card");
+    // The fingerprint differs (invalid vs …4242), but nothing was stored, so this is a fresh attempt.
+    expect((await post(`/api/orders/${order.id}/payments`, card, headers)).status).toBe(202);
   });
 
   it("writes every request to the server log", async () => {
-    await fetch(`${base}/api/events`);
-    expect(sim.getState().log.at(-1)?.message).toBe("GET /api/events → 200");
+    await fetch(`${BASE_URL}/api/events`);
+    expect(backend.getState().log.at(-1)?.message).toBe("GET /api/events → 200");
   });
 });

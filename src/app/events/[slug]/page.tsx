@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { catalog, getEventInfo } from "@/core/catalog";
+import { catalog, findEvent } from "@/core/catalog";
 import { formatEventDate, formatEventTime } from "@/lib/format";
 import { TierPicker } from "@/features/events/components/tier-picker";
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return catalog.map((e) => ({ slug: e.slug }));
+  return catalog.map((event) => ({ slug: event.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {
-  const event = getEventInfo((await params).slug);
+  const event = findEvent((await params).slug);
   return event ? { title: event.name, description: event.tagline } : {};
 }
 
 export default async function EventPage({ params }: PageProps<"/events/[slug]">) {
-  const event = getEventInfo((await params).slug);
+  const event = findEvent((await params).slug);
   if (!event) notFound();
 
   return (

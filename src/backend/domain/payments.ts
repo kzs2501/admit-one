@@ -4,10 +4,10 @@
  * schedules the webhook that will. Every attempted charge returns its payment, whatever
  * the bank said; errors are reserved for requests that couldn't be attempted at all.
  */
-import { cardSchema } from "@/core/schemas";
+import type { CardDetails } from "@/core/schemas";
 import type { BackendContext } from "./context";
-import { isPaymentInFlight, setOrderStatus, settleExpiry } from "./orders";
-import { fail, ok, type Result } from "./result";
+import { isOrderOpen, isPaymentInFlight, setOrderStatus, settleExpiry } from "./orders";
+import { fail, ok, type Result } from "./errors";
 import type { OrderRecord, PaymentRecord } from "./state";
 import { enqueuePaymentSucceeded } from "./webhooks";
 
@@ -25,23 +25,23 @@ export const TEST_CARDS = {
 
 export type PaymentAttempt = { payment: PaymentRecord; order: OrderRecord };
 
-export function createPayment(context: BackendContext, orderId: string, body: unknown): Result<PaymentAttempt> {
+export type ChallengeDecision = "approve" | "reject";
+
+export function createPayment(context: BackendContext, orderId: string, card: CardDetails): Result<PaymentAttempt> {
   const { state } = context;
   const order = state.orders[orderId];
-  if (!order) return fail(404, "not_found", "That order doesn’t exist.");
+  if (!order) return fail({ code: "not_found", detail: "That order doesn’t exist." });
   settleExpiry(context, order);
-  if (order.status === "expired") return fail(410, "hold_expired", "Your reservation expired before payment.");
+  if (order.status === "expired") {
+    return fail({ code: "hold_expired", detail: "Your reservation expired before payment." });
+  }
   if (isPaymentInFlight(context, order)) {
-    return fail(409, "payment_in_progress", "A payment is already in progress.");
+    return fail({ code: "payment_in_progress", detail: "A payment is already in progress." });
   }
-  if (order.status !== "pending" && order.status !== "failed") {
-    return fail(409, "already_completed", "This order is already paid.");
-  }
-  const card = cardSchema.safeParse(body);
-  if (!card.success) return fail(422, "invalid_card", card.error.issues[0].message);
+  if (!isOrderOpen(order)) return fail({ code: "already_completed", detail: "This order is already paid." });
 
   const nowMs = context.deps.now();
-  const { number } = card.data;
+  const { number } = card;
   const outcome =
     context.chaos().forceOutcome ??
     (number === TEST_CARDS.decline ? "decline" : number === TEST_CARDS.challenge ? "challenge" : "success");
@@ -55,7 +55,7 @@ export function createPayment(context: BackendContext, orderId: string, body: un
     status: outcome === "decline" ? "failed" : outcome === "challenge" ? "requires_action" : "processing",
     last4: number.slice(-4),
     failureCode: outcome === "decline" ? "card_declined" : null,
-    createdAt: nowMs,
+    createdAtMs: nowMs,
   };
   state.payments[payment.id] = payment;
   order.paymentId = payment.id;
@@ -69,36 +69,36 @@ export function createPayment(context: BackendContext, orderId: string, body: un
   }
 
   const hold = state.holds[order.holdId];
-  if (context.chaos().expireHoldDuringPayment) {
-    hold.expiresAt = nowMs + LAST_SECONDS_MS;
+  if (hold && context.chaos().expireHoldDuringPayment) {
+    hold.expiresAtMs = nowMs + LAST_SECONDS_MS;
     context.log("hold", `Hold ${hold.id} has ${LAST_SECONDS_MS / 1000}s left as payment starts.`);
-  } else if (!hold.extended) {
-    hold.expiresAt = Math.max(hold.expiresAt, nowMs + PAYMENT_GRACE_MS);
-    hold.extended = true;
+  } else if (hold && !hold.isExtended) {
+    hold.expiresAtMs = Math.max(hold.expiresAtMs, nowMs + PAYMENT_GRACE_MS);
+    hold.isExtended = true;
     context.log("hold", `Hold ${hold.id} extended while the payment completes.`);
   }
   if (outcome === "success") enqueuePaymentSucceeded(context, payment);
-  return ok({ payment, order }, 202);
+  return ok({ payment, order });
 }
 
 /** The buyer's answer to the bank's authentication challenge. */
 export function confirmChallenge(
   context: BackendContext,
   paymentId: string,
-  isApproved: boolean,
+  decision: ChallengeDecision,
 ): Result<PaymentAttempt> {
   const payment = context.state.payments[paymentId];
-  if (!payment) return fail(404, "not_found", "That payment doesn’t exist.");
-  if (payment.status !== "requires_action") {
-    return fail(409, "invalid_state", "That payment isn’t waiting for authentication.");
-  }
+  if (!payment) return fail({ code: "not_found", detail: "That payment doesn’t exist." });
   const order = context.state.orders[payment.orderId];
+  if (!order || payment.status !== "requires_action") {
+    return fail({ code: "invalid_state", detail: "That payment isn’t waiting for authentication." });
+  }
 
-  if (isApproved) {
+  if (decision === "approve") {
     payment.status = "processing";
     context.log("payment", `Payment ${payment.id} authenticated; processing.`);
     enqueuePaymentSucceeded(context, payment);
-    return ok({ payment, order }, 202);
+    return ok({ payment, order });
   }
   payment.status = "failed";
   payment.failureCode = "authentication_failed";

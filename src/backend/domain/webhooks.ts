@@ -5,7 +5,7 @@
  */
 import type { BackendContext } from "./context";
 import { isHoldLive } from "./inventory";
-import { issueTickets, setOrderStatus } from "./orders";
+import { isOrderOpen, issueTickets, setOrderStatus } from "./orders";
 import type { PaymentRecord } from "./state";
 
 /** Gap between the two deliveries in the "webhook arrives twice" preset. */
@@ -13,14 +13,14 @@ export const DUPLICATE_GAP_MS = 700;
 
 export function enqueuePaymentSucceeded(context: BackendContext, payment: PaymentRecord) {
   const eventId = context.deps.newId("evt");
-  const deliverAt = context.deps.now() + context.chaos().webhookDelayMs;
+  const deliverAtMs = context.deps.now() + context.chaos().webhookDelayMs;
   const delivery = { eventId, type: "payment.succeeded" as const, paymentId: payment.id };
-  context.state.outbox.push({ deliveryId: context.deps.newId("dlv"), ...delivery, deliverAt });
+  context.state.outbox.push({ deliveryId: context.deps.newId("dlv"), ...delivery, deliverAtMs });
   if (context.chaos().duplicateWebhook) {
     context.state.outbox.push({
       deliveryId: context.deps.newId("dlv"),
       ...delivery,
-      deliverAt: deliverAt + DUPLICATE_GAP_MS,
+      deliverAtMs: deliverAtMs + DUPLICATE_GAP_MS,
     });
   }
 }
@@ -28,11 +28,11 @@ export function enqueuePaymentSucceeded(context: BackendContext, payment: Paymen
 /** The webhook, not the browser's redirect, is the source of truth for whether a payment happened. */
 function processPaymentSucceeded(context: BackendContext, eventId: string, paymentId: string) {
   const { state } = context;
-  if (state.processedEvents.includes(eventId)) {
+  if (state.processedEventIds.includes(eventId)) {
     context.log("webhook", `payment.succeeded ${eventId} arrived again — already processed, ignored.`);
     return;
   }
-  state.processedEvents.push(eventId);
+  state.processedEventIds.push(eventId);
 
   const payment = state.payments[paymentId];
   const order = payment ? state.orders[payment.orderId] : undefined;
@@ -40,7 +40,7 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
     context.log("warn", `Webhook ${eventId} refers to an unknown payment; ignored.`);
     return;
   }
-  if (order.status !== "pending" && order.status !== "failed") {
+  if (!isOrderOpen(order)) {
     context.log("warn", `Webhook ${eventId} for ${order.id}, which is already ${order.status}; ignored.`);
     return;
   }
@@ -52,8 +52,8 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
 
   const hold = state.holds[order.holdId];
   if (hold && isHoldLive(hold, context.deps.now())) {
-    hold.converted = true;
-    for (const { tierId, qty } of hold.items) state.sold[tierId] = (state.sold[tierId] ?? 0) + qty;
+    hold.isConverted = true;
+    for (const { tierId, quantity } of hold.items) state.sold[tierId] = (state.sold[tierId] ?? 0) + quantity;
     issueTickets(context, order);
     setOrderStatus(context, order, "fulfilled");
   } else {
@@ -71,19 +71,19 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
 }
 
 /** When the next webhook is due, so the runtime can sleep until then. */
-export function nextDeliveryAt(context: BackendContext): number | null {
+export function nextDeliveryAtMs(context: BackendContext): number | null {
   const { outbox } = context.state;
-  return outbox.length ? Math.min(...outbox.map((delivery) => delivery.deliverAt)) : null;
+  return outbox.length ? Math.min(...outbox.map((delivery) => delivery.deliverAtMs)) : null;
 }
 
 /** Deliver every webhook that's due, oldest first. Returns how many were delivered. */
 export function deliverDue(context: BackendContext): number {
   const nowMs = context.deps.now();
   const due = context.state.outbox
-    .filter((delivery) => delivery.deliverAt <= nowMs)
-    .sort((a, b) => a.deliverAt - b.deliverAt);
+    .filter((delivery) => delivery.deliverAtMs <= nowMs)
+    .sort((a, b) => a.deliverAtMs - b.deliverAtMs);
   if (!due.length) return 0;
-  context.state.outbox = context.state.outbox.filter((delivery) => delivery.deliverAt > nowMs);
+  context.state.outbox = context.state.outbox.filter((delivery) => delivery.deliverAtMs > nowMs);
   for (const delivery of due) processPaymentSucceeded(context, delivery.eventId, delivery.paymentId);
   return due.length;
 }

@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { presets, type PresetId } from "@/backend";
+import { presets, type LogKind, type PresetId } from "@/backend";
 import { useSandboxControl } from "@/features/sandbox/hooks/use-sandbox-control";
 
-const time = (at: number) =>
-  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const formatLogTime = (epochMs: number) =>
+  new Date(epochMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-const kindStyle: Record<string, string> = {
+const LOG_KIND_STYLES: Partial<Record<LogKind, string>> = {
   webhook: "text-accent",
   order: "text-ok",
   crowd: "text-warn",
@@ -23,27 +23,27 @@ export function ChaosPanel() {
   const sandbox = useSandboxControl();
   const queryClient = useQueryClient();
   const dialog = useRef<HTMLDialogElement>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const presetId = sandbox?.getPresetId() ?? "happy";
-  const active = presets.find((p) => p.id === presetId)!;
+  const activePreset = presets.find((preset) => preset.id === presetId);
   const log = sandbox ? [...sandbox.getLog()].reverse().slice(0, 40) : [];
 
   const open = () => {
-    setConfirmReset(false);
+    setIsConfirmingReset(false);
     dialog.current?.showModal();
   };
 
   const choose = (id: PresetId) => sandbox?.setPreset(id);
 
   const reset = () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
+    if (!isConfirmingReset) {
+      setIsConfirmingReset(true);
       return;
     }
     sandbox?.reset();
     queryClient.invalidateQueries();
-    setConfirmReset(false);
+    setIsConfirmingReset(false);
   };
 
   return (
@@ -55,15 +55,15 @@ export function ChaosPanel() {
       >
         <span aria-hidden="true" className={`size-2 rounded-full ${presetId === "happy" ? "bg-ok" : "bg-accent"}`} />
         <span>
-          Chaos<span className="sr-only">:</span> <span className="text-ink-2">{active.label}</span>
+          Chaos<span className="sr-only">:</span> <span className="text-ink-2">{activePreset?.label}</span>
         </span>
       </button>
 
       <dialog
         ref={dialog}
         aria-labelledby="chaos-title"
-        onClick={(e) => {
-          if (e.target === dialog.current) dialog.current.close();
+        onClick={(clickEvent) => {
+          if (clickEvent.target === dialog.current) dialog.current.close();
         }}
         className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-[min(26rem,100vw)] max-w-none overflow-y-auto overscroll-contain border-l border-line bg-paper p-0 text-ink shadow-2xl backdrop:bg-ink/30"
       >
@@ -92,29 +92,29 @@ export function ChaosPanel() {
             Scenario
           </legend>
           <div className="clear-left space-y-1.5">
-            {presets.map((p) => (
+            {presets.map((preset) => (
               <label
-                key={p.id}
+                key={preset.id}
                 className={`block cursor-pointer rounded-lg border px-3.5 py-2.5 transition-colors ${
-                  p.id === presetId ? "border-accent bg-accent-soft" : "border-line bg-card hover:bg-sunk"
+                  preset.id === presetId ? "border-accent bg-accent-soft" : "border-line bg-card hover:bg-sunk"
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <input
                     type="radio"
                     name="chaos-preset"
-                    value={p.id}
-                    checked={p.id === presetId}
-                    onChange={() => choose(p.id)}
+                    value={preset.id}
+                    checked={preset.id === presetId}
+                    onChange={() => choose(preset.id)}
                     className="size-4 accent-[var(--accent)]"
                   />
-                  <span className="text-sm font-medium">{p.label}</span>
+                  <span className="text-sm font-medium">{preset.label}</span>
                 </span>
-                <span className="mt-0.5 block pl-6.5 text-sm text-ink-2">{p.description}</span>
+                <span className="mt-0.5 block pl-6.5 text-sm text-ink-2">{preset.description}</span>
                 {/* Only the chosen scenario spells out what to expect — keeps the list short
                     enough that the server log stays in view. */}
-                {p.id === presetId && (
-                  <span className="mt-1.5 block pl-6.5 text-xs text-ink-2">Expect: {p.expectation}</span>
+                {preset.id === presetId && (
+                  <span className="mt-1.5 block pl-6.5 text-xs text-ink-2">Expect: {preset.expectation}</span>
                 )}
               </label>
             ))}
@@ -129,9 +129,9 @@ export function ChaosPanel() {
             <button
               type="button"
               onClick={reset}
-              className={`press rounded-md px-2.5 py-1 text-xs ${confirmReset ? "bg-bad text-paper" : "text-ink-2 hover:bg-sunk"}`}
+              className={`press rounded-md px-2.5 py-1 text-xs ${isConfirmingReset ? "bg-bad text-paper" : "text-ink-2 hover:bg-sunk"}`}
             >
-              {confirmReset ? "Confirm: reset sandbox" : "Reset sandbox"}
+              {isConfirmingReset ? "Confirm: reset sandbox" : "Reset sandbox"}
             </button>
           </div>
           <ol
@@ -142,8 +142,8 @@ export function ChaosPanel() {
             {log.length === 0 && <li className="text-ink-3">Nothing yet.</li>}
             {log.map((entry) => (
               <li key={entry.id} className="flex gap-2">
-                <span className="shrink-0 text-ink-3">{time(entry.at)}</span>
-                <span className={kindStyle[entry.kind] ?? "text-ink-2"}>{entry.message}</span>
+                <span className="shrink-0 text-ink-3">{formatLogTime(entry.atMs)}</span>
+                <span className={LOG_KIND_STYLES[entry.kind] ?? "text-ink-2"}>{entry.message}</span>
               </li>
             ))}
           </ol>

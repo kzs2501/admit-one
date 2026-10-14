@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import type { ServerState } from "../src/backend/domain/state";
+import { SANDBOX_STORAGE_KEY, type ServerState } from "../src/backend/domain/state";
 
 /** Pick a chaos scenario through the panel, exactly as a visitor would. */
 export async function choosePreset(page: Page, label: string) {
@@ -12,7 +12,7 @@ export async function choosePreset(page: Page, label: string) {
 
 /** The simulated server's state, read straight from the tab's sandbox — the test's oracle. */
 export const serverState = (page: Page) =>
-  page.evaluate(() => JSON.parse(sessionStorage.getItem("admit-one:sandbox:v1") ?? "null") as ServerState);
+  page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null") as ServerState, SANDBOX_STORAGE_KEY);
 
 export async function reserve(page: Page, eventName: RegExp, tierName: string, qty: number) {
   await page.getByRole("link", { name: eventName }).click();
