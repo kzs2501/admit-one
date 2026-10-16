@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { EventDto, HoldDetailsDto, HoldDto } from "@/contract/dto";
 import { isAwaitingConfirmation, isPaidFor } from "@/core/order-status";
 import { problemOf } from "@/lib/api-client";
-import { holdQueries } from "@/lib/queries";
+import { holdQueries, shouldShowQueryError } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { useMounted } from "@/lib/use-mounted";
 import { clockOffset } from "@/features/checkout/domain/countdown";
@@ -72,7 +72,7 @@ export function deriveCheckout(inputs: CheckoutInputs): {
   const redirectStepId = resolution?.shouldRedirect && !isOver && !isExpired ? resolution.step.id : null;
   const derive = (state: CheckoutState) => ({ state, orderPageId, redirectStepId });
 
-  if (inputs.error) {
+  if (shouldShowQueryError(details, inputs.error)) {
     return derive({ kind: problemOf(inputs.error)?.code === "not_found" ? "not-found" : "load-error" });
   }
   if (details && context && isExpired) {

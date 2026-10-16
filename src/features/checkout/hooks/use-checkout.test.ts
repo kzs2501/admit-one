@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HoldDetailsDto } from "@/contract/dto";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, NetworkError } from "@/lib/api-client";
 import { eventDtoFor, holdDtoFor, orderDtoFor, testPeople } from "@/features/checkout/testing/fixtures";
 import { createEmptyDraft } from "./use-draft";
 import { deriveCheckout, type CheckoutInputs } from "./use-checkout";
@@ -46,6 +46,12 @@ describe("deriveCheckout", () => {
   it("tells a missing reservation apart from any other failure", () => {
     expect(deriveCheckout(inputs({ details: undefined, error: notFound })).state.kind).toBe("not-found");
     expect(deriveCheckout(inputs({ details: undefined, error: new Error("boom") })).state.kind).toBe("load-error");
+  });
+
+  it("keeps the checkout on screen when a refresh fails, but not when the reservation is gone", () => {
+    const lostConnection = new NetworkError("Couldn’t reach the server.");
+    expect(deriveCheckout(inputs({ error: lostConnection })).state.kind).toBe("ready");
+    expect(deriveCheckout(inputs({ error: notFound })).state.kind).toBe("not-found");
   });
 
   it("shows the expired state, remembering the step the buyer was on", () => {

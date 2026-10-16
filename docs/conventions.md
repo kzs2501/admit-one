@@ -68,6 +68,10 @@ checked by a tool it is; the rest is for review.
   subscription, the DOM's focus).
 - **Queries** come from `lib/queries.ts` factories (`queryOptions`), so cache keys can't
   drift and `setQueryData` is typed.
+- **A failed refresh never wipes good data.** A query's error replaces the screen only
+  when there's no data yet, or when it's an answer (a 4xx problem such as `not_found`) —
+  `shouldShowQueryError`. Glitches while refreshing are reported once, as a toast, from
+  the `QueryCache` ([TkDodo](https://tkdodo.eu/blog/react-query-error-handling)).
 - **Links** use `lib/routes.ts`; `typedRoutes` checks every literal href at build time.
 - **Accessibility is a feature:** native elements first (`<dialog>`, `<fieldset>`,
   `<output>`); errors are linked to their fields; focus moves to what changed;

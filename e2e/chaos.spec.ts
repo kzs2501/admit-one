@@ -81,6 +81,32 @@ test("slow network: a double click reserves once and pays once", async ({ page, 
   expect(Object.keys(state.payments)).toHaveLength(1);
 });
 
+test("connection drops: paying again is safe, and a failed status check keeps the page", async ({
+  page,
+  buyer,
+  sandbox,
+}) => {
+  test.setTimeout(40_000);
+  await sandbox.choosePreset("Connection drops");
+  await buyer.goToPayment();
+  await buyer.pay();
+  // The charge went through, but its answer was lost: the buyer only knows something failed.
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Connection problem");
+  await page.getByRole("button", { name: /^Pay ₹/ }).click();
+  await expect(page).toHaveURL(/\/orders\//);
+
+  // Status checks fail for a while: the page keeps what it knows, and a toast says so.
+  await expect(page.getByRole("status").filter({ hasText: "Couldn’t refresh" })).toBeVisible({ timeout: 15_000 });
+  // Shorter than the next poll (1 s): a page that swapped to an error state and back
+  // would pass an assertion allowed to wait for the comeback.
+  await expect(page.getByRole("heading", { name: "Confirming your payment…" })).toBeVisible({ timeout: 500 });
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 15_000 });
+
+  const state = await sandbox.state();
+  expect(Object.keys(state.payments)).toHaveLength(1);
+  expect(state.log.some((entry) => entry.message.includes("Idempotency-Key replayed"))).toBe(true);
+});
+
 test("webhook arrives twice: one set of tickets, duplicate logged and ignored", async ({ page, buyer, sandbox }) => {
   await sandbox.choosePreset("Webhook arrives twice");
   await buyer.goToPayment(2);

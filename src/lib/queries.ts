@@ -7,7 +7,18 @@
  * every event query at once.
  */
 import { queryOptions } from "@tanstack/react-query";
-import { apiClient } from "./api-client";
+import { apiClient, isTransientError } from "./api-client";
+
+/**
+ * Whether a query's error should replace what's on screen. Before there's any data,
+ * always. After, only an answer does (`not_found`, say): a glitch while refreshing keeps
+ * the last good data on screen, and a toast says it may be stale. After TkDodo's
+ * "Status Checks in React Query": check for data before checking for errors.
+ */
+export function shouldShowQueryError(data: unknown, error: unknown): boolean {
+  if (error === null || error === undefined) return false;
+  return data === undefined || !isTransientError(error);
+}
 
 export const eventQueries = {
   all: () => ["events"] as const,

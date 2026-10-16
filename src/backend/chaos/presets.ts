@@ -20,6 +20,10 @@ export interface ChaosConfig {
   shouldExpireHoldDuringPayment: boolean;
   /** Other buyers compete for the same tickets. */
   isCrowdEnabled: boolean;
+  /** Lose the response to an order's first charge: the server did the work, the browser never hears. */
+  shouldDropFirstPaymentResponse: boolean;
+  /** Lose this many order-status responses after the first, as a flaky connection would. */
+  droppedStatusChecks: number;
 }
 
 export const PRESET_IDS = [
@@ -27,6 +31,7 @@ export const PRESET_IDS = [
   "declined",
   "challenge",
   "slow-network",
+  "connection-drops",
   "webhook-twice",
   "webhook-first",
   "webhook-delayed",
@@ -55,6 +60,8 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   forcedOutcome: null,
   shouldExpireHoldDuringPayment: false,
   isCrowdEnabled: false,
+  shouldDropFirstPaymentResponse: false,
+  droppedStatusChecks: 0,
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -83,6 +90,14 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     description: "Every request takes around three seconds.",
     expectation: "Loading states everywhere, no double submissions, nothing jumps around.",
     config: { latencyRangeMs: [2_600, 3_400], extraPaymentLatencyMs: 0 },
+  },
+  "connection-drops": {
+    label: "Connection drops",
+    description:
+      "The server takes your payment, but its answer is lost on the way back — and a few status checks fail.",
+    expectation:
+      "Paying again is safe: the same Idempotency-Key replays the first answer, so you’re charged once. While status checks fail, the order page keeps what it knows and says so.",
+    config: { shouldDropFirstPaymentResponse: true, droppedStatusChecks: 3, webhookDelayMs: 8_000 },
   },
   "webhook-twice": {
     label: "Webhook arrives twice",

@@ -20,7 +20,10 @@ const backend = createBackend(
 const network = setupServer(...createHandlers(backend, { sleep: () => Promise.resolve(), random: () => 0 }));
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
-afterEach(() => backend.reset());
+afterEach(() => {
+  backend.setPreset("happy");
+  backend.reset();
+});
 afterAll(() => network.close());
 
 const BASE_URL = "http://admit-one.test";
@@ -161,6 +164,27 @@ describe("HTTP contract", () => {
     await expectProblem(invalid, 422, "invalid_card");
     // The fingerprint differs (invalid vs …4242), but nothing was stored, so this is a fresh attempt.
     expect((await post(`/api/orders/${order.id}/payments`, card, headers)).status).toBe(202);
+  });
+
+  it("can lose a charge's response, and the retry replays it instead of charging again", async () => {
+    backend.setPreset("connection-drops");
+    const { order } = await reserveAndOrder();
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-5" };
+    await expect(post(`/api/orders/${order.id}/payments`, card, headers)).rejects.toThrow(TypeError);
+    expect(Object.keys(backend.getState().payments)).toHaveLength(1);
+
+    const retry = await post(`/api/orders/${order.id}/payments`, card, headers);
+    expect(retry.status).toBe(202);
+    expect(Object.keys(backend.getState().payments)).toHaveLength(1);
+  });
+
+  it("can lose status checks after the first, as a flaky connection would", async () => {
+    backend.setPreset("connection-drops");
+    const { order } = await reserveAndOrder();
+    const check = () => fetch(`${BASE_URL}/api/orders/${order.id}`);
+    expect((await check()).status).toBe(200);
+    for (let i = 0; i < 3; i++) await expect(check()).rejects.toThrow(TypeError);
+    expect((await check()).status).toBe(200);
   });
 
   it("writes every request to the server log", async () => {

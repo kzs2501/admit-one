@@ -18,17 +18,18 @@ browser, so your sandbox is yours alone.
 Open the **Chaos** panel (top right), pick a scenario, then buy a ticket. Each scenario
 is also an end-to-end test that checks both what you see and what the server recorded.
 
-| Scenario                   | What happens                         | What a correct checkout does                               |
-| -------------------------- | ------------------------------------ | ---------------------------------------------------------- |
-| Happy path                 | Realistic latency                    | Confirming… for a moment, then tickets                     |
-| Declined card              | The bank says no                     | Inline error, details kept, retry with another card        |
-| 3-D Secure                 | The bank wants authentication        | A challenge dialog; it survives a page refresh             |
-| Slow network               | Every request takes ~3 s             | Loading states; a double-click reserves once and pays once |
-| Webhook arrives twice      | At-least-once delivery               | One set of tickets; the duplicate is logged and ignored    |
-| Webhook before redirect    | The provider beats your browser      | The order page opens already confirmed                     |
-| Webhook delayed            | 12 s before confirmation             | Polling that backs off, then a reassuring note             |
-| Hold expires mid-payment   | Payment lands after the hold is gone | A full refund, explained in plain words                    |
-| Crowd buys the last ticket | Someone else gets there first        | "Just missed it", live availability, never oversold        |
+| Scenario                   | What happens                                           | What a correct checkout does                                                     |
+| -------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Happy path                 | Realistic latency                                      | Confirming… for a moment, then tickets                                           |
+| Declined card              | The bank says no                                       | Inline error, details kept, retry with another card                              |
+| 3-D Secure                 | The bank wants authentication                          | A challenge dialog; it survives a page refresh                                   |
+| Slow network               | Every request takes ~3 s                               | Loading states; a double-click reserves once and pays once                       |
+| Connection drops           | The payment's answer is lost; then a few status checks | Paying again replays the first answer — one charge; the page keeps what it knows |
+| Webhook arrives twice      | At-least-once delivery                                 | One set of tickets; the duplicate is logged and ignored                          |
+| Webhook before redirect    | The provider beats your browser                        | The order page opens already confirmed                                           |
+| Webhook delayed            | 12 s before confirmation                               | Polling that backs off, then a reassuring note                                   |
+| Hold expires mid-payment   | Payment lands after the hold is gone                   | A full refund, explained in plain words                                          |
+| Crowd buys the last ticket | Someone else gets there first                          | "Just missed it", live availability, never oversold                              |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 `4000 0025 0000 3155` asks for 3-D Secure.
@@ -57,7 +58,9 @@ counts as done if the server's order matches what you typed.
 Paying returns `202 processing` — never "paid". The browser goes to the order page,
 which polls with backoff until the provider's webhook settles the order. Payments carry
 an `Idempotency-Key` minted per _attempt_ (a retry after a network error reuses it, so
-it can never charge twice); webhooks are deduplicated by event id.
+it can never charge twice — the "Connection drops" scenario shows it); webhooks are
+deduplicated by event id. A status check that fails keeps the last known state on
+screen rather than replacing it with an error.
 ([decision](docs/decisions/004-payments-and-webhooks.md))
 
 ### 4. Payment after the hold expired
@@ -124,8 +127,8 @@ nothing else depends on it.
 | Check                        | Coverage                                                                                                                                                                                                                                                                                                  |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                  |
-| `npm test`                   | 103 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation |
-| `npm run test:e2e`           | 25 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion                                                        |
+| `npm test`                   | 115 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation |
+| `npm run test:e2e`           | 26 browser tests: one per chaos preset, plus refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion                                                        |
 | `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                              |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown

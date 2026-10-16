@@ -90,3 +90,10 @@ export const apiClient = {
 
 /** The problem behind an error, if the server sent one. */
 export const problemOf = (error: unknown): Problem | null => (error instanceof ApiError ? error.problem : null);
+
+/**
+ * Whether an error is a glitch rather than an answer. A 4xx problem is the server's
+ * considered reply — asking again gets the same one — while a lost connection or a 5xx
+ * may well go away.
+ */
+export const isTransientError = (error: unknown) => !(error instanceof ApiError && error.problem.status < 500);

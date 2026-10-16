@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { OrderDto } from "@/contract/dto";
 import { isAwaitingConfirmation, isAwaitingPayment } from "@/core/order-status";
 import { problemOf } from "@/lib/api-client";
-import { orderQueries } from "@/lib/queries";
+import { orderQueries, shouldShowQueryError } from "@/lib/queries";
 
 /** After this long waiting for the webhook, reassure the buyer. */
 const SLOW_CONFIRMATION_MS = 8_000;
@@ -66,7 +66,14 @@ export function useOrderStatus(orderId: string): OrderPageState {
     };
   }, [isConfirming]);
 
-  if (query.isError) return { kind: problemOf(query.error)?.code === "not_found" ? "not-found" : "load-error" };
-  if (!query.data) return { kind: "loading" };
-  return toOrderPageState(query.data, isSlow);
+  return deriveOrderPageState(query.data, query.error, isSlow);
+}
+
+/** What the page shows for the latest query result — a failed refresh doesn't wipe a known order. */
+export function deriveOrderPageState(order: OrderDto | undefined, error: unknown, isSlow: boolean): OrderPageState {
+  if (shouldShowQueryError(order, error)) {
+    return { kind: problemOf(error)?.code === "not_found" ? "not-found" : "load-error" };
+  }
+  if (!order) return { kind: "loading" };
+  return toOrderPageState(order, isSlow);
 }

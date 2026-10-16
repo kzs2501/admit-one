@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { MAX_TICKETS_PER_ORDER, stockLevel, type StockLevel } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
-import { eventQueries } from "@/lib/queries";
+import { eventQueries, shouldShowQueryError } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { Stepper } from "@/components/ui/stepper";
@@ -18,16 +18,12 @@ const STOCK_TONES: Record<StockLevel, string> = { "sold-out": "text-bad", low: "
 export function TierPicker({ slug }: { slug: string }) {
   const {
     data: event,
-    isPending,
-    isError,
+    error,
     refetch,
   } = useQuery({ ...eventQueries.detail(slug), refetchInterval: AVAILABILITY_REFRESH_MS });
   const { quantities, setQuantity, soldOutNotice, reserve, isReserving, reserveError } = useReserveTickets(slug);
 
-  if (isPending) {
-    return <div aria-busy="true" aria-label="Loading tickets" className="h-56 rounded-xl border border-line bg-card" />;
-  }
-  if (isError) {
+  if (shouldShowQueryError(event, error)) {
     return (
       <Notice tone="bad" title="Couldn’t load tickets" role="alert">
         <button className="underline underline-offset-4" onClick={() => void refetch()}>
@@ -35,6 +31,9 @@ export function TierPicker({ slug }: { slug: string }) {
         </button>
       </Notice>
     );
+  }
+  if (!event) {
+    return <div aria-busy="true" aria-label="Loading tickets" className="h-56 rounded-xl border border-line bg-card" />;
   }
 
   const total = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);

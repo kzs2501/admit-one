@@ -57,6 +57,15 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
 
   const pathOf = (request: Request) => new URL(request.url).pathname;
 
+  // What the "connection drops" preset loses. The work has already happened; only the
+  // answer goes missing — the case that makes retrying a payment dangerous without a key.
+  const ordersWithLostPayment = new Set<string>();
+  const statusCheckCounts = new Map<string, number>();
+  const lostResponse = (request: Request) => {
+    backend.log("warn", `${request.method} ${pathOf(request)} → the response was lost on the way back.`);
+    return HttpResponse.error();
+  };
+
   const problemReply = (error: DomainError, request: Request): Reply => {
     const problem = toProblem(error, pathOf(request));
     return { status: problem.status, body: problem };
@@ -132,6 +141,9 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
 
     http.get<{ orderId: string }>(anyOrigin(API_ROUTES.getOrder), async ({ params, request }) => {
       await latency();
+      const checkCount = (statusCheckCounts.get(params.orderId) ?? 0) + 1;
+      statusCheckCounts.set(params.orderId, checkCount);
+      if (checkCount > 1 && checkCount <= 1 + backend.chaos().droppedStatusChecks) return lostResponse(request);
       return send(request, resultReply(backend.getOrder(params.orderId), request, toOrderDto));
     }),
 
@@ -178,6 +190,14 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
       // The work happens *before* the response is delayed: that's what lets a webhook
       // beat the browser in the "webhook before redirect" preset.
       await latency(backend.chaos().extraPaymentLatencyMs);
+      const shouldLoseResponse =
+        reply.status === 202 &&
+        backend.chaos().shouldDropFirstPaymentResponse &&
+        !ordersWithLostPayment.has(params.orderId);
+      if (shouldLoseResponse) {
+        ordersWithLostPayment.add(params.orderId);
+        return lostResponse(request);
+      }
       return send(request, reply);
     }),
 

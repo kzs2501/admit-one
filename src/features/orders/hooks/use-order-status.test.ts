@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { OrderDto, PaymentDto } from "@/contract/dto";
 import type { OrderStatus } from "@/core/statuses";
-import { pollDelayMs, toOrderPageState } from "./use-order-status";
+import { ApiError, NetworkError } from "@/lib/api-client";
+import { deriveOrderPageState, pollDelayMs, toOrderPageState } from "./use-order-status";
 
 const payment = (status: PaymentDto["status"]): PaymentDto => ({
   id: "pay_1",
@@ -48,5 +49,23 @@ describe("order page state", () => {
 
   it("backs off from half a second to every four", () => {
     expect([0, 1, 2, 3, 4, 10].map(pollDelayMs)).toEqual([500, 1_000, 2_000, 4_000, 4_000, 4_000]);
+  });
+
+  it("keeps showing a known order when a status check fails", () => {
+    const confirming = order("pending", payment("processing"));
+    const lostConnection = new NetworkError("Couldn’t reach the server.");
+    expect(deriveOrderPageState(confirming, lostConnection, false).kind).toBe("confirming");
+    expect(deriveOrderPageState(undefined, lostConnection, false).kind).toBe("load-error");
+  });
+
+  it("believes the server when it says the order is gone", () => {
+    const notFound = new ApiError({
+      type: "/problems/not-found",
+      title: "",
+      status: 404,
+      detail: "",
+      code: "not_found",
+    });
+    expect(deriveOrderPageState(order("pending", payment("processing")), notFound, false).kind).toBe("not-found");
   });
 });
