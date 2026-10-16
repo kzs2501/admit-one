@@ -12,14 +12,15 @@ No environment variables, keys or accounts are needed: the backend runs in the b
 
 ## Checks
 
-| Command                             | What it checks                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------ |
-| `npm run format:check`              | Prettier formatting (`npm run format` fixes it)                          |
-| `npm run lint`                      | type-aware ESLint: naming, layer boundaries, exhaustiveness, React rules |
-| `npm run typecheck`                 | strict TypeScript                                                        |
-| `npm test`                          | unit, component and HTTP-contract tests (Vitest)                         |
-| `npm run build && npm run test:e2e` | browser tests against the production build (Playwright + axe)            |
-| `npm run lhci`                      | Lighthouse budgets (≥ 95 in every category)                              |
+| Command                             | What it checks                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `npm run format:check`              | Prettier formatting (`npm run format` fixes it)                            |
+| `npm run lint`                      | type-aware ESLint: naming, layer boundaries, exhaustiveness, React rules   |
+| `npm run typecheck`                 | strict TypeScript                                                          |
+| `npm test`                          | unit, component and HTTP-contract tests (Vitest)                           |
+| `npm run test:coverage`             | the same, failing if coverage drops below its floors (`vitest.config.mts`) |
+| `npm run build && npm run test:e2e` | browser tests against the production build (Playwright + axe)              |
+| `npm run lhci`                      | Lighthouse budgets (≥ 95 in every category)                                |
 
 CI runs all of them on every push and pull request. Locally, the pre-commit hook formats
 and lints staged files, and commitlint checks the message.
