@@ -108,6 +108,8 @@ sequenceDiagram
 - **The contract is schema-first**: Zod schemas parsed at both ends, ISO 8601 on the
   wire, `…Ms` inside ([007](decisions/007-typed-contract-and-iso-times.md)).
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
+- **Security headers** — a Content Security Policy without nonces, so pages stay static,
+  plus the usual hardening headers ([009](decisions/009-security-headers.md)).
 - **Failures are contained and reported.** `app/error.tsx` covers every route and keeps
   the header; `global-error.tsx` covers the root layout; an `ErrorBoundary` contains the
   chaos panel, which lives in the root layout. Render errors, and query or mutation
