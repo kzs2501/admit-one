@@ -25,6 +25,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # What ships must have no known high-severity vulnerabilities. Dev tooling is
+      # left to Dependabot: its advisories are often unfixable until upstream moves.
+      - run: npm audit --omit=dev --audit-level=high
 
       - name: Commit messages follow Conventional Commits
         if: github.event_name == 'pull_request'
