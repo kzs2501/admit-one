@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
+import { WebVitals } from "./web-vitals";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
 import { SITE } from "@/lib/site";
 import "./globals.css";
@@ -27,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${display.variable} ${mono.variable} antialiased`}>
       <body className="flex min-h-dvh flex-col">
+        <WebVitals />
         <a
           href="#main"
           className="fixed top-3 left-3 z-50 -translate-y-20 rounded-md bg-ink px-4 py-2 text-sm text-paper focus:translate-y-0"
@@ -43,7 +46,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 Demo — no real payments
               </span>
               <div className="ml-auto">
-                <ChaosPanel />
+                {/* The panel lives in the root layout, which no error.tsx covers: contain it here. */}
+                <ErrorBoundary
+                  fallback={<span className="text-xs text-ink-3">Chaos panel unavailable — reload to retry</span>}
+                >
+                  <ChaosPanel />
+                </ErrorBoundary>
               </div>
             </div>
           </header>

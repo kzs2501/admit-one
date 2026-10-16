@@ -1,10 +1,18 @@
 "use client"; // error boundaries must be client components
 
+import { useEffect } from "react";
+import { reportError } from "@/lib/monitoring";
+
 /**
  * The last line of defence: the root layout itself failed, so this replaces it — and
- * must bring its own <html> and <body>. Kept dependency-free on purpose.
+ * must bring its own <html> and <body>. Kept free of the app's styles and components on
+ * purpose: they may be what failed.
  */
-export default function GlobalError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
+export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  useEffect(() => {
+    reportError(error, { source: "root", digest: error.digest });
+  }, [error]);
+
   return (
     <html lang="en">
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, padding: "4rem 1.25rem", textAlign: "center" }}>

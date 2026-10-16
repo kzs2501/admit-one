@@ -108,6 +108,11 @@ sequenceDiagram
 - **The contract is schema-first**: Zod schemas parsed at both ends, ISO 8601 on the
   wire, `…Ms` inside ([007](decisions/007-typed-contract-and-iso-times.md)).
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
+- **Failures are contained and reported.** `app/error.tsx` covers every route and keeps
+  the header; `global-error.tsx` covers the root layout; an `ErrorBoundary` contains the
+  chaos panel, which lives in the root layout. Render errors, and query or mutation
+  failures that aren't a server's answer, go to `lib/monitoring.ts` — the one place to
+  connect Sentry — along with Core Web Vitals.
 - **UI state is a union**: each view-model hook returns exactly one state (`loading`,
   `expired`, `ready`, …), rendered with an exhaustive `switch` — no booleans to combine
   into impossible states.
