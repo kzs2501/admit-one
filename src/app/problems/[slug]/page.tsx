@@ -5,15 +5,15 @@ import {
   findProblemCodeBySlug,
   PROBLEM_CATALOG,
   PROBLEM_CODES,
-  PROBLEM_TYPE_PATH,
-  problemTypeFor,
+  problemPathFor,
+  problemSlugFor,
 } from "@/contract/problems";
 import { routes } from "@/lib/routes";
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return PROBLEM_CODES.map((code) => ({ slug: problemTypeFor(code).slice(PROBLEM_TYPE_PATH.length + 1) }));
+  return PROBLEM_CODES.map((code) => ({ slug: problemSlugFor(code) }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/problems/[slug]">): Promise<Metadata> {
@@ -45,7 +45,7 @@ export default async function ProblemTypePage({ params }: PageProps<"/problems/[
         <dd className="tabular">{status}</dd>
         <dt className="text-ink-3">type</dt>
         <dd>
-          <code>{problemTypeFor(code)}</code>
+          <code>{problemPathFor(code)}</code> <span className="text-ink-3">on this site’s origin</span>
         </dd>
       </dl>
       <p className="mt-6 max-w-prose text-pretty">{description}</p>

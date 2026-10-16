@@ -3,7 +3,7 @@ import { ApiError, NetworkError } from "./api-client";
 import { shouldShowQueryError } from "./queries";
 
 const problem = (status: number) =>
-  new ApiError({ type: "/problems/not-found", title: "", status, detail: "", code: "not_found" });
+  new ApiError({ type: "https://admit-one.test/problems/not-found", title: "", status, detail: "", code: "not_found" });
 
 describe("shouldShowQueryError", () => {
   it("shows nothing when nothing failed", () => {

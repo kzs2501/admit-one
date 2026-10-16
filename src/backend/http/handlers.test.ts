@@ -59,7 +59,7 @@ async function expectProblem(response: Response, status: number, code: string) {
   expect(response.status).toBe(status);
   expect(response.headers.get("Content-Type")).toContain(PROBLEM_CONTENT_TYPE);
   const problem = problemSchema.parse(await response.json());
-  expect(problem).toMatchObject({ status, code, type: `/problems/${code.replaceAll("_", "-")}` });
+  expect(problem).toMatchObject({ status, code, type: `${BASE_URL}/problems/${code.replaceAll("_", "-")}` });
   return problem;
 }
 
@@ -91,7 +91,7 @@ describe("HTTP contract", () => {
       items: [{ tierId: "nmj-standing", quantity: 3 }],
     });
     const problem = await expectProblem(response, 409, "sold_out");
-    expect(problem).toMatchObject({ tierId: "nmj-standing", available: 2, instance: "/api/holds" });
+    expect(problem).toMatchObject({ tierId: "nmj-standing", available: 2, instance: `${BASE_URL}/api/holds` });
   });
 
   it("rejects malformed bodies before they reach the domain", async () => {

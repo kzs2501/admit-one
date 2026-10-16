@@ -11,7 +11,9 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
 - **Errors** are `application/problem+json`
   ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)): `type`, `title`, `status`,
   `detail`, `instance` and a machine-readable `code`. Branch on `code`; show `detail` to
-  people. Each `type` resolves to a documentation page at `/problems/<code>`.
+  people. `type` is an absolute URL to the problem's documentation page,
+  `<origin>/problems/<slug>` (`sold_out` → `/problems/sold-out`); `instance` is the
+  request's absolute URL.
 - **Idempotency:** `POST /api/orders/:orderId/payments` requires an `Idempotency-Key`
   header. The response to an attempted charge is stored and replayed for any repeat of
   the same request — the same method, path and body, every field compared (by SHA-256

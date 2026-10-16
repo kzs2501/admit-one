@@ -20,8 +20,10 @@ extension members, such as `sold_out` with `tierId` and `available`.
   catalogue of status and title per code.
 - The domain returns `DomainError`: the problem minus its transport members. It never
   picks a status; the HTTP adapter does.
-- Each `type` is a relative URI to `/problems/<code>`, a page generated from the
-  catalogue, so every type dereferences to its documentation, as the RFC recommends.
+- Each `type` is an absolute URI on the API's own origin — `<origin>/problems/<slug>`,
+  the code in kebab-case — pointing at a page generated from the catalogue, so every
+  type dereferences to its documentation. `instance` is the request's absolute URL. The
+  RFC recommends absolute URIs for both; the client's schema requires them.
 - The client parses error bodies against the schema. The UI switches on `code`,
   exhaustively; network failures and contract violations are a separate `NetworkError`.
 

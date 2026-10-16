@@ -30,11 +30,11 @@ afterAll(() => {
 });
 
 const soldOut = {
-  type: "/problems/sold-out",
+  type: "http://localhost/problems/sold-out",
   title: "Not enough tickets left",
   status: 409,
   detail: "Only 2 left for that ticket type.",
-  instance: "/api/holds",
+  instance: "http://localhost/api/holds",
   code: "sold_out",
   tierId: "nmj-standing",
   available: 2,

@@ -60,7 +60,7 @@ describe("order page state", () => {
 
   it("believes the server when it says the order is gone", () => {
     const notFound = new ApiError({
-      type: "/problems/not-found",
+      type: "https://admit-one.test/problems/not-found",
       title: "",
       status: 404,
       detail: "",

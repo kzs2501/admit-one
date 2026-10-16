@@ -68,7 +68,7 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
   };
 
   const problemReply = (error: DomainError, request: Request): Reply => {
-    const problem = toProblem(error, pathOf(request));
+    const problem = toProblem(error, request.url);
     return { status: problem.status, body: problem };
   };
 

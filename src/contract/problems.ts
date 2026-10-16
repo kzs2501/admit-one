@@ -8,17 +8,14 @@
  */
 import { z } from "zod";
 
-/** Each problem type is documented at `/problems/<code>`; `type` is a relative URI reference to it. */
-export const PROBLEM_TYPE_PATH = "/problems";
-
 export const PROBLEM_CONTENT_TYPE = "application/problem+json";
 
 const problemBaseSchema = z.object({
-  type: z.string(),
+  type: z.url(),
   title: z.string(),
   status: z.number().int(),
   detail: z.string(),
-  instance: z.string().optional(),
+  instance: z.url().optional(),
 });
 
 /** Problems with no extension members. */
@@ -47,7 +44,7 @@ export const problemSchema = z.discriminatedUnion("code", [
 
 export type Problem = z.infer<typeof problemSchema>;
 
-/** A problem as the server sends it: `instance` (the request path) is always set. */
+/** A problem as the server sends it: `instance` (the request's URL) is always set. */
 export type ProblemDocument = Problem & { instance: string };
 export type ProblemCode = Problem["code"];
 
@@ -128,9 +125,18 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
   },
 };
 
-/** `sold_out` → `/problems/sold-out` */
-export const problemTypeFor = (code: ProblemCode) => `${PROBLEM_TYPE_PATH}/${code.replaceAll("_", "-")}`;
+/** `sold_out` → `sold-out` */
+export const problemSlugFor = (code: ProblemCode) => code.replaceAll("_", "-");
+
+/** `sold_out` → `/problems/sold-out`, the problem type's documentation page. */
+export const problemPathFor = (code: ProblemCode) => `/problems/${problemSlugFor(code)}`;
+
+/**
+ * `sold_out` → `https://<origin>/problems/sold-out`. RFC 9457 recommends absolute type
+ * URIs; this one is on the API's own origin, so it always resolves to its documentation.
+ */
+export const problemTypeFor = (code: ProblemCode, origin: string) => new URL(problemPathFor(code), origin).href;
 
 /** `sold-out` → `sold_out`, for the documentation pages. */
 export const findProblemCodeBySlug = (slug: string): ProblemCode | undefined =>
-  PROBLEM_CODES.find((code) => problemTypeFor(code) === `${PROBLEM_TYPE_PATH}/${slug}`);
+  PROBLEM_CODES.find((code) => problemSlugFor(code) === slug);

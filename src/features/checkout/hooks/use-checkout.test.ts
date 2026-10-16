@@ -24,7 +24,13 @@ const inputs = (overrides: Partial<CheckoutInputs> = {}): CheckoutInputs => ({
   ...overrides,
 });
 
-const notFound = new ApiError({ type: "/problems/not-found", title: "", status: 404, detail: "", code: "not_found" });
+const notFound = new ApiError({
+  type: "https://admit-one.test/problems/not-found",
+  title: "",
+  status: 404,
+  detail: "",
+  code: "not_found",
+});
 
 describe("deriveCheckout", () => {
   it("shows the requested step when it's allowed", () => {

@@ -31,7 +31,7 @@ checked by a tool it is; the rest is for review.
 | Factories `create*`, mappers `to*`, predicates `is*`/`can*`/`has*`, hooks `use*` in `use-*.ts` | `createBackend`, `toOrderDto`, `isAwaitingConfirmation` | React, Google      | `rules-of-hooks`, review                                     |
 | No ambiguous abbreviations or single letters outside indices                                   | `quantity` not `qty`, `context` not `ctx`               | Google             | review                                                       |
 | API operations use standard verbs                                                              | `listEvents`, `getHold`, `createPayment`, `upsertOrder` | Google AIP-131–135 | review                                                       |
-| Error codes are `snake_case`; problem types are `/problems/kebab-case`                         | `sold_out` → `/problems/sold-out`                       | Stripe, RFC 9457   | `problemSchema`                                              |
+| Error codes are `snake_case`; problem types are absolute URLs to `/problems/kebab-case`        | `sold_out` → `<origin>/problems/sold-out`               | Stripe, RFC 9457   | `problemSchema`                                              |
 
 ## Structure
 
