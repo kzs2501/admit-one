@@ -87,6 +87,9 @@ checked by a tool it is; the rest is for review.
   first.
 - Browser tests use the `buyer` and `sandbox` page objects from `e2e/fixtures.ts`, and
   import shared values (storage key, test cards) from `src` instead of copying them.
+- Browser tests never wait on the clock: they wait for what they need (a web-first
+  assertion, an animation's `finished`). `eslint-plugin-playwright` enforces this, and
+  catches floating promises and conditional assertions.
 
 ## Formatting and commits
 

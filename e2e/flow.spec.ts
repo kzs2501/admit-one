@@ -91,8 +91,12 @@ test.describe("accessibility", () => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/events/frontend-systems-summit");
       await page.getByRole("button", { name: "More: General" }).click();
-      await page.getByRole("button", { name: "Reserve tickets" }).hover();
-      await page.waitForTimeout(300); // let the hover transition finish
+      const reserveButton = page.getByRole("button", { name: "Reserve tickets" });
+      await reserveButton.hover();
+      // Wait for the hover transition itself, not a guess at how long it takes.
+      await reserveButton.evaluate((button) =>
+        Promise.all(button.getAnimations().map((animation) => animation.finished)),
+      );
       const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).include("form").analyze();
       expect(results.violations.map((violation) => violation.id)).toEqual([]);
     });

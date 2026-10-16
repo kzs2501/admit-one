@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import playwright from "eslint-plugin-playwright";
 import tseslint from "typescript-eslint";
 
 /**
@@ -111,6 +112,11 @@ const eslintConfig = defineConfig([
     // Next.js and tool configs require default exports.
     files: ["src/app/**/*.{ts,tsx}", "*.config.{ts,mts,mjs}", "src/instrumentation-client.ts"],
     rules: { "import/no-default-export": "off" },
+  },
+  {
+    // Browser tests: no fixed waits, no floating promises, web-first assertions.
+    ...playwright.configs["flat/recommended"],
+    files: ["e2e/**/*.ts"],
   },
   {
     files: ["**/*.mjs"],

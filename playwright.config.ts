@@ -11,7 +11,9 @@ export default defineConfig({
   // A hung browser launch should fail the run, not stall it.
   globalTimeout: 10 * 60_000,
   reporter: isCI ? "github" : "list",
-  use: { baseURL: "http://localhost:4180", trace: "retain-on-failure" },
+  // CI traces the retry of a failed test (Playwright's advice: cheap, and it's the run
+  // that shows a flake); locally, keep the trace of whatever failed.
+  use: { baseURL: "http://localhost:4180", trace: isCI ? "on-first-retry" : "retain-on-failure" },
   // Runs against the production build (`npm run build` first) — what actually ships.
   webServer: {
     command: "npx next start -p 4180",

@@ -63,13 +63,8 @@ test("slow network: a double click reserves once and pays once", async ({ page, 
   await sandbox.choosePreset("Slow network");
   await page.getByRole("link", { name: /Open Studio/ }).click();
   await page.getByRole("button", { name: "More: Two-hour session" }).click();
-  const reserveButton = page.getByRole("button", { name: "Reserve tickets" });
-  await reserveButton.click();
+  await page.getByRole("button", { name: "Reserve tickets" }).dblclick();
   await expect(page.getByRole("button", { name: "Reserving…" })).toBeDisabled();
-  await page
-    .getByRole("button", { name: "Reserving…" })
-    .click({ force: true })
-    .catch(() => undefined); // a disabled button may refuse the click — the point is that nothing doubles
   await buyer.fillAttendees(1);
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("button", { name: /Succeeds/ }).click({ timeout: 15_000 });
