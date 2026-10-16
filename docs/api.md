@@ -14,8 +14,10 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
   people. Each `type` resolves to a documentation page at `/problems/<code>`.
 - **Idempotency:** `POST /api/orders/:orderId/payments` requires an `Idempotency-Key`
   header. The response to an attempted charge is stored and replayed for any repeat of
-  the same request; the same key with a different request is a `422
-idempotency_key_reused`. Requests rejected before charging aren't stored.
+  the same request — the same method, path and body, every field compared (by SHA-256
+  hash, so no card details are stored). The same key with a different request is a
+  `422 idempotency_key_reused`. Requests rejected before charging aren't stored, and keys
+  expire after 24 hours, as Stripe's do.
 - **Orders** need no key: one order per hold makes `POST /api/orders` a natural upsert.
 
 ## Endpoints

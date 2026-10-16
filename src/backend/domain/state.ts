@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/core/money";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -69,9 +69,11 @@ export type JsonValue = z.infer<typeof jsonValueSchema>;
 
 /** A stored HTTP response, replayed verbatim when the same Idempotency-Key comes back. */
 const idempotencyRecordSchema = z.object({
+  /** A hash of the request the key was first used with. */
   fingerprint: z.string(),
   status: z.number().int(),
   body: jsonValueSchema,
+  createdAtMs: epochMsSchema,
 });
 
 /** A webhook waiting to be delivered: the outbox pattern. */

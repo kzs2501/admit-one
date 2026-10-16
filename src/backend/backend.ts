@@ -30,6 +30,9 @@ import { deliverDue, nextDeliveryAtMs } from "./domain/webhooks";
 
 const LOG_LIMIT = 120;
 
+/** How long an Idempotency-Key is remembered — Stripe's 24 hours. */
+export const IDEMPOTENCY_KEY_TTL_MS = 24 * 60 * 60_000;
+
 export function createBackend(deps: Deps, initialState: ServerState = createInitialState()) {
   const listeners = new Set<() => void>();
   // State is mutated in place, so subscribers (React's useSyncExternalStore) need a
@@ -47,6 +50,8 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
       if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
     },
   };
+
+  const isLive = (record: IdempotencyRecord) => deps.now() - record.createdAtMs < IDEMPOTENCY_KEY_TTL_MS;
 
   const notify = () => {
     version += 1;
@@ -119,12 +124,17 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     confirmChallenge: (paymentId: string, decision: ChallengeDecision): Result<PaymentResultView> =>
       command(() => map(confirmChallenge(context, paymentId, decision), toPaymentResultView)),
 
-    /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. */
+    /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A key past its TTL is new again. */
     idempotency: {
-      find: (key: string): IdempotencyRecord | undefined => context.state.idempotency[key],
-      save: (key: string, record: IdempotencyRecord) => {
+      find: (key: string): IdempotencyRecord | undefined => {
+        const record = context.state.idempotency[key];
+        return record && isLive(record) ? record : undefined;
+      },
+      save: (key: string, record: Omit<IdempotencyRecord, "createdAtMs">) => {
         command(() => {
-          context.state.idempotency[key] = record;
+          // Saving is also when expired keys are dropped, so the store can't grow forever.
+          const live = Object.entries(context.state.idempotency).filter(([, stored]) => isLive(stored));
+          context.state.idempotency = Object.fromEntries([...live, [key, { ...record, createdAtMs: deps.now() }]]);
         });
       },
     },

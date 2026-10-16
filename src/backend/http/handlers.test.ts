@@ -146,6 +146,14 @@ describe("HTTP contract", () => {
     await expectProblem(different, 422, "idempotency_key_reused");
   });
 
+  it("rejects a reused key when anything differs — not just the card's last four digits", async () => {
+    const { order } = await reserveAndOrder();
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-6" };
+    expect((await post(`/api/orders/${order.id}/payments`, card, headers)).status).toBe(202);
+    const sameLastFour = await post(`/api/orders/${order.id}/payments`, { ...card, expiry: "11 / 29" }, headers);
+    await expectProblem(sameLastFour, 422, "idempotency_key_reused");
+  });
+
   it("answers a declined card with 402 and the failed payment's id", async () => {
     const { order } = await reserveAndOrder();
     const response = await post(
@@ -162,7 +170,7 @@ describe("HTTP contract", () => {
     const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-4" };
     const invalid = await post(`/api/orders/${order.id}/payments`, { ...card, number: "4242 4242 4242 4241" }, headers);
     await expectProblem(invalid, 422, "invalid_card");
-    // The fingerprint differs (invalid vs …4242), but nothing was stored, so this is a fresh attempt.
+    // The request differs (a typo fixed), but nothing was stored, so this is a fresh attempt.
     expect((await post(`/api/orders/${order.id}/payments`, card, headers)).status).toBe(202);
   });
 

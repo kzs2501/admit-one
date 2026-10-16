@@ -17,6 +17,7 @@ import {
   upsertOrderRequestSchema,
 } from "@/contract/requests";
 import { API_ROUTES, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { fingerprintRequest } from "./idempotency";
 import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto } from "./mappers";
 import { toProblem } from "./problems";
 
@@ -153,6 +154,7 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
      * (the approach Stripe describes in "Designing robust and predictable APIs with
      * idempotency"). Only attempted charges are stored, so a request rejected before
      * charging — an expired hold, an invalid card — can be retried with the same key.
+     * Keys are kept for 24 hours, as Stripe keeps them.
      */
     http.post<{ orderId: string }>(anyOrigin(API_ROUTES.createPayment), async ({ params, request }) => {
       const reply = await (async (): Promise<Reply> => {
@@ -163,8 +165,9 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
             request,
           );
         }
-        const card = createPaymentRequestSchema.safeParse(await readJson(request));
-        const fingerprint = `${params.orderId}:${card.success ? card.data.number.slice(-4) : "invalid"}`;
+        const body = await readJson(request);
+        const card = createPaymentRequestSchema.safeParse(body);
+        const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
 
         const stored = backend.idempotency.find(key);
         if (stored) {
