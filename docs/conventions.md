@@ -49,6 +49,9 @@ checked by a tool it is; the rest is for review.
 - `strict`, plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
   `noPropertyAccessFromIndexSignature`, `noImplicitOverride`, `noImplicitReturns` and
   `noFallthroughCasesInSwitch`.
+- **Zod comes from `@/core/zod`**, never `"zod"` (`no-restricted-imports`): it's
+  configured there, before any schema exists, not to probe for `eval`, which the
+  Content Security Policy forbids.
 - **Parse at every trust boundary** with Zod: request bodies (backend), responses and
   problems (client), persisted state and drafts (storage). Inside the boundary, trust
   the types.

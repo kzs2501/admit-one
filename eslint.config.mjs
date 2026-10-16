@@ -67,6 +67,10 @@ const eslintConfig = defineConfig([
       "import/no-restricted-paths": ["error", { zones: LAYER_RULES }],
       "import/no-cycle": "error",
       "import/no-default-export": "error",
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "zod", message: "Import z from @/core/zod, where it's configured for the CSP." }] },
+      ],
 
       "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
       "@typescript-eslint/switch-exhaustiveness-check": [
@@ -107,6 +111,11 @@ const eslintConfig = defineConfig([
         },
       ],
     },
+  },
+  {
+    // The one place Zod is imported directly, to configure it.
+    files: ["src/core/zod.ts"],
+    rules: { "no-restricted-imports": "off" },
   },
   {
     // Next.js and tool configs require default exports.

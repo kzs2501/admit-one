@@ -2,7 +2,7 @@
  * Validation rules shared by the forms (client) and the backend, so the two can never
  * disagree about what a valid attendee, ticket request or card looks like.
  */
-import { z } from "zod";
+import { z } from "@/core/zod";
 import { MAX_TICKETS_PER_ORDER } from "./ticketing";
 
 export const lineItemSchema = z.object({

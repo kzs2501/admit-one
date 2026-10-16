@@ -3,7 +3,7 @@
  * a refresh — or a deep link back into the flow — loses nothing.
  */
 import { useCallback, useSyncExternalStore } from "react";
-import { z } from "zod";
+import { z } from "@/core/zod";
 import { readSession, writeSession } from "@/lib/storage";
 
 /** Unvalidated: the draft holds whatever was typed, including half-finished input. */

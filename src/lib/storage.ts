@@ -3,7 +3,7 @@
  * blocked (privacy modes) or edited by hand, so every read is parsed against a schema
  * and every failure degrades to "nothing saved".
  */
-import type { z } from "zod";
+import type { z } from "@/core/zod";
 
 export function readSession<Schema extends z.ZodType>(key: string, schema: Schema): z.output<Schema> | null {
   try {

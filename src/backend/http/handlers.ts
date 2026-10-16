@@ -4,7 +4,7 @@
  * delegated to the backend; these handlers are as thin as a real API's controllers.
  */
 import { http, HttpResponse } from "msw/http";
-import type { z } from "zod";
+import type { z } from "@/core/zod";
 import type { Backend } from "@/backend/backend";
 import type { DomainError, Result } from "@/backend/domain/errors";
 import type { JsonValue } from "@/backend/domain/state";

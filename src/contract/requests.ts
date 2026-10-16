@@ -3,7 +3,7 @@
  * anything reaches the domain; a body that doesn't parse is an `invalid_request`
  * (or `invalid_card`) problem.
  */
-import { z } from "zod";
+import { z } from "@/core/zod";
 import { addOnSelectionSchema, attendeeSchema, cardSchema, lineItemsSchema } from "@/core/schemas";
 
 export const createHoldRequestSchema = z.object({ eventSlug: z.string().min(1), items: lineItemsSchema });

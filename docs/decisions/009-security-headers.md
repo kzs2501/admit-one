@@ -32,6 +32,10 @@ Most pages here are static, and their speed is part of the point.
   else does real work: no foreign scripts, connections, plugins, form targets, base
   URLs or framing. If the app ever renders untrusted HTML, switch to nonces and accept
   dynamic rendering.
+- Libraries that probe for `eval` trip the policy even when they catch the failure:
+  Zod does, so it's configured `jitless` in `core/zod.ts`, the only module allowed to
+  import it. The e2e test listens for violation events, not console errors, because a
+  caught probe logs nothing.
 - A new third party — a payment provider's hosted fields, an analytics endpoint — needs
   its origins added to the policy, and the e2e test fails until they are.
 - Vercel's preview-only toolbar loads from `vercel.live`, which the policy blocks. It

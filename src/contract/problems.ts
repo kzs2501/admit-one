@@ -6,7 +6,7 @@
  * (RFC 9457 §3.2), such as how many tickets are left when a tier sells out. Clients
  * branch on `code`; `detail` is written for people.
  */
-import { z } from "zod";
+import { z } from "@/core/zod";
 
 export const PROBLEM_CONTENT_TYPE = "application/problem+json";
 

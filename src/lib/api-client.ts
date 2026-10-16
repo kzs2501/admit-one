@@ -7,7 +7,7 @@
  * It knows nothing about the simulation; whoever starts the app can hold requests
  * until a dependency is ready (`setApiReadiness`).
  */
-import { z } from "zod";
+import { z } from "@/core/zod";
 import { eventDtoSchema, holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
 import type { ConfirmChallengeRequest, CreateHoldRequest, UpsertOrderRequest } from "@/contract/requests";

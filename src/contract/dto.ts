@@ -6,7 +6,7 @@
  * Timestamps are ISO 8601 strings; money is integer minor units, always with its
  * currency (ISO 4217).
  */
-import { z } from "zod";
+import { z } from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
 import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
