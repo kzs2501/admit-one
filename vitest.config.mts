@@ -31,6 +31,7 @@ export default defineConfig({
         "src/backend/domain/**": { statements: 92, branches: 81, functions: 96, lines: 95 },
         "src/backend/http/**": { statements: 89, branches: 78, functions: 91, lines: 90 },
         "src/features/checkout/domain/**": { statements: 87, branches: 89, functions: 89, lines: 91 },
+        "src/features/events/domain/**": { statements: 95, branches: 87, functions: 98, lines: 98 },
       },
     },
   },

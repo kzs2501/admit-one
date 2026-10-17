@@ -202,6 +202,13 @@ export function getEvent(slug: string): EventInfo {
   return event;
 }
 
+/** The hall of an event with reserved seating; asking for one that has none is a bug. */
+export function getSeatPlan(slug: string): SeatPlan {
+  const { seating } = getEvent(slug);
+  if (seating.kind !== "reserved") throw new Error(`${slug} has no reserved seating`);
+  return seating.plan;
+}
+
 export const findTier = (tierId: string) => {
   for (const event of CATALOG) {
     const tier = event.tiers.find((candidate) => candidate.id === tierId);

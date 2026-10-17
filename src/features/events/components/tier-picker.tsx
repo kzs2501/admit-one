@@ -106,7 +106,13 @@ export function TierPicker({ slug }: { slug: string }) {
             )}
           </p>
           <Button type="submit" disabled={total === 0 || isSoldOut} isBusy={isReserving}>
-            {isSoldOut ? "Sold out" : isReserving ? "Reserving…" : "Reserve tickets"}
+            {isSoldOut
+              ? "Sold out"
+              : isReserving
+                ? "Reserving…"
+                : event.seating.kind === "reserved"
+                  ? "Find the best seats"
+                  : "Reserve tickets"}
           </Button>
         </div>
         {!isSoldOut && <p className="text-xs text-ink-3">We’ll hold them for you while you check out.</p>}

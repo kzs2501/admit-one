@@ -27,6 +27,13 @@ export const eventQueries = {
     queryOptions({ queryKey: [...eventQueries.all(), "detail", slug], queryFn: () => apiClient.getEvent(slug) }),
 };
 
+/** Which seats are gone, for an event with reserved seating. */
+export const seatQueries = {
+  all: () => ["seats"] as const,
+  availability: (slug: string) =>
+    queryOptions({ queryKey: [...seatQueries.all(), slug], queryFn: () => apiClient.getSeatAvailability(slug) }),
+};
+
 export const holdQueries = {
   all: () => ["holds"] as const,
   detail: (holdId: string) =>

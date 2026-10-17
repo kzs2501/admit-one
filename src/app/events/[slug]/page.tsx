@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CATALOG, findEvent } from "@/core/catalog";
 import { formatEventDate, formatEventTime } from "@/lib/format";
+import { SeatMap } from "@/features/events/components/seat-map/seat-map";
 import { TierPicker } from "@/features/events/components/tier-picker";
 
 export const dynamicParams = false;
@@ -19,6 +20,7 @@ export async function generateMetadata({ params }: PageProps<"/events/[slug]">):
 export default async function EventPage({ params }: PageProps<"/events/[slug]">) {
   const event = findEvent((await params).slug);
   if (!event) notFound();
+  const isReserved = event.seating.kind === "reserved";
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
@@ -44,11 +46,13 @@ export default async function EventPage({ params }: PageProps<"/events/[slug]">)
         </div>
         <section aria-labelledby="tickets-title">
           <h2 id="tickets-title" className="mb-3 font-display text-lg font-semibold">
-            Tickets
+            {isReserved ? "Best available" : "Tickets"}
           </h2>
+          {isReserved && <p className="mb-3 text-sm text-ink-2">Say how many; we’ll find the best seats together.</p>}
           <TierPicker slug={event.slug} />
         </section>
       </div>
+      {isReserved && <SeatMap slug={event.slug} />}
     </div>
   );
 }
