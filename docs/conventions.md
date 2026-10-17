@@ -75,6 +75,10 @@ checked by a tool it is; the rest is for review.
   when there's no data yet, or when it's an answer (a 4xx problem such as `not_found`) —
   `shouldShowQueryError`. Glitches while refreshing are reported once, as a toast, from
   the `QueryCache` ([TkDodo](https://tkdodo.eu/blog/react-query-error-handling)).
+- **Large interactive lists** (the seat map's thousand cells) handle events once, on
+  the container, reading `data-*` ids (delegation), and render memoised cells with
+  primitive props, so a change re-renders only what changed. A budget test keeps it
+  honest.
 - **Links** use `lib/routes.ts`; `typedRoutes` checks every literal href at build time.
 - **Accessibility is a feature:** native elements first (`<dialog>`, `<fieldset>`,
   `<output>`); errors are linked to their fields; focus moves to what changed;

@@ -62,17 +62,17 @@ flowchart TB
   shared -. "HTTP" .-> backend
 ```
 
-| Layer             | Responsibility                                                                                                                            | May import                              |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `core/`           | The shared kernel: the event catalogue, money and pricing, lifecycle vocabularies, validation rules, order-status predicates              | nothing else                            |
-| `contract/`       | The HTTP contract: route table, DTO and request schemas, RFC 9457 problem types                                                           | `core`                                  |
-| `backend/domain`  | Inventory, orders, payments, webhooks, the order state machine — plain functions over plain state, with time, ids and randomness injected | `core`, `contract`                      |
-| `backend/http`    | The adapter: request parsing, status codes, problem details, idempotency keys, ISO timestamps                                             | the domain                              |
-| `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                        | the domain, the adapter                 |
-| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                             | `core`, `contract`                      |
-| `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                | `lib`, `core`                           |
-| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `usePayment`, `useReserveTickets`) and the components that render them                 | everything above; never another feature |
-| `app/`            | Routes and error boundaries; composes features                                                                                            | everything except backend internals     |
+| Layer             | Responsibility                                                                                                                                                                         | May import                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `core/`           | The shared kernel: the event catalogue and its halls, seat geometry and the single-seat-gap rule, money and pricing, lifecycle vocabularies, validation rules, order-status predicates | nothing else                            |
+| `contract/`       | The HTTP contract: route table, DTO and request schemas, RFC 9457 problem types                                                                                                        | `core`                                  |
+| `backend/domain`  | Inventory, orders, payments, webhooks, the order state machine — plain functions over plain state, with time, ids and randomness injected                                              | `core`, `contract`                      |
+| `backend/http`    | The adapter: request parsing, status codes, problem details, idempotency keys, ISO timestamps                                                                                          | the domain                              |
+| `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                     | the domain, the adapter                 |
+| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                          | `core`, `contract`                      |
+| `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                             | `lib`, `core`                           |
+| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `usePayment`, `useReserveTickets`) and the components that render them                                                              | everything above; never another feature |
+| `app/`            | Routes and error boundaries; composes features                                                                                                                                         | everything except backend internals     |
 
 **The rule is enforced, not just described.** `eslint.config.mjs` declares these as
 `import/no-restricted-paths` zones (plus `import/no-cycle`), so a forbidden import fails
@@ -108,6 +108,10 @@ sequenceDiagram
 - **The contract is schema-first**: Zod schemas parsed at both ends, ISO 8601 on the
   wire, `…Ms` inside ([007](decisions/007-typed-contract-and-iso-times.md)).
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
+- **Reserved seating** — halls are static data in `core` and server-rendered; which
+  seats are gone comes over HTTP. Holds by seat are all-or-nothing, and the server
+  chooses "best available" in the same step as the hold
+  ([010](decisions/010-reserved-seating.md)).
 - **Security headers** — a Content Security Policy without nonces, so pages stay static,
   plus the usual hardening headers ([009](decisions/009-security-headers.md)).
 - **Failures are contained and reported.** `app/error.tsx` covers every route and keeps

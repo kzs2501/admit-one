@@ -2,9 +2,9 @@
 
 **An event-ticketing checkout, done properly — with a chaos panel to break it on purpose.**
 
-Timed ticket holds that can't oversell, a typed step registry driven by the URL,
-idempotent payments, deduplicated webhooks, and an order page that waits for the
-truth instead of trusting a redirect. Pick a failure from the chaos panel — a declined
+Timed ticket holds that can't oversell, a seat map you can use with a keyboard, a typed
+step registry driven by the URL, idempotent payments, deduplicated webhooks, and an
+order page that waits for the truth instead of trusting a redirect. Pick a failure from the chaos panel — a declined
 card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buying the
 last ticket — and watch the checkout handle it while the server log explains why.
 
@@ -30,6 +30,7 @@ is also an end-to-end test that checks both what you see and what the server rec
 | Webhook delayed            | 12 s before confirmation                               | Polling that backs off, then a reassuring note                                   |
 | Hold expires mid-payment   | Payment lands after the hold is gone                   | A full refund, explained in plain words                                          |
 | Crowd buys the last ticket | Someone else gets there first                          | "Just missed it", live availability, never oversold                              |
+| Seat snatched              | Someone takes one of your chosen seats first           | Nothing held; the lost seat is named and the rest stay chosen                    |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 `4000 0025 0000 3155` asks for 3-D Secure.
@@ -68,6 +69,18 @@ screen rather than replacing it with an error.
 Starting a payment extends the hold once, and a payment in flight protects its order.
 If the money still arrives after the tickets are gone, the order is refunded in full and
 the page says why — rather than overselling or quietly keeping the money.
+
+### 5. A seat map you can use with a keyboard
+
+The concert at Rangmanch Auditorium has reserved seating: 998 seats, drawn from static
+data and server-rendered. Each section is a WAI-ARIA grid with one tab stop. The arrow
+keys step over aisles, and Up and Down go to the seat _in front_, not the one with the
+same number. Every seat says its row, number, tier, price and state. Choosing seats is
+all-or-nothing: if one has gone, nothing is held and the server names it. "Best
+available" lets the server choose and hold in one step, keeping a party together
+without stranding a single seat. An e2e budget keeps the longest interaction under
+200 ms with the CPU slowed four times.
+([decision](docs/decisions/010-reserved-seating.md))
 
 ## How it works
 
@@ -124,13 +137,13 @@ nothing else depends on it.
 
 ## Quality
 
-| Check                        | Coverage                                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                  |
-| `npm test`                   | 126 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation |
-| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                         |
-| `npm run test:e2e`           | 27 browser tests: one per chaos preset, plus security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion      |
-| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                              |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                          |
+| `npm test`                   | 184 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator and the seat map's keyboard model              |
+| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                 |
+| `npm run test:e2e`           | 34 browser tests: one per chaos preset, plus a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                      |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
@@ -174,7 +187,7 @@ checklist.
 
 ## Not in v0.1
 
-Accounts, assigned seating, emails, an organiser dashboard, and a real payment provider.
+Accounts, emails, an organiser dashboard, and a real payment provider.
 Next up is a Razorpay test-mode adapter behind the same provider interface.
 
 ---
