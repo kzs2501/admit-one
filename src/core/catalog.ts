@@ -6,6 +6,8 @@
  * All events, venues and people are fictional.
  */
 import type { CurrencyCode } from "./money";
+import type { SeatPlan } from "./seating";
+import { baselineSoldSeatIds, RANGMANCH_PLAN } from "./venues";
 
 export interface TierInfo {
   id: string;
@@ -24,6 +26,16 @@ export interface AddOnInfo {
   priceMinor: number;
 }
 
+/** Whether buyers pick a quantity of each tier, or particular seats. */
+export type Seating =
+  | { kind: "general" }
+  | {
+      kind: "reserved";
+      plan: SeatPlan;
+      /** Seats sold before this sandbox started. */
+      baselineSoldSeatIds: ReadonlySet<string>;
+    };
+
 export interface EventInfo {
   slug: string;
   name: string;
@@ -37,8 +49,21 @@ export interface EventInfo {
   venue: string;
   city: string;
   description: string;
+  seating: Seating;
   tiers: TierInfo[];
   addOns: AddOnInfo[];
+}
+
+const MONSOON_SOLD_SEAT_IDS = baselineSoldSeatIds(RANGMANCH_PLAN, 2026);
+
+/** A reserved tier's capacity and baseline come from its seats, so the two can't disagree. */
+function seatedTier(
+  plan: SeatPlan,
+  soldSeatIds: ReadonlySet<string>,
+  tier: Omit<TierInfo, "capacity" | "baselineSold">,
+) {
+  const seats = plan.seats.filter((seat) => seat.tierId === tier.id);
+  return { ...tier, capacity: seats.length, baselineSold: seats.filter((seat) => soldSeatIds.has(seat.id)).length };
 }
 
 export const CATALOG: EventInfo[] = [
@@ -51,6 +76,7 @@ export const CATALOG: EventInfo[] = [
     currency: "INR",
     venue: "The Foundry, Hall 2",
     city: "Pune",
+    seating: { kind: "general" },
     description:
       "Twelve talks and two hands-on workshops from people who maintain design systems and frontend platforms at scale. Workshop passes include a morning session with a limited room.",
     tiers: [
@@ -85,6 +111,7 @@ export const CATALOG: EventInfo[] = [
     currency: "INR",
     venue: "Courtyard at Old Mill Lane",
     city: "Goa",
+    seating: { kind: "general" },
     description:
       "A small, standing-only evening with a piano trio. The courtyard holds forty people, and it’s almost full.",
     tiers: [
@@ -108,6 +135,7 @@ export const CATALOG: EventInfo[] = [
     currency: "INR",
     venue: "Clayhouse Studio",
     city: "Jaipur",
+    seating: { kind: "general" },
     description:
       "A beginner-friendly session on the pottery wheel. Twelve places per session; we fire and glaze your pieces for collection two weeks later.",
     tiers: [
@@ -121,6 +149,47 @@ export const CATALOG: EventInfo[] = [
       },
     ],
     addOns: [],
+  },
+  {
+    slug: "monsoon-strings",
+    name: "Monsoon Strings",
+    tagline: "A chamber orchestra plays The Four Seasons — and four new ones, written for the monsoon.",
+    startsAt: "2026-12-12T19:00:00+05:30",
+    timeZone: "Asia/Kolkata",
+    currency: "INR",
+    venue: "Rangmanch Auditorium",
+    city: "Bengaluru",
+    seating: { kind: "reserved", plan: RANGMANCH_PLAN, baselineSoldSeatIds: MONSOON_SOLD_SEAT_IDS },
+    description:
+      "Vivaldi’s Four Seasons, paired with four new pieces by Indian composers on the monsoon’s arrival, height and retreat. Every seat is reserved: choose yours on the map, or let us find the best ones left.",
+    tiers: [
+      seatedTier(RANGMANCH_PLAN, MONSOON_SOLD_SEAT_IDS, {
+        id: "ms-premium",
+        name: "Premium",
+        description: "Stalls rows A–F, closest to the orchestra.",
+        priceMinor: 249900,
+      }),
+      seatedTier(RANGMANCH_PLAN, MONSOON_SOLD_SEAT_IDS, {
+        id: "ms-stalls",
+        name: "Stalls",
+        description: "Stalls rows G–V.",
+        priceMinor: 149900,
+      }),
+      seatedTier(RANGMANCH_PLAN, MONSOON_SOLD_SEAT_IDS, {
+        id: "ms-balcony",
+        name: "Balcony",
+        description: "The upper level, with the whole stage in view.",
+        priceMinor: 89900,
+      }),
+    ],
+    addOns: [
+      {
+        id: "ms-programme",
+        name: "Printed programme",
+        description: "Notes on every piece; collected at the door.",
+        priceMinor: 15000,
+      },
+    ],
   },
 ];
 

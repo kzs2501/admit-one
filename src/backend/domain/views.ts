@@ -21,7 +21,7 @@ export interface TierView {
   available: number;
 }
 
-export type EventView = Omit<EventInfo, "tiers" | "addOns"> & { tiers: TierView[]; addOns: AddOnInfo[] };
+export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating"> & { tiers: TierView[]; addOns: AddOnInfo[] };
 
 export interface HoldView {
   id: string;
