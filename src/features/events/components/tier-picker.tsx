@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { getEvent } from "@/core/catalog";
 import { MAX_TICKETS_PER_ORDER, stockLevel, type StockLevel } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { eventQueries, shouldShowQueryError } from "@/lib/queries";
@@ -14,16 +15,22 @@ const AVAILABILITY_REFRESH_MS = 5_000;
 
 const STOCK_TONES: Record<StockLevel, string> = { "sold-out": "text-bad", low: "text-warn", plenty: "text-ink-3" };
 
-/** Choose tickets and reserve them. Availability is live: it can change while you look. */
+/**
+ * Choose tickets and reserve them. The tiers — names, descriptions, prices — are static
+ * content and render at once, server-side, so nothing moves when the live part arrives:
+ * how many are left, which can change while you look.
+ */
 export function TierPicker({ slug }: { slug: string }) {
+  const event = getEvent(slug);
   const {
-    data: event,
+    data: live,
     error,
     refetch,
   } = useQuery({ ...eventQueries.detail(slug), refetchInterval: AVAILABILITY_REFRESH_MS });
+  const availableFor = (tierId: string) => live?.tiers.find((tier) => tier.id === tierId)?.available;
   const { quantities, setQuantity, soldOutNotice, reserve, isReserving, reserveError } = useReserveTickets(slug);
 
-  if (shouldShowQueryError(event, error)) {
+  if (shouldShowQueryError(live, error)) {
     return (
       <Notice tone="bad" title="Couldn’t load tickets" role="alert">
         <button className="underline underline-offset-4" onClick={() => void refetch()}>
@@ -32,16 +39,14 @@ export function TierPicker({ slug }: { slug: string }) {
       </Notice>
     );
   }
-  if (!event) {
-    return <div aria-busy="true" aria-label="Loading tickets" className="h-56 rounded-xl border border-line bg-card" />;
-  }
 
   const total = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);
   const subtotalMinor = event.tiers.reduce((sum, tier) => sum + tier.priceMinor * (quantities[tier.id] ?? 0), 0);
-  const isSoldOut = event.tiers.every((tier) => tier.available === 0);
+  const isSoldOut = live !== undefined && event.tiers.every((tier) => availableFor(tier.id) === 0);
 
   return (
     <form
+      aria-busy={live === undefined || undefined}
       className="rounded-xl border border-line bg-card"
       onSubmit={(submitEvent) => {
         submitEvent.preventDefault();
@@ -51,8 +56,9 @@ export function TierPicker({ slug }: { slug: string }) {
       <ul className="divide-y divide-line">
         {event.tiers.map((tier) => {
           const chosen = quantities[tier.id] ?? 0;
-          const max = Math.min(tier.available, MAX_TICKETS_PER_ORDER - (total - chosen));
-          const level = stockLevel(tier.available);
+          const available = availableFor(tier.id);
+          const max = Math.min(available ?? 0, MAX_TICKETS_PER_ORDER - (total - chosen));
+          const level = available === undefined ? null : stockLevel(available);
           return (
             <li key={tier.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
               <div className="min-w-0">
@@ -60,8 +66,8 @@ export function TierPicker({ slug }: { slug: string }) {
                 <p className="text-sm text-ink-2">{tier.description}</p>
                 <p className="mt-1 text-sm">
                   <span className="tabular font-medium">{formatMoney(tier.priceMinor, event.currency)}</span>
-                  <span className={`tabular ml-2 text-xs ${STOCK_TONES[level]}`}>
-                    {level === "sold-out" ? "Sold out" : `${tier.available} left`}
+                  <span className={`tabular ml-2 text-xs ${level ? STOCK_TONES[level] : "text-ink-3"}`}>
+                    {available === undefined ? "Checking…" : level === "sold-out" ? "Sold out" : `${available} left`}
                   </span>
                 </p>
               </div>
@@ -72,7 +78,7 @@ export function TierPicker({ slug }: { slug: string }) {
                 onChange={(quantity) => {
                   setQuantity(tier.id, quantity);
                 }}
-                isDisabled={tier.available === 0 || isReserving}
+                isDisabled={!available || isReserving}
               />
             </li>
           );
