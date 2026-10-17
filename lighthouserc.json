@@ -3,7 +3,11 @@
     "collect": {
       "startServerCommand": "npx next start -p 4181",
       "startServerReadyPattern": "Ready",
-      "url": ["http://localhost:4181/", "http://localhost:4181/events/frontend-systems-summit"],
+      "url": [
+        "http://localhost:4181/",
+        "http://localhost:4181/events/frontend-systems-summit",
+        "http://localhost:4181/events/monsoon-strings"
+      ],
       "numberOfRuns": 3,
       "settings": { "preset": "desktop" }
     },

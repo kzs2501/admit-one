@@ -126,6 +126,11 @@ const eslintConfig = defineConfig([
     // Browser tests: no fixed waits, no floating promises, web-first assertions.
     ...playwright.configs["flat/recommended"],
     files: ["e2e/**/*.ts"],
+    rules: {
+      ...playwright.configs["flat/recommended"].rules,
+      // Skipping where a browser lacks a feature is how Playwright's docs say to do it.
+      "playwright/no-skipped-test": ["warn", { allowConditional: true }],
+    },
   },
   {
     files: ["**/*.mjs"],

@@ -6,6 +6,9 @@
  */
 import { expect, test as base, type Page } from "@playwright/test";
 import { SANDBOX_STORAGE_KEY, type ServerState } from "../src/backend/domain/state";
+import { seatAvailabilityDtoSchema } from "../src/contract/dto";
+import { getSeatPlan } from "../src/core/catalog";
+import { findSingleSeatGaps, type Seat } from "../src/core/seating";
 import type { TestCardLabel } from "../src/features/checkout/domain/test-cards";
 
 export class Buyer {
@@ -61,6 +64,33 @@ export class Sandbox {
     await panel.getByRole("radio", { name: label }).check();
     await panel.getByRole("button", { name: "Close chaos panel" }).click();
     await expect(this.page.getByRole("button", { name: new RegExp(`^Chaos.*${label}`) })).toBeVisible();
+  }
+
+  /**
+   * The first `length` free seats side by side, in a row of the given section, that can
+   * be chosen without stranding a seat — worked out from the live availability with the
+   * same rule the app uses, so a test never picks seats the app would refuse.
+   */
+  async freeSeatRun(slug: string, length: number, sectionId = "stalls"): Promise<{ seats: Seat[]; rowIndex: number }> {
+    const plan = getSeatPlan(slug);
+    const body = await this.page.evaluate(async (path): Promise<unknown> => {
+      const response = await fetch(path);
+      return response.json();
+    }, `/api/events/${slug}/seats`);
+    const unavailable = new Set(seatAvailabilityDtoSchema.parse(body).unavailableSeatIds);
+    const section = plan.sections.find((candidate) => candidate.id === sectionId);
+    for (const [rowIndex, row] of (section?.rows ?? []).entries()) {
+      for (const block of row.blocks) {
+        for (let start = 0; start + length <= block.length; start++) {
+          const seats = block.slice(start, start + length);
+          if (seats.some((seat) => unavailable.has(seat.id))) continue;
+          if (findSingleSeatGaps(plan, unavailable, new Set(seats.map((seat) => seat.id))).length === 0) {
+            return { seats, rowIndex };
+          }
+        }
+      }
+    }
+    throw new Error(`No ${length} free seats together in ${sectionId}`);
   }
 
   /** The backend's state, read straight from the tab's sandbox. */

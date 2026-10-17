@@ -16,6 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "lhci": "lhci autorun",
+    "lhci:mobile": "lhci autorun --config=lighthouserc.mobile.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"

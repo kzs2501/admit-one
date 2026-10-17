@@ -2,6 +2,7 @@ node_modules
 .next
 out
 .lighthouseci
+.lighthouseci-mobile
 test-results
 playwright-report
 coverage
