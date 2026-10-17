@@ -3,6 +3,7 @@
  * disagree about what a valid attendee, ticket request or card looks like.
  */
 import { z } from "@/core/zod";
+import { SEAT_ID_PATTERN } from "./seating";
 import { MAX_TICKETS_PER_ORDER } from "./ticketing";
 
 export const lineItemSchema = z.object({
@@ -16,6 +17,13 @@ export const lineItemsSchema = z
   .refine((items) => items.reduce((total, item) => total + item.quantity, 0) <= MAX_TICKETS_PER_ORDER, {
     message: `You can reserve up to ${MAX_TICKETS_PER_ORDER} tickets at a time.`,
   });
+
+/** Particular seats, for an event with reserved seating: 1–6 of them, each once. */
+export const seatIdsSchema = z
+  .array(z.string().regex(SEAT_ID_PATTERN, "That isn’t a seat."))
+  .min(1, "Choose at least one seat.")
+  .max(MAX_TICKETS_PER_ORDER, `You can reserve up to ${MAX_TICKETS_PER_ORDER} seats at a time.`)
+  .refine((seatIds) => new Set(seatIds).size === seatIds.length, { message: "Each seat can be chosen once." });
 
 export const attendeeSchema = z.object({
   name: z.string().trim().min(2, "Enter the attendee’s full name."),

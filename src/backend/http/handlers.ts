@@ -12,13 +12,13 @@ import type { PaymentResultView } from "@/backend/domain/views";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
 import {
   confirmChallengeRequestSchema,
-  createHoldRequestSchema,
+  createHoldRequestSchemaFor,
   createPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
 import { API_ROUTES, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
 import { fingerprintRequest } from "./idempotency";
-import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto } from "./mappers";
+import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto, toSeatAvailabilityDto } from "./mappers";
 import { toProblem } from "./problems";
 
 interface HandlerOptions {
@@ -82,12 +82,18 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
       : HttpResponse.json(body, { status });
   };
 
-  /** Parse a request body against its schema; a body that doesn't parse is the client's problem. */
+  /**
+   * Parse a request body against its schema — or, for an endpoint that takes more than
+   * one shape, the schema for the shape it is. A body that doesn't parse is the
+   * client's problem.
+   */
   async function parseBody<Schema extends z.ZodType>(
     request: Request,
-    schema: Schema,
+    schemaFor: Schema | ((body: unknown) => Schema),
   ): Promise<{ ok: true; value: z.output<Schema> } | { ok: false; reply: Reply }> {
-    const parsed = schema.safeParse(await readJson(request));
+    const body = await readJson(request);
+    const schema = typeof schemaFor === "function" ? schemaFor(body) : schemaFor;
+    const parsed = schema.safeParse(body);
     if (parsed.success) return { ok: true, value: parsed.data };
     const detail = parsed.error.issues[0]?.message ?? "The request body is invalid.";
     return { ok: false, reply: problemReply({ code: "invalid_request", detail }, request) };
@@ -115,8 +121,13 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
       return send(request, resultReply(backend.getEvent(params.slug), request, toEventDto));
     }),
 
+    http.get<{ slug: string }>(anyOrigin(API_ROUTES.getSeatAvailability), async ({ params, request }) => {
+      await latency();
+      return send(request, resultReply(backend.getSeatAvailability(params.slug), request, toSeatAvailabilityDto));
+    }),
+
     http.post(anyOrigin(API_ROUTES.createHold), async ({ request }) => {
-      const input = await parseBody(request, createHoldRequestSchema);
+      const input = await parseBody(request, createHoldRequestSchemaFor);
       await latency();
       if (!input.ok) return send(request, input.reply);
       return send(request, resultReply(backend.createHold(input.value), request, toHoldDetailsDto, 201));

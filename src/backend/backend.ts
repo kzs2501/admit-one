@@ -12,7 +12,14 @@ import type { CardDetails } from "@/core/schemas";
 import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
-import { availableQuantity, createHold, findHold, runCrowdTick, type CreateHoldCommand } from "./domain/inventory";
+import {
+  availableQuantity,
+  createHold,
+  findHold,
+  findSeatAvailability,
+  runCrowdTick,
+  type CreateHoldCommand,
+} from "./domain/inventory";
 import { findOrder, upsertOrder, type UpsertOrderCommand } from "./domain/orders";
 import { confirmChallenge, createPayment, type ChallengeDecision, type PaymentAttempt } from "./domain/payments";
 import { createInitialState, type IdempotencyRecord, type LogKind, type ServerState } from "./domain/state";
@@ -25,6 +32,7 @@ import {
   type HoldDetailsView,
   type OrderView,
   type PaymentResultView,
+  type SeatAvailabilityView,
 } from "./domain/views";
 import { deliverDue, nextDeliveryAtMs } from "./domain/webhooks";
 
@@ -104,6 +112,14 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
       const event = findEvent(slug);
       return event ? ok(toEventView(context, event)) : fail({ code: "not_found", detail: "No such event." });
     },
+
+    /** The seats that are gone, for an event with reserved seating. */
+    getSeatAvailability: (eventSlug: string): Result<SeatAvailabilityView> =>
+      map(findSeatAvailability(context, eventSlug), (unavailableSeatIds) => ({
+        eventSlug,
+        unavailableSeatIds,
+        serverTimeMs: context.deps.now(),
+      })),
 
     createHold: (input: CreateHoldCommand): Result<HoldDetailsView> =>
       command(() => map(createHold(context, input), (hold) => toHoldDetailsView(context, hold))),

@@ -7,9 +7,16 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { createBackend } from "@/backend/backend";
 import { createInitialState } from "@/backend/domain/state";
-import { eventDtoSchema, holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
+import {
+  eventDtoSchema,
+  holdDetailsDtoSchema,
+  orderDtoSchema,
+  paymentResultDtoSchema,
+  seatAvailabilityDtoSchema,
+} from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan } from "@/backend/testing/fixtures";
 import { createHandlers } from "./handlers";
 
 let idCount = 0;
@@ -193,6 +200,79 @@ describe("HTTP contract", () => {
     expect((await check()).status).toBe(200);
     for (let i = 0; i < 3; i++) await expect(check()).rejects.toThrow(TypeError);
     expect((await check()).status).toBe(200);
+  });
+
+  describe("reserved seating", () => {
+    it("serves which seats are gone, and says which events have a map", async () => {
+      const response = await fetch(`${BASE_URL}/api/events/${SEATED_EVENT}/seats`);
+      expect(response.status).toBe(200);
+      const availability = seatAvailabilityDtoSchema.parse(await response.json());
+      expect(availability.unavailableSeatIds.length).toBeGreaterThan(0);
+      await expectProblem(await fetch(`${BASE_URL}/api/events/open-studio-ceramics/seats`), 404, "not_found");
+
+      const event = eventDtoSchema.parse(await (await fetch(`${BASE_URL}/api/events/${SEATED_EVENT}`)).json());
+      expect(event.seating).toEqual({ kind: "reserved", venueId: "rangmanch-auditorium" });
+    });
+
+    it("holds particular seats with 201, and describes them", async () => {
+      const seatIds = freeSeatRun(backend, 2);
+      const response = await post("/api/holds", { eventSlug: SEATED_EVENT, seatIds });
+      expect(response.status).toBe(201);
+      const { hold } = holdDetailsDtoSchema.parse(await response.json());
+      expect(hold.seats.map((seat) => seat.id)).toEqual(seatIds);
+      const seat = seatedPlan().seatsById.get(seatIds[0] ?? "");
+      expect(hold.seats[0]).toEqual({
+        id: seat?.id,
+        sectionName: seat?.sectionName,
+        row: seat?.rowLabel,
+        number: seat?.number,
+        tierId: seat?.tierId,
+      });
+    });
+
+    it("answers a taken seat with 409 and its id, holding nothing", async () => {
+      const seatIds = freeSeatRun(backend, 2);
+      await post("/api/holds", { eventSlug: SEATED_EVENT, seatIds });
+      const problem = await expectProblem(
+        await post("/api/holds", { eventSlug: SEATED_EVENT, seatIds }),
+        409,
+        "seats_unavailable",
+      );
+      expect(problem).toMatchObject({ seatIds });
+    });
+
+    it("answers a stranded seat with 422 and its id", async () => {
+      const { seatIds, stranded } = gapMakingSelection(backend);
+      const problem = await expectProblem(
+        await post("/api/holds", { eventSlug: SEATED_EVENT, seatIds }),
+        422,
+        "single_seat_gap",
+      );
+      expect(problem).toHaveProperty("seatIds", expect.arrayContaining([stranded.id]));
+    });
+
+    it("rejects a body that's both kinds, or seats that aren't seats", async () => {
+      const both = { eventSlug: SEATED_EVENT, seatIds: ["stalls-A-1"], items: [{ tierId: "ms-premium", quantity: 1 }] };
+      await expectProblem(await post("/api/holds", both), 422, "invalid_request");
+      const junk = await post("/api/holds", { eventSlug: SEATED_EVENT, seatIds: ["front row please"] });
+      expect((await expectProblem(junk, 422, "invalid_request")).detail).toBe("That isn’t a seat.");
+      await expectProblem(
+        await post("/api/holds", { eventSlug: "open-studio-ceramics", seatIds: ["stalls-A-1"] }),
+        422,
+        "invalid_request",
+      );
+    });
+
+    it("chooses the seats itself for a request by tier — the request shape that predates seats", async () => {
+      const response = await post("/api/holds", {
+        eventSlug: SEATED_EVENT,
+        items: [{ tierId: "ms-balcony", quantity: 3 }],
+      });
+      expect(response.status).toBe(201);
+      const { hold } = holdDetailsDtoSchema.parse(await response.json());
+      expect(hold.seats).toHaveLength(3);
+      expect(hold.seats.every((seat) => seat.tierId === "ms-balcony")).toBe(true);
+    });
   });
 
   it("writes every request to the server log", async () => {

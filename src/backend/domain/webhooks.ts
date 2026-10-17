@@ -54,6 +54,7 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
   if (hold && isHoldLive(hold, context.deps.now())) {
     hold.isConverted = true;
     for (const { tierId, quantity } of hold.items) state.sold[tierId] = (state.sold[tierId] ?? 0) + quantity;
+    state.soldSeatIds.push(...hold.seatIds);
     issueTickets(context, order);
     setOrderStatus(context, order, "fulfilled");
   } else {

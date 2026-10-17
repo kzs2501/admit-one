@@ -8,7 +8,13 @@
  * until a dependency is ready (`setApiReadiness`).
  */
 import { z } from "@/core/zod";
-import { eventDtoSchema, holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
+import {
+  eventDtoSchema,
+  holdDetailsDtoSchema,
+  orderDtoSchema,
+  paymentResultDtoSchema,
+  seatAvailabilityDtoSchema,
+} from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
 import type { ConfirmChallengeRequest, CreateHoldRequest, UpsertOrderRequest } from "@/contract/requests";
 import { API_ROUTES, buildApiPath, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
@@ -76,6 +82,8 @@ const post = <Schema extends z.ZodType>(
 export const apiClient = {
   listEvents: () => request(buildApiPath(API_ROUTES.listEvents, {}), z.array(eventDtoSchema)),
   getEvent: (slug: string) => request(buildApiPath(API_ROUTES.getEvent, { slug }), eventDtoSchema),
+  getSeatAvailability: (slug: string) =>
+    request(buildApiPath(API_ROUTES.getSeatAvailability, { slug }), seatAvailabilityDtoSchema),
   createHold: (body: CreateHoldRequest) => post(buildApiPath(API_ROUTES.createHold, {}), holdDetailsDtoSchema, body),
   getHold: (holdId: string) => request(buildApiPath(API_ROUTES.getHold, { holdId }), holdDetailsDtoSchema),
   upsertOrder: (body: UpsertOrderRequest) => post(buildApiPath(API_ROUTES.upsertOrder, {}), orderDtoSchema, body),

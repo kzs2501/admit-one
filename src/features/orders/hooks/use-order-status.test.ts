@@ -16,6 +16,7 @@ const order = (status: OrderStatus, paymentDto: PaymentDto | null = null): Order
   holdId: "hold_1",
   eventSlug: "open-studio-ceramics",
   items: [{ tierId: "osc-session", quantity: 1 }],
+  seats: [],
   attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
   addOns: {},
   amounts: { currency: "INR", ticketsMinor: 250000, addOnsMinor: 0, feesMinor: 7500, totalMinor: 257500 },

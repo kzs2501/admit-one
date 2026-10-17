@@ -9,6 +9,9 @@ function sampleError(code: (typeof PROBLEM_CODES)[number]): DomainError {
   switch (code) {
     case "sold_out":
       return { code, detail: "Only 2 left.", tierId: "nmj-standing", available: 2 };
+    case "seats_unavailable":
+    case "single_seat_gap":
+      return { code, detail: "Stalls, row F, seat 12.", seatIds: ["stalls-F-12"] };
     case "card_declined":
     case "authentication_failed":
       return { code, detail: "The bank said no.", paymentId: "pay_1" };

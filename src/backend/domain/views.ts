@@ -5,6 +5,7 @@
  * into ISO 8601 strings.
  */
 import { getEvent, type AddOnInfo, type EventInfo } from "@/core/catalog";
+import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/money";
 import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
 import type { LineItem } from "@/core/ticketing";
@@ -21,7 +22,29 @@ export interface TierView {
   available: number;
 }
 
-export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating"> & { tiers: TierView[]; addOns: AddOnInfo[] };
+/** How the event is sold; a reserved hall's layout is static content, so only its id goes out. */
+export type SeatingView = { kind: "general" } | { kind: "reserved"; venueId: string };
+
+export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating"> & {
+  seating: SeatingView;
+  tiers: TierView[];
+  addOns: AddOnInfo[];
+};
+
+export interface SeatView {
+  id: string;
+  sectionName: string;
+  row: string;
+  number: number;
+  tierId: string;
+}
+
+export interface TicketView {
+  code: string;
+  attendeeName: string;
+  tierName: string;
+  seat: SeatView | null;
+}
 
 export interface HoldView {
   id: string;
@@ -31,6 +54,7 @@ export interface HoldView {
   expiresAtMs: number;
   status: HoldStatus;
   orderId: string | null;
+  seats: SeatView[];
 }
 
 export interface PaymentView {
@@ -45,12 +69,13 @@ export interface OrderView {
   holdId: string;
   eventSlug: string;
   items: LineItem[];
+  seats: SeatView[];
   attendees: { name: string; email: string }[];
   addOns: Record<string, number>;
   amounts: Amounts;
   status: OrderStatus;
   statusReason: string | null;
-  tickets: { code: string; attendeeName: string; tierName: string }[];
+  tickets: TicketView[];
   payment: PaymentView | null;
   createdAtMs: number;
   updatedAtMs: number;
@@ -63,9 +88,33 @@ export interface HoldDetailsView {
   serverTimeMs: number;
 }
 
+export interface SeatAvailabilityView {
+  eventSlug: string;
+  unavailableSeatIds: string[];
+  serverTimeMs: number;
+}
+
 export interface PaymentResultView {
   payment: PaymentView;
   order: OrderView;
+}
+
+const toSeatView = (seat: Seat): SeatView => ({
+  id: seat.id,
+  sectionName: seat.sectionName,
+  row: seat.rowLabel,
+  number: seat.number,
+  tierId: seat.tierId,
+});
+
+/** An event's seats by id, in the order given; empty for general admission. */
+function seatsOf(eventSlug: string, seatIds: readonly string[]): SeatView[] {
+  const { seating } = getEvent(eventSlug);
+  if (seating.kind !== "reserved") return [];
+  return seatIds.flatMap((seatId) => {
+    const seat = seating.plan.seatsById.get(seatId);
+    return seat ? [toSeatView(seat)] : [];
+  });
 }
 
 export const toEventView = (context: BackendContext, event: EventInfo): EventView => ({
@@ -78,6 +127,8 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
   venue: event.venue,
   city: event.city,
   description: event.description,
+  seating:
+    event.seating.kind === "reserved" ? { kind: "reserved", venueId: event.seating.plan.venueId } : { kind: "general" },
   // Public fields only: capacity and baseline sales stay inside the backend.
   tiers: event.tiers.map((tier) => ({
     id: tier.id,
@@ -97,6 +148,7 @@ const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
   expiresAtMs: hold.expiresAtMs,
   status: hold.isConverted ? "converted" : isHoldLive(hold, context.deps.now()) ? "active" : "expired",
   orderId: hold.orderId,
+  seats: seatsOf(hold.eventSlug, hold.seatIds),
 });
 
 export const toPaymentView = (payment: PaymentRecord): PaymentView => ({
@@ -114,12 +166,16 @@ export function toOrderView(context: BackendContext, order: OrderRecord): OrderV
     holdId: order.holdId,
     eventSlug: order.eventSlug,
     items: order.items,
+    seats: seatsOf(order.eventSlug, context.state.holds[order.holdId]?.seatIds ?? []),
     attendees: order.attendees,
     addOns: order.addOns,
     amounts: order.amounts,
     status,
     statusReason: reason,
-    tickets: order.tickets,
+    tickets: order.tickets.map(({ seatId, ...ticket }) => ({
+      ...ticket,
+      seat: seatId ? (seatsOf(order.eventSlug, [seatId])[0] ?? null) : null,
+    })),
     payment: payment ? toPaymentView(payment) : null,
     createdAtMs: order.createdAtMs,
     updatedAtMs: order.updatedAtMs,

@@ -76,15 +76,22 @@ function createTicketCode(context: BackendContext) {
 
 export function issueTickets(context: BackendContext, order: OrderRecord) {
   const event = getEvent(order.eventSlug);
-  // One tier name per ticket, in order: "General, General, Workshop + General".
-  const tierNames = order.items.flatMap(({ tierId, quantity }) =>
-    Array.from({ length: quantity }, () => event.tiers.find((tier) => tier.id === tierId)?.name ?? tierId),
-  );
-  order.tickets = order.attendees.map((attendee, i) => ({
-    code: createTicketCode(context),
-    attendeeName: attendee.name,
-    tierName: tierNames[i] ?? "Ticket",
-  }));
+  const tierName = (tierId: string) => event.tiers.find((tier) => tier.id === tierId)?.name ?? tierId;
+  // Reserved seating: one seat per attendee, in hall order, each with its own tier.
+  const seatIds = context.state.holds[order.holdId]?.seatIds ?? [];
+  const { seating } = event;
+  const seatTierIds = seating.kind === "reserved" ? seatIds.map((id) => seating.plan.seatsById.get(id)?.tierId) : [];
+  // Otherwise one tier name per ticket, in order: "General, General, Workshop + General".
+  const tierIds = order.items.flatMap(({ tierId, quantity }) => Array.from({ length: quantity }, () => tierId));
+  order.tickets = order.attendees.map((attendee, i) => {
+    const tierId = seatTierIds[i] ?? tierIds[i];
+    return {
+      code: createTicketCode(context),
+      attendeeName: attendee.name,
+      tierName: tierId ? tierName(tierId) : "Ticket",
+      seatId: seatIds[i] ?? null,
+    };
+  });
 }
 
 /**

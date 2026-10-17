@@ -8,6 +8,7 @@
  */
 import { z } from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
+import { SEAT_ID_PATTERN } from "@/core/seating";
 import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 const isoDateTimeSchema = z.iso.datetime({ offset: true });
@@ -24,6 +25,24 @@ export const tierDtoSchema = z.object({
   /** Live: tickets left right now, after sales and other buyers' holds. */
   available: z.number().int().nonnegative(),
 });
+
+/** A reserved seat, described well enough to print on a ticket. */
+export const seatDtoSchema = z.object({
+  id: z.string().regex(SEAT_ID_PATTERN),
+  sectionName: z.string(),
+  row: z.string(),
+  number: z.number().int().positive(),
+  tierId: z.string(),
+});
+
+/**
+ * How an event is sold. For reserved seating, the hall's layout is static content
+ * (shipped with the app, like the catalogue); only availability comes over the API.
+ */
+export const seatingDtoSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("general") }),
+  z.object({ kind: z.literal("reserved"), venueId: z.string() }),
+]);
 
 export const addOnDtoSchema = z.object({
   id: z.string(),
@@ -44,6 +63,7 @@ export const eventDtoSchema = z.object({
   venue: z.string(),
   city: z.string(),
   description: z.string(),
+  seating: seatingDtoSchema,
   tiers: z.array(tierDtoSchema),
   addOns: z.array(addOnDtoSchema),
 });
@@ -58,6 +78,8 @@ export const holdDtoSchema = z.object({
   expiresAt: isoDateTimeSchema,
   status: holdStatusSchema,
   orderId: z.string().nullable(),
+  /** The seats held, for reserved seating; empty for general admission. */
+  seats: z.array(seatDtoSchema),
 });
 
 export const attendeeDtoSchema = z.object({ name: z.string(), email: z.string() });
@@ -72,7 +94,12 @@ export const amountsDtoSchema = z.object({
   totalMinor: minorUnitsSchema,
 });
 
-export const ticketDtoSchema = z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string() });
+export const ticketDtoSchema = z.object({
+  code: z.string(),
+  attendeeName: z.string(),
+  tierName: z.string(),
+  seat: seatDtoSchema.nullable(),
+});
 
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 
@@ -90,6 +117,7 @@ export const orderDtoSchema = z.object({
   holdId: z.string(),
   eventSlug: z.string(),
   items: z.array(lineItemDtoSchema),
+  seats: z.array(seatDtoSchema),
   attendees: z.array(attendeeDtoSchema),
   /** Add-on id → quantity; only add-ons that were chosen. */
   addOns: z.record(z.string(), z.number().int().positive()),
@@ -113,8 +141,18 @@ export const holdDetailsDtoSchema = z.object({
 
 export const paymentResultDtoSchema = z.object({ payment: paymentDtoSchema, order: orderDtoSchema });
 
+/** Which seats are gone right now: sold, or held by someone. Everything else in the hall is free. */
+export const seatAvailabilityDtoSchema = z.object({
+  eventSlug: z.string(),
+  unavailableSeatIds: z.array(z.string()),
+  serverTime: isoDateTimeSchema,
+});
+
 export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
 export type TierDto = z.infer<typeof tierDtoSchema>;
+export type SeatDto = z.infer<typeof seatDtoSchema>;
+export type SeatingDto = z.infer<typeof seatingDtoSchema>;
+export type SeatAvailabilityDto = z.infer<typeof seatAvailabilityDtoSchema>;
 export type AddOnDto = z.infer<typeof addOnDtoSchema>;
 export type EventDto = z.infer<typeof eventDtoSchema>;
 export type HoldDto = z.infer<typeof holdDtoSchema>;

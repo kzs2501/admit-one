@@ -26,6 +26,7 @@ describe("AttendeesStep", () => {
     expiresAt: new Date(0).toISOString(),
     status: "active",
     orderId: null,
+    seats: [],
   };
 
   function setup(draft: Draft = createEmptyDraft()) {

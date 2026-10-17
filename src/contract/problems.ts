@@ -37,6 +37,8 @@ export const problemSchema = z.discriminatedUnion("code", [
     tierId: z.string(),
     available: z.number().int().nonnegative(),
   }),
+  problemBaseSchema.extend({ code: z.literal("seats_unavailable"), seatIds: z.array(z.string()).min(1) }),
+  problemBaseSchema.extend({ code: z.literal("single_seat_gap"), seatIds: z.array(z.string()).min(1) }),
   problemBaseSchema.extend({ code: z.literal("card_declined"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: z.literal("authentication_failed"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: plainProblemCodeSchema }),
@@ -50,6 +52,8 @@ export type ProblemCode = Problem["code"];
 
 export const PROBLEM_CODES: readonly ProblemCode[] = [
   "sold_out",
+  "seats_unavailable",
+  "single_seat_gap",
   "card_declined",
   "authentication_failed",
   ...plainProblemCodeSchema.options,
@@ -77,6 +81,18 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     status: 409,
     title: "Not enough tickets left",
     description: "Fewer tickets are available than were asked for. `available` says how many are left.",
+  },
+  seats_unavailable: {
+    status: 409,
+    title: "Seats no longer available",
+    description:
+      "Some of the chosen seats were sold or held by someone else first. `seatIds` lists them; nothing was held, so choose again.",
+  },
+  single_seat_gap: {
+    status: 422,
+    title: "A single seat would be left empty",
+    description:
+      "The seats chosen would leave one empty seat that nobody could book as part of a pair. `seatIds` lists it; move the selection over by one.",
   },
   hold_expired: {
     status: 410,

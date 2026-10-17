@@ -8,9 +8,10 @@ import type { Draft } from "@/features/checkout/hooks/use-draft";
 const EPOCH = new Date(0).toISOString();
 
 export function eventDtoFor(slug: string, available = 5): EventDto {
-  const { tiers, addOns, ...event } = getEvent(slug);
+  const { tiers, addOns, seating, ...event } = getEvent(slug);
   return {
     ...event,
+    seating: seating.kind === "reserved" ? { kind: "reserved", venueId: seating.plan.venueId } : { kind: "general" },
     tiers: tiers.map(({ id, name, description, priceMinor }) => ({ id, name, description, priceMinor, available })),
     addOns,
   };
@@ -24,6 +25,7 @@ export const holdDtoFor = (eventSlug: string, tierId: string, quantity: number):
   expiresAt: EPOCH,
   status: "active",
   orderId: null,
+  seats: [],
 });
 
 export const testPeople = (count: number) =>
@@ -35,6 +37,7 @@ export const orderDtoFor = (draft: Draft, status: OrderStatus = "pending"): Orde
   holdId: "hold_1",
   eventSlug: "frontend-systems-summit",
   items: [],
+  seats: [],
   attendees: draft.attendees,
   addOns: Object.fromEntries(Object.entries(draft.addOns).filter(([, quantity]) => quantity > 0)),
   amounts: { currency: "INR", ticketsMinor: 0, addOnsMinor: 0, feesMinor: 0, totalMinor: 0 },

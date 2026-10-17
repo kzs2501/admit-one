@@ -24,19 +24,42 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
 
 ## Endpoints
 
-| Method and path                           | Body                                                                        | Success                                                                        | Problems                                                                                                                                                                    |
-| ----------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/events`                         | —                                                                           | `200` `EventDto[]` with live `available` per tier                              | —                                                                                                                                                                           |
-| `GET /api/events/:slug`                   | —                                                                           | `200` `EventDto`                                                               | `not_found`                                                                                                                                                                 |
-| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`                              | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`)                                                                                                          |
-| `GET /api/holds/:holdId`                  | —                                                                           | `200` `HoldDetailsDto`                                                         | `not_found`                                                                                                                                                                 |
-| `POST /api/orders`                        | `{ holdId, attendees: [{ name, email }], addOns: { [addOnId]: quantity } }` | `201` created / `200` updated, `OrderDto`                                      | `invalid_request`, `not_found`, `hold_expired`, `payment_in_progress`, `already_completed`                                                                                  |
-| `GET /api/orders/:orderId`                | —                                                                           | `200` `OrderDto`                                                               | `not_found`                                                                                                                                                                 |
-| `POST /api/orders/:orderId/payments`      | `{ number, expiry, cvc, name }` + `Idempotency-Key`                         | `202` `{ payment, order }` — `processing`, or `requires_action` for 3-D Secure | `missing_idempotency_key`, `idempotency_key_reused`, `invalid_card`, `card_declined` (`paymentId`), `hold_expired`, `payment_in_progress`, `already_completed`, `not_found` |
-| `POST /api/payments/:paymentId/challenge` | `{ decision: "approve" \| "reject" }`                                       | `202` `{ payment, order }`                                                     | `authentication_failed` (`paymentId`), `invalid_state`, `not_found`                                                                                                         |
+| Method and path                           | Body                                                                                             | Success                                                                        | Problems                                                                                                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/events`                         | —                                                                                                | `200` `EventDto[]` with live `available` per tier                              | —                                                                                                                                                                           |
+| `GET /api/events/:slug`                   | —                                                                                                | `200` `EventDto`                                                               | `not_found`                                                                                                                                                                 |
+| `GET /api/events/:slug/seats`             | —                                                                                                | `200` `{ eventSlug, unavailableSeatIds, serverTime }`                          | `not_found` (no such event, or no reserved seating)                                                                                                                         |
+| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`, or `{ eventSlug, seatIds }` for reserved seating | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`), `seats_unavailable` (`seatIds`), `single_seat_gap` (`seatIds`)                                          |
+| `GET /api/holds/:holdId`                  | —                                                                                                | `200` `HoldDetailsDto`                                                         | `not_found`                                                                                                                                                                 |
+| `POST /api/orders`                        | `{ holdId, attendees: [{ name, email }], addOns: { [addOnId]: quantity } }`                      | `201` created / `200` updated, `OrderDto`                                      | `invalid_request`, `not_found`, `hold_expired`, `payment_in_progress`, `already_completed`                                                                                  |
+| `GET /api/orders/:orderId`                | —                                                                                                | `200` `OrderDto`                                                               | `not_found`                                                                                                                                                                 |
+| `POST /api/orders/:orderId/payments`      | `{ number, expiry, cvc, name }` + `Idempotency-Key`                                              | `202` `{ payment, order }` — `processing`, or `requires_action` for 3-D Secure | `missing_idempotency_key`, `idempotency_key_reused`, `invalid_card`, `card_declined` (`paymentId`), `hold_expired`, `payment_in_progress`, `already_completed`, `not_found` |
+| `POST /api/payments/:paymentId/challenge` | `{ decision: "approve" \| "reject" }`                                                            | `202` `{ payment, order }`                                                     | `authentication_failed` (`paymentId`), `invalid_state`, `not_found`                                                                                                         |
 
 A `202` never means "paid". The order becomes `paid` and then `fulfilled` when the
 provider's webhook arrives; poll `GET /api/orders/:orderId` until its `status` settles.
+
+## Reserved seating
+
+An event's `seating` is `{ kind: "general" }` or `{ kind: "reserved", venueId }`. For
+reserved seating, the hall's layout is static content, shipped with the app like the
+catalogue (`src/core/venues.ts`); only what changes comes from the API.
+
+- **Availability:** `GET /api/events/:slug/seats` lists the seats that are gone — sold, or
+  in someone's live hold. Every other seat in the hall is free. An expired hold's seats
+  are free at once.
+- **Choosing seats:** `POST /api/holds` with `seatIds` (1–6, each once). It's
+  all-or-nothing. If any seat is taken, nothing is held and `409 seats_unavailable`
+  lists the taken ones. A selection that would leave one empty seat between itself and
+  a taken seat, an aisle or a row end is a `422 single_seat_gap` naming that seat.
+- **Best available:** `POST /api/holds` with `items`, the shape general admission uses,
+  makes the server choose. It picks the row nearest the stage with the party's seats
+  together in one block, as central as possible without stranding a seat; failing that,
+  the best seats apart.
+- **Seats on the way out:** `HoldDto.seats` and `OrderDto.seats` list the seats as
+  `{ id, sectionName, row, number, tierId }`, and each ticket has its `seat` (`null` for
+  general admission). These fields are additions: clients that don't know them ignore
+  them.
 
 ## Order lifecycle
 

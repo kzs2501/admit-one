@@ -24,6 +24,8 @@ export interface ChaosConfig {
   shouldDropFirstPaymentResponse: boolean;
   /** Lose this many order-status responses after the first, as a flaky connection would. */
   droppedStatusChecks: number;
+  /** Another buyer takes one of the seats you ask for, a moment first (once). */
+  shouldSnatchRequestedSeat: boolean;
 }
 
 export const PRESET_IDS = [
@@ -37,6 +39,7 @@ export const PRESET_IDS = [
   "webhook-delayed",
   "hold-expires",
   "crowd",
+  "seat-snatched",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -62,6 +65,7 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   isCrowdEnabled: false,
   shouldDropFirstPaymentResponse: false,
   droppedStatusChecks: 0,
+  shouldSnatchRequestedSeat: false,
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -128,6 +132,12 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     description: "Other buyers grab nearly-sold-out tickets moments before you.",
     expectation: "“Someone just got the last tickets” with live availability, never an oversold event.",
     config: { isCrowdEnabled: true },
+  },
+  "seat-snatched": {
+    label: "Seat snatched",
+    description: "Another buyer takes one of the seats you chose, a moment before you reserve them.",
+    expectation: "Nothing is held: the map names the seat that went and keeps the rest of your choice.",
+    config: { shouldSnatchRequestedSeat: true },
   },
 };
 

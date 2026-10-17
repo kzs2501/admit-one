@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/core/money";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -24,6 +24,8 @@ const holdRecordSchema = z.object({
   id: z.string(),
   eventSlug: z.string(),
   items: z.array(lineItemSchema),
+  /** Reserved seating: the seats held, in the order they'll go to attendees. Empty otherwise. */
+  seatIds: z.array(z.string()),
   createdAtMs: epochMsSchema,
   expiresAtMs: epochMsSchema,
   isConverted: z.boolean(),
@@ -48,7 +50,9 @@ const orderRecordSchema = z.object({
   }),
   status: z.enum(ORDER_STATUSES),
   statusReason: z.string().nullable(),
-  tickets: z.array(z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string() })),
+  tickets: z.array(
+    z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string(), seatId: z.string().nullable() }),
+  ),
   paymentId: z.string().nullable(),
   createdAtMs: epochMsSchema,
   updatedAtMs: epochMsSchema,
@@ -99,6 +103,10 @@ const serverStateSchema = z.object({
   presetId: z.enum(PRESET_IDS),
   /** Tickets sold in this sandbox, per tier (on top of each tier's baseline). */
   sold: z.record(z.string(), z.number().int().nonnegative()),
+  /** Reserved seats sold in this sandbox (on top of each hall's baseline). */
+  soldSeatIds: z.array(z.string()),
+  /** The "seat snatched" preset takes a requested seat once, so the retry can succeed. */
+  hasSnatchedSeat: z.boolean(),
   holds: z.record(z.string(), holdRecordSchema),
   orders: z.record(z.string(), orderRecordSchema),
   payments: z.record(z.string(), paymentRecordSchema),
@@ -122,6 +130,8 @@ export const createInitialState = (presetId: ServerState["presetId"] = "happy"):
   version: STATE_VERSION,
   presetId,
   sold: {},
+  soldSeatIds: [],
+  hasSnatchedSeat: false,
   holds: {},
   orders: {},
   payments: {},

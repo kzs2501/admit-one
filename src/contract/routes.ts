@@ -5,6 +5,7 @@
 export const API_ROUTES = {
   listEvents: "/api/events",
   getEvent: "/api/events/:slug",
+  getSeatAvailability: "/api/events/:slug/seats",
   createHold: "/api/holds",
   getHold: "/api/holds/:holdId",
   upsertOrder: "/api/orders",
