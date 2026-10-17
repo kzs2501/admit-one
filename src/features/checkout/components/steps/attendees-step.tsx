@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@/core/zod";
 import { attendeesSchema } from "@/core/schemas";
 import { ticketCount } from "@/core/ticketing";
+import { formatSeat } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import type { StepProps } from "./step-props";
@@ -15,14 +16,18 @@ export function AttendeesStep({ context, updateDraft, goNext }: StepProps) {
   const { hold, event, draft } = context;
   const count = ticketCount(hold.items);
 
-  // "Ticket 2 · Workshop + General" — one label per ticket, in order.
-  const ticketLabels = useMemo(
-    () =>
-      hold.items.flatMap(({ tierId, quantity }) =>
-        Array.from({ length: quantity }, () => event.tiers.find((tier) => tier.id === tierId)?.name ?? "Ticket"),
-      ),
-    [hold.items, event.tiers],
-  );
+  // One label per ticket, in the order tickets are issued: "Ticket 2 · Workshop + General",
+  // or with reserved seating, "Ticket 2 · Stalls, row F, seat 13 · Premium".
+  const ticketLabels = useMemo(() => {
+    const tierName = (tierId: string) => event.tiers.find((tier) => tier.id === tierId)?.name ?? "Ticket";
+    return hold.seats.length > 0
+      ? hold.seats.map((seat) => {
+          // "Balcony, row A, seat 16" already says Balcony; only add a tier that says more.
+          const tier = tierName(seat.tierId);
+          return tier === seat.sectionName ? formatSeat(seat) : `${formatSeat(seat)} · ${tier}`;
+        })
+      : hold.items.flatMap(({ tierId, quantity }) => Array.from({ length: quantity }, () => tierName(tierId)));
+  }, [hold.items, hold.seats, event.tiers]);
 
   const schema = useMemo(() => z.object({ attendees: attendeesSchema(count) }), [count]);
   const form = useForm<z.input<typeof schema>, unknown, z.output<typeof schema>>({

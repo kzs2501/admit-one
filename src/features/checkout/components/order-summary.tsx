@@ -1,7 +1,7 @@
-import type { EventDto } from "@/contract/dto";
+import type { EventDto, SeatDto } from "@/contract/dto";
 import { priceOrder, SERVICE_FEE_LABEL } from "@/core/money";
 import type { LineItem } from "@/core/ticketing";
-import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
+import { formatEventDate, formatEventTime, formatMoney, formatSeats } from "@/lib/format";
 
 /**
  * The running order summary. It's priced with the same function the server uses
@@ -10,10 +10,13 @@ import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 export function OrderSummary({
   event,
   items,
+  seats,
   addOns,
 }: {
   event: EventDto;
   items: LineItem[];
+  /** Reserved seating: the seats held, listed under their tier. */
+  seats: readonly SeatDto[];
   addOns: Record<string, number>;
 }) {
   const chosenAddOns = Object.fromEntries(Object.entries(addOns).filter(([, quantity]) => quantity > 0));
@@ -21,9 +24,11 @@ export function OrderSummary({
   const rows = [
     ...items.map(({ tierId, quantity }) => {
       const tier = event.tiers.find((candidate) => candidate.id === tierId);
+      const tierSeats = seats.filter((seat) => seat.tierId === tierId);
       return {
         key: tierId,
         label: `${quantity} × ${tier?.name ?? tierId}`,
+        detail: tierSeats.length > 0 ? formatSeats(tierSeats) : null,
         amountMinor: (tier?.priceMinor ?? 0) * quantity,
       };
     }),
@@ -32,6 +37,7 @@ export function OrderSummary({
       return {
         key: addOnId,
         label: `${quantity} × ${addOn?.name ?? addOnId}`,
+        detail: null,
         amountMinor: (addOn?.priceMinor ?? 0) * quantity,
       };
     }),
@@ -49,7 +55,10 @@ export function OrderSummary({
       <dl className="mt-4 space-y-2 text-sm">
         {rows.map((row) => (
           <div key={row.key} className="flex justify-between gap-4">
-            <dt className="text-ink-2">{row.label}</dt>
+            <dt className="text-ink-2">
+              {row.label}
+              {row.detail && <span className="block text-xs text-ink-3">{row.detail}</span>}
+            </dt>
             <dd className="tabular">{formatMoney(row.amountMinor, amounts.currency)}</dd>
           </div>
         ))}

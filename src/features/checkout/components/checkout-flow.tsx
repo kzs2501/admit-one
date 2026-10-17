@@ -141,7 +141,12 @@ function CheckoutStep({
           />
         </section>
         <div className="lg:sticky lg:top-8 lg:self-start">
-          <OrderSummary event={context.event} items={context.hold.items} addOns={context.draft.addOns} />
+          <OrderSummary
+            event={context.event}
+            items={context.hold.items}
+            seats={context.hold.seats}
+            addOns={context.draft.addOns}
+          />
         </div>
       </div>
     </div>

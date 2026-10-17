@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import Link from "next/link";
 import { getEvent } from "@/core/catalog";
-import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
+import { formatEventDate, formatEventTime, formatMoney, formatSeat } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
@@ -91,6 +91,7 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
                   event={event.name}
                   attendee={ticket.attendeeName}
                   tier={ticket.tierName}
+                  seat={ticket.seat ? formatSeat(ticket.seat) : null}
                   code={ticket.code}
                 />
               </li>
@@ -170,12 +171,26 @@ function Outcome({
 }
 
 /** A ticket, styled as one: main part, perforation, and a stub with the code. */
-function TicketStub({ event, attendee, tier, code }: { event: string; attendee: string; tier: string; code: string }) {
+function TicketStub({
+  event,
+  attendee,
+  tier,
+  seat,
+  code,
+}: {
+  event: string;
+  attendee: string;
+  tier: string;
+  /** "Stalls, row F, seat 12", for reserved seating. */
+  seat: string | null;
+  code: string;
+}) {
   return (
     <article aria-label={`Ticket for ${attendee}`} className="overflow-hidden rounded-xl border border-line bg-card">
       <div className="p-5">
         <p className="tabular text-[11px] tracking-[0.16em] text-ink-3 uppercase">Admit one</p>
         <p className="mt-1 font-display text-lg font-semibold">{event}</p>
+        {seat && <p className="mt-2 font-medium">{seat}</p>}
         <p className="mt-1 text-sm text-ink-2">
           {attendee} · {tier}
         </p>

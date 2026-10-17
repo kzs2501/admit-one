@@ -51,6 +51,27 @@ describe("AttendeesStep", () => {
     expect(screen.getAllByLabelText("Full name")).toHaveLength(2);
   });
 
+  it("labels each ticket with its seat, for reserved seating", () => {
+    const seat = (number: number) => ({
+      id: `stalls-F-${number}`,
+      sectionName: "Stalls",
+      row: "F",
+      number,
+      tierId: "fss-general",
+    });
+    render(
+      <AttendeesStep
+        context={{ event, hold: { ...hold, seats: [seat(12), seat(13)] }, draft: createEmptyDraft(), order: null }}
+        updateDraft={vi.fn()}
+        goNext={vi.fn()}
+        goBack={null}
+        onExpired={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("group", { name: "Ticket 1 · Stalls, row F, seat 12 · General" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Ticket 2 · Stalls, row F, seat 13 · General" })).toBeInTheDocument();
+  });
+
   it("blocks an incomplete submission with accessible errors", async () => {
     const { goNext, user } = setup();
     await user.click(screen.getByRole("button", { name: "Continue" }));

@@ -1,4 +1,6 @@
+import type { SeatDto } from "@/contract/dto";
 import type { CurrencyCode } from "@/core/money";
+import { formatSeatList, seatLabel } from "@/core/seating";
 import type { LineItem } from "@/core/ticketing";
 
 /** The visitor-facing locale: the venues are in India, and so is the audience. */
@@ -38,3 +40,11 @@ export function describeItems(tiers: readonly { id: string; name: string }[], it
     .map(({ tierId, quantity }) => `${quantity} × ${tiers.find((tier) => tier.id === tierId)?.name ?? tierId}`)
     .join(", ");
 }
+
+const toSeatName = ({ sectionName, row, number }: SeatDto) => ({ sectionName, rowLabel: row, number });
+
+/** A seat from the API, named the way a ticket prints it: "Stalls, row F, seat 12". */
+export const formatSeat = (seat: SeatDto) => seatLabel(toSeatName(seat));
+
+/** "Stalls F12–F14, G3" */
+export const formatSeats = (seats: readonly SeatDto[]) => formatSeatList(seats.map(toSeatName));

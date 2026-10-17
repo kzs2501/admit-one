@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { getEvent } from "@/core/catalog";
-import { describeItems, formatEventDate, formatEventTime, formatMoney } from "./format";
+import { describeItems, formatEventDate, formatEventTime, formatMoney, formatSeat, formatSeats } from "./format";
 
 describe("formatting", () => {
   it("formats money from minor units, in its own currency", () => {
@@ -25,5 +25,17 @@ describe("formatting", () => {
         { tierId: "fss-workshop", quantity: 1 },
       ]),
     ).toBe("2 × General, 1 × Workshop + General");
+  });
+
+  it("names seats from the API the way a ticket prints them", () => {
+    const seat = (row: string, number: number) => ({
+      id: `stalls-${row}-${number}`,
+      sectionName: "Stalls",
+      row,
+      number,
+      tierId: "ms-premium",
+    });
+    expect(formatSeat(seat("F", 12))).toBe("Stalls, row F, seat 12");
+    expect(formatSeats([seat("F", 13), seat("F", 12)])).toBe("Stalls F12–F13");
   });
 });
