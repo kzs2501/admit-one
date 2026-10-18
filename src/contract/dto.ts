@@ -9,7 +9,13 @@
 import { z } from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
 import { SEAT_ID_PATTERN } from "@/core/seating";
-import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
+import {
+  HOLD_STATUSES,
+  ORDER_STATUSES,
+  PAYMENT_FAILURE_CODES,
+  PAYMENT_STATUSES,
+  QUEUE_STATUSES,
+} from "@/core/statuses";
 
 const isoDateTimeSchema = z.iso.datetime({ offset: true });
 const minorUnitsSchema = z.number().int().nonnegative();
@@ -64,6 +70,8 @@ export const eventDtoSchema = z.object({
   city: z.string(),
   description: z.string(),
   seating: seatingDtoSchema,
+  /** Live: whether this sale has a waiting room right now. */
+  isQueueActive: z.boolean(),
   tiers: z.array(tierDtoSchema),
   addOns: z.array(addOnDtoSchema),
 });
@@ -141,6 +149,21 @@ export const holdDetailsDtoSchema = z.object({
 
 export const paymentResultDtoSchema = z.object({ payment: paymentDtoSchema, order: orderDtoSchema });
 
+/** A place in a sale's waiting room. Durations are whole seconds; the server says when to check again. */
+export const queueEntryDtoSchema = z.object({
+  token: z.string(),
+  eventSlug: z.string(),
+  status: z.enum(QUEUE_STATUSES),
+  aheadCount: z.number().int().nonnegative(),
+  aheadAtJoin: z.number().int().nonnegative(),
+  estimatedWaitSeconds: z.number().int().nonnegative(),
+  /** Ask again after this long; 0 when there's nothing left to wait for. */
+  checkAgainAfterSeconds: z.number().int().nonnegative(),
+  /** The end of your turn to reserve, once it has come. */
+  admittedUntil: isoDateTimeSchema.nullable(),
+  serverTime: isoDateTimeSchema,
+});
+
 /** Which seats are gone right now: sold, or held by someone. Everything else in the hall is free. */
 export const seatAvailabilityDtoSchema = z.object({
   eventSlug: z.string(),
@@ -153,6 +176,7 @@ export type TierDto = z.infer<typeof tierDtoSchema>;
 export type SeatDto = z.infer<typeof seatDtoSchema>;
 export type SeatingDto = z.infer<typeof seatingDtoSchema>;
 export type SeatAvailabilityDto = z.infer<typeof seatAvailabilityDtoSchema>;
+export type QueueEntryDto = z.infer<typeof queueEntryDtoSchema>;
 export type AddOnDto = z.infer<typeof addOnDtoSchema>;
 export type EventDto = z.infer<typeof eventDtoSchema>;
 export type HoldDto = z.infer<typeof holdDtoSchema>;

@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/core/money";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 5;
+const STATE_VERSION = 6;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -80,6 +80,17 @@ const idempotencyRecordSchema = z.object({
   createdAtMs: epochMsSchema,
 });
 
+/** A place in a sale's waiting room. The line's pace is copied in, so changing the preset mid-queue can't move it. */
+const queueEntryRecordSchema = z.object({
+  token: z.string(),
+  eventSlug: z.string(),
+  joinedAtMs: epochMsSchema,
+  aheadAtJoin: z.number().int().nonnegative(),
+  admittedPerBatch: z.number().int().positive(),
+  batchIntervalMs: z.number().int().positive(),
+  admissionWindowMs: z.number().int().positive(),
+});
+
 /** A webhook waiting to be delivered: the outbox pattern. */
 const outboxItemSchema = z.object({
   deliveryId: z.string(),
@@ -89,7 +100,7 @@ const outboxItemSchema = z.object({
   deliverAtMs: epochMsSchema,
 });
 
-const LOG_KINDS = ["request", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
+const LOG_KINDS = ["request", "queue", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
 
 const logEntrySchema = z.object({
   id: z.number().int(),
@@ -108,6 +119,8 @@ const serverStateSchema = z.object({
   /** The "seat snatched" preset takes a requested seat once, so the retry can succeed. */
   hasSnatchedSeat: z.boolean(),
   holds: z.record(z.string(), holdRecordSchema),
+  /** Waiting-room places, by token. */
+  queueEntries: z.record(z.string(), queueEntryRecordSchema),
   orders: z.record(z.string(), orderRecordSchema),
   payments: z.record(z.string(), paymentRecordSchema),
   idempotency: z.record(z.string(), idempotencyRecordSchema),
@@ -121,6 +134,7 @@ const serverStateSchema = z.object({
 export type HoldRecord = z.infer<typeof holdRecordSchema>;
 export type OrderRecord = z.infer<typeof orderRecordSchema>;
 export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
+export type QueueEntryRecord = z.infer<typeof queueEntryRecordSchema>;
 export type IdempotencyRecord = z.infer<typeof idempotencyRecordSchema>;
 export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
@@ -133,6 +147,7 @@ export const createInitialState = (presetId: ServerState["presetId"] = "happy"):
   soldSeatIds: [],
   hasSnatchedSeat: false,
   holds: {},
+  queueEntries: {},
   orders: {},
   payments: {},
   idempotency: {},

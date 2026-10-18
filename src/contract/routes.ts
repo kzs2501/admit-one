@@ -6,6 +6,8 @@ export const API_ROUTES = {
   listEvents: "/api/events",
   getEvent: "/api/events/:slug",
   getSeatAvailability: "/api/events/:slug/seats",
+  joinQueue: "/api/events/:slug/queue",
+  getQueueEntry: "/api/queue/:token",
   createHold: "/api/holds",
   getHold: "/api/holds/:holdId",
   upsertOrder: "/api/orders",
@@ -33,6 +35,9 @@ export function buildApiPath<Path extends ApiRoute>(route: Path, params: RoutePa
 
 /** Payments must carry one; see the `missing_idempotency_key` problem. */
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+
+/** A place in a sale's waiting room; reserving needs one whose turn has come. See `queue_required`. */
+export const QUEUE_TOKEN_HEADER = "Queue-Token";
 
 /** How long to wait before trying again, in seconds (RFC 9110 §10.2.3); sent with a 429. */
 export const RETRY_AFTER_HEADER = "Retry-After";

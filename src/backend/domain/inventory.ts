@@ -9,6 +9,7 @@ import { findSingleSeatGaps, formatSeatList, seatLabel, type Seat } from "@/core
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { fail, ok, type DomainError, type Result } from "./errors";
+import { admissionProblem } from "./queue";
 import { chooseBestSeats, freeSeatsInTier, isReservedEvent, type ReservedEvent } from "./seating";
 import type { HoldRecord } from "./state";
 
@@ -17,8 +18,15 @@ const CROWD_SNIPE_AT_MOST = 2;
 /** The background crowd only buys from tiers with more than this many left. */
 const CROWD_BACKGROUND_ABOVE = 3;
 
-/** By tier ("two Premium"), or — for reserved seating — particular seats. */
-export type CreateHoldCommand = { eventSlug: string; items: LineItem[] } | { eventSlug: string; seatIds: string[] };
+/**
+ * By tier ("two Premium"), or — for reserved seating — particular seats. In a sale with
+ * a waiting room, the visitor's place in the queue comes too.
+ */
+export type CreateHoldCommand = (
+  { eventSlug: string; items: LineItem[] } | { eventSlug: string; seatIds: string[] }
+) & {
+  queueToken?: string | null;
+};
 
 export const isHoldLive = (hold: HoldRecord, nowMs: number) => !hold.isConverted && nowMs < hold.expiresAtMs;
 
@@ -187,6 +195,11 @@ function holdSeats(context: BackendContext, event: EventInfo, seatIds: string[])
 export function createHold(context: BackendContext, command: CreateHoldCommand): Result<HoldRecord> {
   const event = findEvent(command.eventSlug);
   if (!event) return fail({ code: "not_found", detail: "No such event." });
+  const notYourTurn = admissionProblem(context, event.slug, command.queueToken ?? null);
+  if (notYourTurn) {
+    context.log("queue", `Hold refused for ${event.name}: ${notYourTurn.detail}`);
+    return fail(notYourTurn);
+  }
   return "seatIds" in command ? holdSeats(context, event, command.seatIds) : holdByTiers(context, event, command.items);
 }
 

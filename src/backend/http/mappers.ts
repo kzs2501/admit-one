@@ -8,6 +8,7 @@ import type {
   HoldDto,
   OrderDto,
   PaymentResultDto,
+  QueueEntryDto,
   SeatAvailabilityDto,
 } from "@/contract/dto";
 import type {
@@ -16,6 +17,7 @@ import type {
   HoldView,
   OrderView,
   PaymentResultView,
+  QueueEntryView,
   SeatAvailabilityView,
 } from "@/backend/domain/views";
 
@@ -48,5 +50,22 @@ export const toSeatAvailabilityDto = ({
   ...availability
 }: SeatAvailabilityView): SeatAvailabilityDto => ({
   ...availability,
+  serverTime: toIso(serverTimeMs),
+});
+
+/** Durations go out as whole seconds, rounded up: "about 3 seconds" should never become 2. */
+const toSeconds = (ms: number) => Math.ceil(ms / 1000);
+
+export const toQueueEntryDto = ({
+  estimatedWaitMs,
+  checkAgainAfterMs,
+  admittedUntilMs,
+  serverTimeMs,
+  ...entry
+}: QueueEntryView): QueueEntryDto => ({
+  ...entry,
+  estimatedWaitSeconds: toSeconds(estimatedWaitMs),
+  checkAgainAfterSeconds: toSeconds(checkAgainAfterMs),
+  admittedUntil: admittedUntilMs === null ? null : toIso(admittedUntilMs),
   serverTime: toIso(serverTimeMs),
 });

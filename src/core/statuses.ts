@@ -12,4 +12,8 @@ export const PAYMENT_FAILURE_CODES = ["card_declined", "authentication_failed"] 
 export type PaymentFailureCode = (typeof PAYMENT_FAILURE_CODES)[number];
 
 export const HOLD_STATUSES = ["active", "expired", "converted"] as const;
+
+/** A place in a sale's waiting room: in line, let in (for a while), or past its turn. */
+export const QUEUE_STATUSES = ["waiting", "admitted", "expired"] as const;
+export type QueueStatus = (typeof QUEUE_STATUSES)[number];
 export type HoldStatus = (typeof HOLD_STATUSES)[number];

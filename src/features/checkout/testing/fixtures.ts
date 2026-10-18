@@ -12,6 +12,7 @@ export function eventDtoFor(slug: string, available = 5): EventDto {
   return {
     ...event,
     seating: seating.kind === "reserved" ? { kind: "reserved", venueId: seating.plan.venueId } : { kind: "general" },
+    isQueueActive: false,
     tiers: tiers.map(({ id, name, description, priceMinor }) => ({ id, name, description, priceMinor, available })),
     addOns,
   };

@@ -3,6 +3,16 @@
  * can watch the checkout handle it. A preset is only configuration — the code paths
  * it exercises are the same ones a real backend would take.
  */
+/** A waiting room in front of every sale: who's ahead when you join, and how fast the line moves. */
+export interface WaitingRoomConfig {
+  aheadAtJoin: number;
+  /** People let in at each step, every `batchIntervalMs`. */
+  admittedPerBatch: number;
+  batchIntervalMs: number;
+  /** How long an admitted visitor has to reserve before their turn passes. */
+  admissionWindowMs: number;
+}
+
 export interface ChaosConfig {
   /** Network latency for every request: [min, max]. */
   latencyRangeMs: readonly [number, number];
@@ -28,6 +38,8 @@ export interface ChaosConfig {
   shouldSnatchRequestedSeat: boolean;
   /** How many reservation attempts one client may make per window. */
   holdRateLimit: { limit: number; windowMs: number };
+  /** A high-demand sale: everyone queues before they can reserve. */
+  waitingRoom: WaitingRoomConfig | null;
 }
 
 export const PRESET_IDS = [
@@ -43,6 +55,7 @@ export const PRESET_IDS = [
   "crowd",
   "seat-snatched",
   "too-many-attempts",
+  "flash-sale",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -71,6 +84,7 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   shouldSnatchRequestedSeat: false,
   // Generous: a buyer never meets it; a script hammering the endpoint does.
   holdRateLimit: { limit: 20, windowMs: 60_000 },
+  waitingRoom: null,
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -150,6 +164,20 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     expectation:
       "The fourth try is refused with a 429; Reserve waits out the countdown the server asked for, then works again.",
     config: { holdRateLimit: { limit: 3, windowMs: 15_000 } },
+  },
+  "flash-sale": {
+    label: "Flash sale",
+    description: "40,000 people (simulated) want tickets at once; a waiting room lets them in 8,000 at a time.",
+    expectation:
+      "You join the queue and see your place and an honest wait; a refresh keeps your place; when it’s your turn, you have 10 minutes to reserve.",
+    config: {
+      waitingRoom: {
+        aheadAtJoin: 40_000,
+        admittedPerBatch: 8_000,
+        batchIntervalMs: 2_000,
+        admissionWindowMs: 10 * 60_000,
+      },
+    },
   },
 };
 

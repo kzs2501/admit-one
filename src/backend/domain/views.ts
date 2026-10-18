@@ -12,7 +12,8 @@ import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus } from "./orders";
-import type { HoldRecord, OrderRecord, PaymentRecord } from "./state";
+import { placeAt, type QueuePlace } from "./queue";
+import type { HoldRecord, OrderRecord, PaymentRecord, QueueEntryRecord } from "./state";
 
 export interface TierView {
   id: string;
@@ -27,6 +28,7 @@ export type SeatingView = { kind: "general" } | { kind: "reserved"; venueId: str
 
 export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating"> & {
   seating: SeatingView;
+  isQueueActive: boolean;
   tiers: TierView[];
   addOns: AddOnInfo[];
 };
@@ -88,6 +90,24 @@ export interface HoldDetailsView {
   serverTimeMs: number;
 }
 
+export interface QueueEntryView extends QueuePlace {
+  token: string;
+  eventSlug: string;
+  aheadAtJoin: number;
+  serverTimeMs: number;
+}
+
+export const toQueueEntryView = (context: BackendContext, entry: QueueEntryRecord): QueueEntryView => {
+  const nowMs = context.deps.now();
+  return {
+    token: entry.token,
+    eventSlug: entry.eventSlug,
+    aheadAtJoin: entry.aheadAtJoin,
+    ...placeAt(entry, nowMs),
+    serverTimeMs: nowMs,
+  };
+};
+
 export interface SeatAvailabilityView {
   eventSlug: string;
   unavailableSeatIds: string[];
@@ -129,6 +149,7 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
   description: event.description,
   seating:
     event.seating.kind === "reserved" ? { kind: "reserved", venueId: event.seating.plan.venueId } : { kind: "general" },
+  isQueueActive: context.chaos().waitingRoom !== null,
   // Public fields only: capacity and baseline sales stay inside the backend.
   tiers: event.tiers.map((tier) => ({
     id: tier.id,

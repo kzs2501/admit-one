@@ -33,7 +33,10 @@ import {
   type OrderView,
   type PaymentResultView,
   type SeatAvailabilityView,
+  toQueueEntryView,
+  type QueueEntryView,
 } from "./domain/views";
+import { findQueueEntry, joinQueue } from "./domain/queue";
 import { deliverDue, nextDeliveryAtMs } from "./domain/webhooks";
 
 const LOG_LIMIT = 120;
@@ -120,6 +123,14 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
         unavailableSeatIds,
         serverTimeMs: context.deps.now(),
       })),
+
+    /** Take a place in a sale's waiting room — or get back the one you already have. */
+    joinQueue: (eventSlug: string): Result<{ entry: QueueEntryView; isNew: boolean }> =>
+      command(() =>
+        map(joinQueue(context, eventSlug), ({ entry, isNew }) => ({ entry: toQueueEntryView(context, entry), isNew })),
+      ),
+    getQueueEntry: (token: string): Result<QueueEntryView> =>
+      map(findQueueEntry(context, token), (entry) => toQueueEntryView(context, entry)),
 
     createHold: (input: CreateHoldCommand): Result<HoldDetailsView> =>
       command(() => map(createHold(context, input), (hold) => toHoldDetailsView(context, hold))),

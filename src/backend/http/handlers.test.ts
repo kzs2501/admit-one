@@ -12,16 +12,19 @@ import {
   holdDetailsDtoSchema,
   orderDtoSchema,
   paymentResultDtoSchema,
+  queueEntryDtoSchema,
   seatAvailabilityDtoSchema,
 } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
-import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER } from "@/contract/routes";
 import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan } from "@/backend/testing/fixtures";
 import { createHandlers } from "./handlers";
 
 let idCount = 0;
+// The backend's clock: real time, until a test needs to move it on (a queue, say).
+let backendNowMs = Date.now();
 const backend = createBackend(
-  { now: Date.now, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
+  { now: () => backendNowMs, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
   createInitialState(),
 );
 // The rate limiter's clock: a whole window passes between tests, so each starts fresh.
@@ -298,6 +301,51 @@ describe("HTTP contract", () => {
 
     limiterNowMs += 13_000; // exactly as long as it said
     expect((await attempt()).status).toBe(201);
+  });
+
+  describe("waiting room", () => {
+    const join = () => fetch(`${BASE_URL}/api/events/open-studio-ceramics/queue`, { method: "POST" });
+    const reserve = (headers: Record<string, string> = {}) =>
+      post(
+        "/api/holds",
+        { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] },
+        headers,
+      );
+
+    it("gives a place with 201, the same place again with 200, and its status by token", async () => {
+      backend.setPreset("flash-sale");
+      const first = await join();
+      expect(first.status).toBe(201);
+      const entry = queueEntryDtoSchema.parse(await first.json());
+      expect(entry).toMatchObject({ status: "waiting", aheadCount: 40_000, estimatedWaitSeconds: 10 });
+      expect(entry.checkAgainAfterSeconds).toBe(2);
+
+      const again = await join();
+      expect(again.status).toBe(200);
+      expect(queueEntryDtoSchema.parse(await again.json()).token).toBe(entry.token);
+      const status = await fetch(`${BASE_URL}/api/queue/${entry.token}`);
+      expect(queueEntryDtoSchema.parse(await status.json()).token).toBe(entry.token);
+      await expectProblem(await fetch(`${BASE_URL}/api/queue/q_unknown`), 404, "not_found");
+    });
+
+    it("says on every event whether its sale has a queue", async () => {
+      const event = () =>
+        fetch(`${BASE_URL}/api/events/open-studio-ceramics`).then(async (r) => eventDtoSchema.parse(await r.json()));
+      expect((await event()).isQueueActive).toBe(false);
+      backend.setPreset("flash-sale");
+      expect((await event()).isQueueActive).toBe(true);
+    });
+
+    it("refuses to reserve with 403 until it's your turn, then takes the Queue-Token", async () => {
+      backend.setPreset("flash-sale");
+      const required = await expectProblem(await reserve(), 403, "queue_required");
+      expect(required).toMatchObject({ eventSlug: "open-studio-ceramics" });
+
+      const { token } = queueEntryDtoSchema.parse(await (await join()).json());
+      await expectProblem(await reserve({ [QUEUE_TOKEN_HEADER]: token }), 403, "queue_required");
+      backendNowMs += 10_000; // the line reaches you
+      expect((await reserve({ [QUEUE_TOKEN_HEADER]: token })).status).toBe(201);
+    });
   });
 
   it("writes every request to the server log", async () => {

@@ -16,9 +16,16 @@ import {
   createPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
-import { API_ROUTES, IDEMPOTENCY_KEY_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
+import { API_ROUTES, IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
 import { fingerprintRequest } from "./idempotency";
-import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto, toSeatAvailabilityDto } from "./mappers";
+import {
+  toEventDto,
+  toHoldDetailsDto,
+  toOrderDto,
+  toPaymentResultDto,
+  toQueueEntryDto,
+  toSeatAvailabilityDto,
+} from "./mappers";
 import { toProblem } from "./problems";
 import { createSlidingWindow } from "./rate-limit";
 
@@ -152,6 +159,22 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       return send(request, resultReply(backend.getSeatAvailability(params.slug), request, toSeatAvailabilityDto));
     }),
 
+    http.post<{ slug: string }>(anyOrigin(API_ROUTES.joinQueue), async ({ params, request }) => {
+      await latency();
+      const result = backend.joinQueue(params.slug);
+      return send(
+        request,
+        result.ok
+          ? { status: result.value.isNew ? 201 : 200, body: toQueueEntryDto(result.value.entry) }
+          : problemReply(result.error, request),
+      );
+    }),
+
+    http.get<{ token: string }>(anyOrigin(API_ROUTES.getQueueEntry), async ({ params, request }) => {
+      await latency();
+      return send(request, resultReply(backend.getQueueEntry(params.token), request, toQueueEntryDto));
+    }),
+
     http.post(anyOrigin(API_ROUTES.createHold), async ({ request }) => {
       const limited = rateLimitReply(request);
       if (limited) {
@@ -161,7 +184,15 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       const input = await parseBody(request, createHoldRequestSchemaFor);
       await latency();
       if (!input.ok) return send(request, input.reply);
-      return send(request, resultReply(backend.createHold(input.value), request, toHoldDetailsDto, 201));
+      return send(
+        request,
+        resultReply(
+          backend.createHold({ ...input.value, queueToken: request.headers.get(QUEUE_TOKEN_HEADER) }),
+          request,
+          toHoldDetailsDto,
+          201,
+        ),
+      );
     }),
 
     http.get<{ holdId: string }>(anyOrigin(API_ROUTES.getHold), async ({ params, request }) => {

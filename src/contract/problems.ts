@@ -40,6 +40,7 @@ export const problemSchema = z.discriminatedUnion("code", [
   problemBaseSchema.extend({ code: z.literal("seats_unavailable"), seatIds: z.array(z.string()).min(1) }),
   problemBaseSchema.extend({ code: z.literal("single_seat_gap"), seatIds: z.array(z.string()).min(1) }),
   problemBaseSchema.extend({ code: z.literal("rate_limited"), retryAfterSeconds: z.number().int().positive() }),
+  problemBaseSchema.extend({ code: z.literal("queue_required"), eventSlug: z.string() }),
   problemBaseSchema.extend({ code: z.literal("card_declined"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: z.literal("authentication_failed"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: plainProblemCodeSchema }),
@@ -56,6 +57,7 @@ export const PROBLEM_CODES: readonly ProblemCode[] = [
   "seats_unavailable",
   "single_seat_gap",
   "rate_limited",
+  "queue_required",
   "card_declined",
   "authentication_failed",
   ...plainProblemCodeSchema.options,
@@ -101,6 +103,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "Too many attempts",
     description:
       "This client has made too many reservation attempts in a short time. The `Retry-After` header (and `retryAfterSeconds`) says how long to wait; waiting that long always works.",
+  },
+  queue_required: {
+    status: 403,
+    title: "It isn’t your turn yet",
+    description:
+      "This sale has a waiting room. Reserving needs a `Queue-Token` for a place in this sale’s queue whose turn has come — and not yet gone. `eventSlug` says which queue to join.",
   },
   hold_expired: {
     status: 410,
