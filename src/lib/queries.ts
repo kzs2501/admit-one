@@ -46,6 +46,13 @@ export const seatQueries = {
     queryOptions({ queryKey: [...seatQueries.all(), slug], queryFn: () => apiClient.getSeatAvailability(slug) }),
 };
 
+/** A place in a sale's waiting room. */
+export const queueQueries = {
+  all: () => ["queue"] as const,
+  entry: (token: string) =>
+    queryOptions({ queryKey: [...queueQueries.all(), token], queryFn: () => apiClient.getQueueEntry(token) }),
+};
+
 export const holdQueries = {
   all: () => ["holds"] as const,
   detail: (holdId: string) =>

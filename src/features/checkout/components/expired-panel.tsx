@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { EventDto, HoldDto } from "@/contract/dto";
 import { apiClient, problemOf } from "@/lib/api-client";
 import { holdQueries } from "@/lib/queries";
+import { readQueueToken } from "@/lib/queue-token";
 import { routes } from "@/lib/routes";
 import { describeItems, formatSeats } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
         isSeated
           ? { eventSlug: hold.eventSlug, seatIds: hold.seats.map((seat) => seat.id) }
           : { eventSlug: hold.eventSlug, items: hold.items },
+        readQueueToken(hold.eventSlug),
       ),
     onSuccess: (details) => {
       copyDraft(hold.id, details.hold.id);

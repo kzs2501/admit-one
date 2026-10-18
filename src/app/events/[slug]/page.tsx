@@ -5,6 +5,7 @@ import { CATALOG, findEvent } from "@/core/catalog";
 import { formatEventDate, formatEventTime } from "@/lib/format";
 import { SeatMap } from "@/features/events/components/seat-map/seat-map";
 import { TierPicker } from "@/features/events/components/tier-picker";
+import { QueueGate } from "@/features/queue/components/queue-gate";
 
 export const dynamicParams = false;
 
@@ -49,10 +50,16 @@ export default async function EventPage({ params }: PageProps<"/events/[slug]">)
             {isReserved ? "Best available" : "Tickets"}
           </h2>
           {isReserved && <p className="mb-3 text-sm text-ink-2">Say how many; we’ll find the best seats together.</p>}
-          <TierPicker slug={event.slug} />
+          <QueueGate slug={event.slug}>
+            <TierPicker slug={event.slug} />
+          </QueueGate>
         </section>
       </div>
-      {isReserved && <SeatMap slug={event.slug} />}
+      {isReserved && (
+        <QueueGate slug={event.slug} isPrimary={false}>
+          <SeatMap slug={event.slug} />
+        </QueueGate>
+      )}
     </div>
   );
 }

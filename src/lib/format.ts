@@ -48,3 +48,22 @@ export const formatSeat = (seat: SeatDto) => seatLabel(toSeatName(seat));
 
 /** "Stalls F12–F14, G3" */
 export const formatSeats = (seats: readonly SeatDto[]) => formatSeatList(seats.map(toSeatName));
+
+const peopleFormatter = new Intl.NumberFormat(DISPLAY_LOCALE);
+
+/** "40,000"; and in Indian grouping, "1,20,000". */
+export const formatCount = (count: number) => peopleFormatter.format(count);
+
+/**
+ * A wait, said coarsely, because an estimate is an estimate: "less than a minute",
+ * "about 3 minutes", "about an hour". Precise-but-wrong numbers erode trust faster
+ * than honest ranges.
+ */
+export function formatWait(waitMs: number): string {
+  const minutes = Math.round(waitMs / 60_000);
+  if (waitMs < 60_000) return "less than a minute";
+  if (minutes < 2) return "about a minute";
+  if (minutes < 55) return `about ${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "about an hour" : `about ${hours} hours`;
+}

@@ -8,6 +8,7 @@ import { problemPathFor, type ProblemCode } from "@/contract/problems";
 export const routes = {
   home: (): Route => "/",
   event: (slug: string) => `/events/${encodeURIComponent(slug)}` as Route,
+  queue: (slug: string) => `/events/${encodeURIComponent(slug)}/queue` as Route,
   checkoutStep: (holdId: string, step: string) =>
     `/checkout/${encodeURIComponent(holdId)}/${encodeURIComponent(step)}` as Route,
   order: (orderId: string) => `/orders/${encodeURIComponent(orderId)}` as Route,

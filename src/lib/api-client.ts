@@ -13,11 +13,18 @@ import {
   holdDetailsDtoSchema,
   orderDtoSchema,
   paymentResultDtoSchema,
+  queueEntryDtoSchema,
   seatAvailabilityDtoSchema,
 } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
 import type { ConfirmChallengeRequest, CreateHoldRequest, UpsertOrderRequest } from "@/contract/requests";
-import { API_ROUTES, buildApiPath, IDEMPOTENCY_KEY_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
+import {
+  API_ROUTES,
+  buildApiPath,
+  IDEMPOTENCY_KEY_HEADER,
+  QUEUE_TOKEN_HEADER,
+  RETRY_AFTER_HEADER,
+} from "@/contract/routes";
 import type { CardInput } from "@/core/schemas";
 
 /** The server answered with an RFC 9457 problem. Branch on `problem.code`. */
@@ -106,7 +113,17 @@ export const apiClient = {
   getEvent: (slug: string) => request(buildApiPath(API_ROUTES.getEvent, { slug }), eventDtoSchema),
   getSeatAvailability: (slug: string) =>
     request(buildApiPath(API_ROUTES.getSeatAvailability, { slug }), seatAvailabilityDtoSchema),
-  createHold: (body: CreateHoldRequest) => post(buildApiPath(API_ROUTES.createHold, {}), holdDetailsDtoSchema, body),
+  /** In a sale with a waiting room, `queueToken` is your place in its queue. */
+  createHold: (body: CreateHoldRequest, queueToken: string | null = null) =>
+    post(
+      buildApiPath(API_ROUTES.createHold, {}),
+      holdDetailsDtoSchema,
+      body,
+      queueToken ? { [QUEUE_TOKEN_HEADER]: queueToken } : {},
+    ),
+  joinQueue: (slug: string) =>
+    request(buildApiPath(API_ROUTES.joinQueue, { slug }), queueEntryDtoSchema, { method: "POST" }),
+  getQueueEntry: (token: string) => request(buildApiPath(API_ROUTES.getQueueEntry, { token }), queueEntryDtoSchema),
   getHold: (holdId: string) => request(buildApiPath(API_ROUTES.getHold, { holdId }), holdDetailsDtoSchema),
   upsertOrder: (body: UpsertOrderRequest) => post(buildApiPath(API_ROUTES.upsertOrder, {}), orderDtoSchema, body),
   getOrder: (orderId: string) => request(buildApiPath(API_ROUTES.getOrder, { orderId }), orderDtoSchema),

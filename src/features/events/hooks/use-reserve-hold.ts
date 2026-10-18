@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import type { Problem } from "@/contract/problems";
 import type { CreateHoldRequest } from "@/contract/requests";
 import { ApiError, apiClient, problemOf } from "@/lib/api-client";
-import { eventQueries, holdQueries, seatQueries } from "@/lib/queries";
+import { eventQueries, holdQueries, queueQueries, seatQueries } from "@/lib/queries";
+import { readQueueToken } from "@/lib/queue-token";
 import { routes } from "@/lib/routes";
 
 /**
@@ -22,7 +23,8 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
   const [retryAtMs, setRetryAtMs] = useState<number | null>(null);
 
   const reserve = useMutation({
-    mutationFn: (request: CreateHoldRequest) => apiClient.createHold(request),
+    // In a sale with a waiting room, your place in its queue goes with the request.
+    mutationFn: (request: CreateHoldRequest) => apiClient.createHold(request, readQueueToken(request.eventSlug)),
     onSuccess: (details) => {
       queryClient.setQueryData(holdQueries.detail(details.hold.id).queryKey, details);
       router.push(routes.checkoutStep(details.hold.id, "attendees"));
@@ -42,6 +44,7 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
       onProblem(problem);
       void queryClient.invalidateQueries({ queryKey: eventQueries.all() });
       void queryClient.invalidateQueries({ queryKey: seatQueries.all() });
+      void queryClient.invalidateQueries({ queryKey: queueQueries.all() });
     },
   });
 
