@@ -7,7 +7,19 @@
  * every event query at once.
  */
 import { queryOptions } from "@tanstack/react-query";
-import { apiClient, isTransientError } from "./api-client";
+import { ApiError, apiClient, isTransientError } from "./api-client";
+
+/** Client errors (4xx) are answers, not glitches — retrying them just repeats the answer. */
+export const retryPolicy = (failureCount: number, error: unknown) => isTransientError(error) && failureCount < 2;
+
+/**
+ * How long to wait before retrying: exactly as long as the server said, when it said
+ * (`Retry-After`); otherwise TanStack Query's own backoff — 1 s, 2 s, 4 s, up to 30 s.
+ */
+export const retryDelay = (failureCount: number, error: unknown) =>
+  error instanceof ApiError && error.retryAfterMs !== null
+    ? error.retryAfterMs
+    : Math.min(1000 * 2 ** failureCount, 30_000);
 
 /**
  * Whether a query's error should replace what's on screen. Before there's any data,

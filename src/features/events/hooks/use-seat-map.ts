@@ -35,6 +35,9 @@ export interface SeatMapModel {
   canReserve: boolean;
   isReserving: boolean;
   conflict: SeatConflict | null;
+  /** When reserving may be tried again, after a 429; null when it may now. */
+  retryAtMs: number | null;
+  onRetryReady: () => void;
 }
 
 /**
@@ -102,8 +105,15 @@ export function useSeatMap(slug: string, plan: SeatPlan): SeatMapModel {
       dispatch({ type: "remove", seatIds: selection.lostSeats.map((seat) => seat.id) });
       hold.reserve({ eventSlug: slug, seatIds: selection.seats.map((seat) => seat.id) });
     },
-    canReserve: isReady && selection.seats.length > 0 && selection.gapSeats.length === 0 && !hold.isReserving,
+    canReserve:
+      isReady &&
+      selection.seats.length > 0 &&
+      selection.gapSeats.length === 0 &&
+      !hold.isReserving &&
+      hold.retryAtMs === null,
     isReserving: hold.isReserving,
+    retryAtMs: hold.retryAtMs,
+    onRetryReady: hold.onRetryReady,
     // A problem has its own words; a request that never got an answer gets these.
     conflict:
       conflict ??

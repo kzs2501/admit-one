@@ -26,6 +26,8 @@ export interface ChaosConfig {
   droppedStatusChecks: number;
   /** Another buyer takes one of the seats you ask for, a moment first (once). */
   shouldSnatchRequestedSeat: boolean;
+  /** How many reservation attempts one client may make per window. */
+  holdRateLimit: { limit: number; windowMs: number };
 }
 
 export const PRESET_IDS = [
@@ -40,6 +42,7 @@ export const PRESET_IDS = [
   "hold-expires",
   "crowd",
   "seat-snatched",
+  "too-many-attempts",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -66,6 +69,8 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   shouldDropFirstPaymentResponse: false,
   droppedStatusChecks: 0,
   shouldSnatchRequestedSeat: false,
+  // Generous: a buyer never meets it; a script hammering the endpoint does.
+  holdRateLimit: { limit: 20, windowMs: 60_000 },
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -138,6 +143,13 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     description: "Another buyer takes one of the seats you chose, a moment before you reserve them.",
     expectation: "Nothing is held: the map names the seat that went and keeps the rest of your choice.",
     config: { shouldSnatchRequestedSeat: true },
+  },
+  "too-many-attempts": {
+    label: "Too many attempts",
+    description: "Reserving is limited to three tries every 15 seconds, the way a box office slows bots down.",
+    expectation:
+      "The fourth try is refused with a 429; Reserve waits out the countdown the server asked for, then works again.",
+    config: { holdRateLimit: { limit: 3, windowMs: 15_000 } },
   },
 };
 

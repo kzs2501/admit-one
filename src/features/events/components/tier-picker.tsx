@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/format";
 import { eventQueries, shouldShowQueryError } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { RetryNotice } from "@/components/ui/retry-notice";
 import { Stepper } from "@/components/ui/stepper";
 import { useReserveTickets } from "@/features/events/hooks/use-reserve-tickets";
 
@@ -28,7 +29,8 @@ export function TierPicker({ slug }: { slug: string }) {
     refetch,
   } = useQuery({ ...eventQueries.detail(slug), refetchInterval: AVAILABILITY_REFRESH_MS });
   const availableFor = (tierId: string) => live?.tiers.find((tier) => tier.id === tierId)?.available;
-  const { quantities, setQuantity, soldOutNotice, reserve, isReserving, reserveError } = useReserveTickets(slug);
+  const { quantities, setQuantity, soldOutNotice, reserve, isReserving, reserveError, retryAtMs, onRetryReady } =
+    useReserveTickets(slug);
 
   if (shouldShowQueryError(live, error)) {
     return (
@@ -91,6 +93,7 @@ export function TierPicker({ slug }: { slug: string }) {
             {soldOutNotice} The numbers above are up to date.
           </Notice>
         )}
+        {retryAtMs !== null && <RetryNotice retryAtMs={retryAtMs} onReady={onRetryReady} />}
         {reserveError && (
           <Notice tone="bad" title="Couldn’t reserve those tickets" role="alert">
             {reserveError.message}
@@ -111,7 +114,7 @@ export function TierPicker({ slug }: { slug: string }) {
               </>
             )}
           </p>
-          <Button type="submit" disabled={total === 0 || isSoldOut} isBusy={isReserving}>
+          <Button type="submit" disabled={total === 0 || isSoldOut || retryAtMs !== null} isBusy={isReserving}>
             {isSoldOut
               ? "Sold out"
               : isReserving

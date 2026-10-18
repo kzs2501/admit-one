@@ -33,3 +33,6 @@ export function buildApiPath<Path extends ApiRoute>(route: Path, params: RoutePa
 
 /** Payments must carry one; see the `missing_idempotency_key` problem. */
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+
+/** How long to wait before trying again, in seconds (RFC 9110 §10.2.3); sent with a 429. */
+export const RETRY_AFTER_HEADER = "Retry-After";

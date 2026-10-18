@@ -1,8 +1,9 @@
+import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { Problem } from "@/contract/problems";
 import type { CreateHoldRequest } from "@/contract/requests";
-import { apiClient, problemOf } from "@/lib/api-client";
+import { ApiError, apiClient, problemOf } from "@/lib/api-client";
 import { eventQueries, holdQueries, seatQueries } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 
@@ -11,10 +12,14 @@ import { routes } from "@/lib/routes";
  * the first step renders without another round-trip), and go. When the server answers
  * with a problem the buyer can act on — sold out, a seat taken — the caller hears about
  * it, and availability is refreshed, because it has evidently changed.
+ *
+ * A 429 is handled here, once, for every caller: reserving is off until the moment the
+ * server named, and `retryAtMs` lets the page count down to it.
  */
 export function useReserveHold(onProblem: (problem: Problem) => void) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [retryAtMs, setRetryAtMs] = useState<number | null>(null);
 
   const reserve = useMutation({
     mutationFn: (request: CreateHoldRequest) => apiClient.createHold(request),
@@ -25,16 +30,34 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
     onError: (error) => {
       const problem = problemOf(error);
       if (!problem) return;
+      if (problem.code === "rate_limited") {
+        // The header is the standard way to say it; the problem body says the same.
+        const waitMs =
+          error instanceof ApiError && error.retryAfterMs !== null
+            ? error.retryAfterMs
+            : problem.retryAfterSeconds * 1000;
+        setRetryAtMs(Date.now() + waitMs);
+        return;
+      }
       onProblem(problem);
       void queryClient.invalidateQueries({ queryKey: eventQueries.all() });
       void queryClient.invalidateQueries({ queryKey: seatQueries.all() });
     },
   });
 
+  const onRetryReady = useCallback(() => {
+    setRetryAtMs(null);
+  }, []);
+
   return {
-    reserve: reserve.mutate,
+    reserve: (request: CreateHoldRequest) => {
+      if (retryAtMs === null) reserve.mutate(request);
+    },
     isReserving: reserve.isPending,
-    /** The last failure, problem or not; callers decide what to say. */
-    error: reserve.error,
+    /** The last failure, problem or not, except a rate limit (that's `retryAtMs`). */
+    error: problemOf(reserve.error)?.code === "rate_limited" ? null : reserve.error,
+    /** When reserving may be tried again, after a 429; null when it may now. */
+    retryAtMs,
+    onRetryReady,
   };
 }

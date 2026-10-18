@@ -6,6 +6,7 @@ import { formatSeatList, type Seat } from "@/core/seating";
 import { MAX_TICKETS_PER_ORDER } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { Notice } from "@/components/ui/notice";
+import { RetryNotice } from "@/components/ui/retry-notice";
 import { useSeatMap } from "@/features/events/hooks/use-seat-map";
 import type { SeatCellState } from "./seat-cell";
 import { SeatGrid, type TierLabels } from "./seat-grid";
@@ -132,6 +133,7 @@ export function SeatMap({ slug }: { slug: string }) {
             </button>
           </Notice>
         )}
+        {model.retryAtMs !== null && <RetryNotice retryAtMs={model.retryAtMs} onReady={model.onRetryReady} />}
         {conflict && (
           <div ref={conflictNotice} tabIndex={-1} className="outline-none">
             <Notice tone="bad" title={conflict.title} role="alert">

@@ -3,11 +3,9 @@
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ApiError, isTransientError } from "@/lib/api-client";
+import { retryDelay, retryPolicy } from "@/lib/queries";
 import { reportError } from "@/lib/monitoring";
 import { showToast, Toaster } from "@/components/ui/toast";
-
-/** Client errors (4xx) are answers, not glitches — retrying them just repeats the answer. */
-const retry = (failureCount: number, error: unknown) => isTransientError(error) && failureCount < 2;
 
 /** A problem is the server's answer, handled where it's asked; anything else is worth knowing about. */
 const reportUnlessAnswer = (error: Error, source: "query" | "mutation") => {
@@ -35,7 +33,7 @@ const createQueryClient = () =>
       },
     }),
     defaultOptions: {
-      queries: { retry, staleTime: 2_000 },
+      queries: { retry: retryPolicy, retryDelay, staleTime: 2_000 },
       mutations: { retry: false },
     },
   });

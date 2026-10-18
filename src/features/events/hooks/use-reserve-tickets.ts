@@ -39,5 +39,7 @@ export function useReserveTickets(slug: string) {
     isReserving: hold.isReserving,
     /** Any other failure, for a generic notice. */
     reserveError: hold.error && !soldOutNotice ? hold.error : null,
+    retryAtMs: hold.retryAtMs,
+    onRetryReady: hold.onRetryReady,
   };
 }

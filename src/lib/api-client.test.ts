@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw/http";
 import { setupServer } from "msw/node";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
-import { apiClient, ApiError, NetworkError, problemOf } from "./api-client";
+import { apiClient, ApiError, NetworkError, parseRetryAfter, problemOf } from "./api-client";
 
 const network = setupServer();
 
@@ -56,6 +56,29 @@ describe("API client", () => {
     if (problem?.code === "sold_out") expect(problem.available).toBe(2); // narrowed by the code
   });
 
+  it("carries a 429's Retry-After, so the caller knows exactly how long to wait", async () => {
+    network.use(
+      http.post("*/api/holds", () =>
+        HttpResponse.json(
+          {
+            type: "http://localhost/problems/rate-limited",
+            title: "Too many attempts",
+            status: 429,
+            detail: "Too many reservation attempts. Try again in 13 seconds.",
+            code: "rate_limited",
+            retryAfterSeconds: 13,
+          },
+          { status: 429, headers: { "Content-Type": PROBLEM_CONTENT_TYPE, "Retry-After": "13" } },
+        ),
+      ),
+    );
+    const error = await apiClient
+      .createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ retryAfterMs: 13_000, problem: { code: "rate_limited" } });
+  });
+
   it("calls a response that breaks the contract a NetworkError, not data", async () => {
     network.use(http.get("*/api/orders/:orderId", () => HttpResponse.json({ id: "ord_1", status: "teleported" })));
     await expect(apiClient.getOrder("ord_1")).rejects.toThrow(
@@ -90,5 +113,22 @@ describe("API client", () => {
       .catch(() => null);
     expect(captured.headers?.get("Idempotency-Key")).toBe("key-1");
     expect(captured.headers?.get("Content-Type")).toBe("application/json");
+  });
+});
+
+describe("parseRetryAfter", () => {
+  const NOW = Date.parse("2026-10-19T10:00:00Z");
+
+  it("reads delay-seconds and HTTP-dates, as RFC 9110 allows", () => {
+    expect(parseRetryAfter("13", NOW)).toBe(13_000);
+    expect(parseRetryAfter(" 0 ", NOW)).toBe(0);
+    expect(parseRetryAfter("Mon, 19 Oct 2026 10:00:30 GMT", NOW)).toBe(30_000);
+    expect(parseRetryAfter("Mon, 19 Oct 2026 09:59:00 GMT", NOW)).toBe(0); // already passed
+  });
+
+  it("ignores what it can't read, rather than guessing", () => {
+    expect(parseRetryAfter(null, NOW)).toBeNull();
+    expect(parseRetryAfter("soon", NOW)).toBeNull();
+    expect(parseRetryAfter("-5", NOW)).toBeNull();
   });
 });

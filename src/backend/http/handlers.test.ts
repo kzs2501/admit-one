@@ -24,12 +24,17 @@ const backend = createBackend(
   { now: Date.now, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
   createInitialState(),
 );
-const network = setupServer(...createHandlers(backend, { sleep: () => Promise.resolve(), random: () => 0 }));
+// The rate limiter's clock: a whole window passes between tests, so each starts fresh.
+let limiterNowMs = 0;
+const network = setupServer(
+  ...createHandlers(backend, { sleep: () => Promise.resolve(), random: () => 0, now: () => limiterNowMs }),
+);
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   backend.setPreset("happy");
   backend.reset();
+  limiterNowMs += 60 * 60_000;
 });
 afterAll(() => network.close());
 
@@ -273,6 +278,26 @@ describe("HTTP contract", () => {
       expect(hold.seats).toHaveLength(3);
       expect(hold.seats.every((seat) => seat.tierId === "ms-balcony")).toBe(true);
     });
+  });
+
+  it("refuses a fourth reservation in the window with 429, Retry-After and no-store", async () => {
+    backend.setPreset("too-many-attempts"); // 3 tries per 15 s
+    const attempt = () =>
+      post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] });
+    for (let i = 0; i < 3; i++) {
+      expect((await attempt()).status).toBe(201);
+      limiterNowMs += 1_000;
+    }
+    const refused = await attempt();
+    const problem = await expectProblem(refused, 429, "rate_limited");
+    // Tries at 0, 1 and 2 s, and this refused one at 3 s, which counts too: a try is
+    // allowed again once the one at 1 s leaves the 15 s window — 13 s from now.
+    expect(refused.headers.get("Retry-After")).toBe("13");
+    expect(refused.headers.get("Cache-Control")).toBe("no-store");
+    expect(problem).toMatchObject({ retryAfterSeconds: 13 });
+
+    limiterNowMs += 13_000; // exactly as long as it said
+    expect((await attempt()).status).toBe(201);
   });
 
   it("writes every request to the server log", async () => {

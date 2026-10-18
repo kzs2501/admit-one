@@ -12,6 +12,8 @@ function sampleError(code: (typeof PROBLEM_CODES)[number]): DomainError {
     case "seats_unavailable":
     case "single_seat_gap":
       return { code, detail: "Stalls, row F, seat 12.", seatIds: ["stalls-F-12"] };
+    case "rate_limited":
+      return { code, detail: "Too many attempts.", retryAfterSeconds: 12 };
     case "card_declined":
     case "authentication_failed":
       return { code, detail: "The bank said no.", paymentId: "pay_1" };

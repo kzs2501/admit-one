@@ -16,6 +16,7 @@ export function startWorker(): Promise<void> {
       ...createHandlers(getSandbox(), {
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         random: Math.random,
+        now: Date.now,
       }),
     );
     // Anything that isn't /api/* (pages, scripts, fonts) goes to the network as usual.

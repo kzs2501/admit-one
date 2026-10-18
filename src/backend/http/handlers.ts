@@ -16,21 +16,25 @@ import {
   createPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
-import { API_ROUTES, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { API_ROUTES, IDEMPOTENCY_KEY_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
 import { fingerprintRequest } from "./idempotency";
 import { toEventDto, toHoldDetailsDto, toOrderDto, toPaymentResultDto, toSeatAvailabilityDto } from "./mappers";
 import { toProblem } from "./problems";
+import { createSlidingWindow } from "./rate-limit";
 
 interface HandlerOptions {
   /** Wait helper — real timers in the browser, instant in tests. */
   sleep: (ms: number) => Promise<void>;
   random: () => number;
+  /** The adapter's clock, for rate limiting. */
+  now: () => number;
 }
 
-/** A response before it's sent: a status and a JSON body (a DTO or a problem). */
+/** A response before it's sent: a status, a JSON body (a DTO or a problem), and any extra headers. */
 interface Reply {
   status: number;
   body: JsonValue;
+  headers?: Record<string, string>;
 }
 
 const PAYMENT_FAILURE_DETAILS = {
@@ -50,7 +54,9 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-export function createHandlers(backend: Backend, { sleep, random }: HandlerOptions) {
+export function createHandlers(backend: Backend, { sleep, random, now }: HandlerOptions) {
+  const holdAttempts = createSlidingWindow(now);
+
   const latency = (extraMs = 0) => {
     const [minMs, maxMs] = backend.chaos().latencyRangeMs;
     return sleep(minMs + random() * (maxMs - minMs) + extraMs);
@@ -75,11 +81,31 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
   const resultReply = <T>(result: Result<T>, request: Request, toBody: (value: T) => JsonValue, status = 200): Reply =>
     result.ok ? { status, body: toBody(result.value) } : problemReply(result.error, request);
 
-  const send = (request: Request, { status, body }: Reply) => {
+  const send = (request: Request, { status, body, headers = {} }: Reply) => {
     backend.log("request", `${request.method} ${pathOf(request)} → ${status}`);
     return status >= 400
-      ? HttpResponse.json(body, { status, headers: { "Content-Type": PROBLEM_CONTENT_TYPE } })
-      : HttpResponse.json(body, { status });
+      ? HttpResponse.json(body, { status, headers: { ...headers, "Content-Type": PROBLEM_CONTENT_TYPE } })
+      : HttpResponse.json(body, { status, headers });
+  };
+
+  /**
+   * Reservation attempts are rate-limited, refusals included (RFC 6585): a 429 that
+   * says how long to wait, in a header any HTTP client understands and in the problem,
+   * and that no cache may keep.
+   */
+  const rateLimitReply = (request: Request): Reply | null => {
+    const decision = holdAttempts.take(backend.chaos().holdRateLimit);
+    if (decision.isAllowed) return null;
+    const retryAfterSeconds = Math.max(1, Math.ceil(decision.retryAfterMs / 1000));
+    const problem = problemReply(
+      {
+        code: "rate_limited",
+        detail: `Too many reservation attempts. Try again in ${retryAfterSeconds} second${retryAfterSeconds === 1 ? "" : "s"}.`,
+        retryAfterSeconds,
+      },
+      request,
+    );
+    return { ...problem, headers: { [RETRY_AFTER_HEADER]: String(retryAfterSeconds), "Cache-Control": "no-store" } };
   };
 
   /**
@@ -127,6 +153,11 @@ export function createHandlers(backend: Backend, { sleep, random }: HandlerOptio
     }),
 
     http.post(anyOrigin(API_ROUTES.createHold), async ({ request }) => {
+      const limited = rateLimitReply(request);
+      if (limited) {
+        await latency();
+        return send(request, limited);
+      }
       const input = await parseBody(request, createHoldRequestSchemaFor);
       await latency();
       if (!input.ok) return send(request, input.reply);

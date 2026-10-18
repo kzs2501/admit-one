@@ -17,16 +17,36 @@ import {
 } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
 import type { ConfirmChallengeRequest, CreateHoldRequest, UpsertOrderRequest } from "@/contract/requests";
-import { API_ROUTES, buildApiPath, IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { API_ROUTES, buildApiPath, IDEMPOTENCY_KEY_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
 import type { CardInput } from "@/core/schemas";
 
 /** The server answered with an RFC 9457 problem. Branch on `problem.code`. */
 export class ApiError extends Error {
   override readonly name = "ApiError";
 
-  constructor(readonly problem: Problem) {
+  constructor(
+    readonly problem: Problem,
+    /** How long the server asked us to wait before trying again (`Retry-After`), if it did. */
+    readonly retryAfterMs: number | null = null,
+  ) {
     super(problem.detail);
   }
+}
+
+/** "Sun, 06 Nov 1994 08:49:37 GMT" — the HTTP-date format servers send (RFC 9110 §5.6.7). */
+const IMF_FIXDATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
+/**
+ * `Retry-After` (RFC 9110 §10.2.3) is either a number of seconds or an HTTP-date.
+ * Anything else is ignored rather than guessed at — `Date.parse` alone would read
+ * "-5" as the year 5 BC.
+ */
+export function parseRetryAfter(value: string | null, nowMs: number): number | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000;
+  if (!IMF_FIXDATE.test(trimmed)) return null;
+  return Math.max(0, Date.parse(trimmed) - nowMs);
 }
 
 /** No usable answer: the request never completed, or the response broke the contract. */
@@ -62,7 +82,9 @@ async function request<Schema extends z.ZodType>(
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
     const problem = problemSchema.safeParse(body);
-    if (problem.success) throw new ApiError(problem.data);
+    if (problem.success) {
+      throw new ApiError(problem.data, parseRetryAfter(response.headers.get(RETRY_AFTER_HEADER), Date.now()));
+    }
     throw new NetworkError(`The server answered ${response.status} without a problem description.`);
   }
   const parsed = schema.safeParse(body);
@@ -102,6 +124,7 @@ export const problemOf = (error: unknown): Problem | null => (error instanceof A
 /**
  * Whether an error is a glitch rather than an answer. A 4xx problem is the server's
  * considered reply — asking again gets the same one — while a lost connection or a 5xx
- * may well go away.
+ * may well go away. A 429 is "not now", not "no": it passes, after `Retry-After`.
  */
-export const isTransientError = (error: unknown) => !(error instanceof ApiError && error.problem.status < 500);
+export const isTransientError = (error: unknown) =>
+  !(error instanceof ApiError && error.problem.status < 500 && error.problem.status !== 429);

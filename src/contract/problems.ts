@@ -39,6 +39,7 @@ export const problemSchema = z.discriminatedUnion("code", [
   }),
   problemBaseSchema.extend({ code: z.literal("seats_unavailable"), seatIds: z.array(z.string()).min(1) }),
   problemBaseSchema.extend({ code: z.literal("single_seat_gap"), seatIds: z.array(z.string()).min(1) }),
+  problemBaseSchema.extend({ code: z.literal("rate_limited"), retryAfterSeconds: z.number().int().positive() }),
   problemBaseSchema.extend({ code: z.literal("card_declined"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: z.literal("authentication_failed"), paymentId: z.string() }),
   problemBaseSchema.extend({ code: plainProblemCodeSchema }),
@@ -54,6 +55,7 @@ export const PROBLEM_CODES: readonly ProblemCode[] = [
   "sold_out",
   "seats_unavailable",
   "single_seat_gap",
+  "rate_limited",
   "card_declined",
   "authentication_failed",
   ...plainProblemCodeSchema.options,
@@ -93,6 +95,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "A single seat would be left empty",
     description:
       "The seats chosen would leave one empty seat that nobody could book as part of a pair. `seatIds` lists it; move the selection over by one.",
+  },
+  rate_limited: {
+    status: 429,
+    title: "Too many attempts",
+    description:
+      "This client has made too many reservation attempts in a short time. The `Retry-After` header (and `retryAfterSeconds`) says how long to wait; waiting that long always works.",
   },
   hold_expired: {
     status: 410,

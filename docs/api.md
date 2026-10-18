@@ -21,6 +21,11 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
   `422 idempotency_key_reused`. Requests rejected before charging aren't stored, and keys
   expire after 24 hours, as Stripe's do.
 - **Orders** need no key: one order per hold makes `POST /api/orders` a natural upsert.
+- **Rate limits:** reservation attempts (`POST /api/holds`) are limited per client with a
+  sliding window — 20 a minute normally, 3 every 15 seconds in the "Too many attempts"
+  scenario. Refused attempts count too. A refusal is `429 rate_limited` with a
+  `Retry-After` header in seconds (RFC 6585, RFC 9110) and `Cache-Control: no-store`;
+  waiting exactly that long always works.
 
 ## Endpoints
 
@@ -29,7 +34,7 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
 | `GET /api/events`                         | —                                                                                                | `200` `EventDto[]` with live `available` per tier                              | —                                                                                                                                                                           |
 | `GET /api/events/:slug`                   | —                                                                                                | `200` `EventDto`                                                               | `not_found`                                                                                                                                                                 |
 | `GET /api/events/:slug/seats`             | —                                                                                                | `200` `{ eventSlug, unavailableSeatIds, serverTime }`                          | `not_found` (no such event, or no reserved seating)                                                                                                                         |
-| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`, or `{ eventSlug, seatIds }` for reserved seating | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`), `seats_unavailable` (`seatIds`), `single_seat_gap` (`seatIds`)                                          |
+| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`, or `{ eventSlug, seatIds }` for reserved seating | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`), `seats_unavailable` (`seatIds`), `single_seat_gap` (`seatIds`), `rate_limited` (`retryAfterSeconds`)    |
 | `GET /api/holds/:holdId`                  | —                                                                                                | `200` `HoldDetailsDto`                                                         | `not_found`                                                                                                                                                                 |
 | `POST /api/orders`                        | `{ holdId, attendees: [{ name, email }], addOns: { [addOnId]: quantity } }`                      | `201` created / `200` updated, `OrderDto`                                      | `invalid_request`, `not_found`, `hold_expired`, `payment_in_progress`, `already_completed`                                                                                  |
 | `GET /api/orders/:orderId`                | —                                                                                                | `200` `OrderDto`                                                               | `not_found`                                                                                                                                                                 |
