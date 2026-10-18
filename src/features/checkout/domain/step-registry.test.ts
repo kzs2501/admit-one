@@ -59,6 +59,21 @@ describe("step registry", () => {
     });
   });
 
+  it("sends you back to review when the extras change, too", () => {
+    const draft = {
+      ...createEmptyDraft(),
+      attendees: testPeople(2),
+      addOns: { "fss-lunch": 1 },
+      hasConfirmedAddOns: true,
+    };
+    expect(orderMatchesDraft(summitContext(draft, orderDtoFor(draft)))).toBe(true);
+    const twoLunches = { ...draft, addOns: { "fss-lunch": 2 } };
+    expect(resolveStep("payment", summitContext(twoLunches, orderDtoFor(draft)))).toMatchObject({
+      shouldRedirect: true,
+      step: { id: "review" },
+    });
+  });
+
   it("treats a settled order as not resumable", () => {
     const draft = { ...createEmptyDraft(), attendees: testPeople(2), hasConfirmedAddOns: true };
     expect(orderMatchesDraft(summitContext(draft, orderDtoFor(draft, "expired")))).toBe(false);

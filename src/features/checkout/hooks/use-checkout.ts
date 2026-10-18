@@ -6,8 +6,8 @@ import { isAwaitingConfirmation, isPaidFor } from "@/core/order-status";
 import { problemOf } from "@/lib/api-client";
 import { holdQueries, shouldShowQueryError } from "@/lib/queries";
 import { routes } from "@/lib/routes";
+import { clockOffset } from "@/lib/clock";
 import { useMounted } from "@/lib/use-mounted";
-import { clockOffset } from "@/features/checkout/domain/countdown";
 import {
   applicableSteps,
   nextStep,

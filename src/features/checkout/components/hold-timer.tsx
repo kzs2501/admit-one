@@ -1,14 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  announcedMs,
-  crossedThreshold,
-  formatRemaining,
-  remainingMs,
-  spokenRemaining,
-  useNow,
-} from "@/features/checkout/domain/countdown";
+import { formatRemaining, remainingMs, spokenRemaining, useNow } from "@/lib/clock";
+import { announcedMs, crossedThreshold } from "@/features/checkout/domain/countdown";
 
 /**
  * "Tickets held for 4:32". The visible clock updates every second; screen readers
