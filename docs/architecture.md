@@ -45,7 +45,7 @@ flowchart LR
 ```mermaid
 flowchart TB
   app["app/ — routes, composition"]
-  features["features/ — events · checkout · orders · sandbox\n(hooks own the rules, components render)"]
+  features["features/ — events · checkout · orders · queue · sandbox\n(hooks own the rules, components render)"]
   shared["lib/ + components/ui/ — API client, queries, routes, formatting, UI primitives"]
   contract["contract/ — routes, DTO & request schemas, problem types"]
   core["core/ — catalogue, money, statuses, validation"]
@@ -71,7 +71,7 @@ flowchart TB
 | `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                     | the domain, the adapter                 |
 | `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                          | `core`, `contract`                      |
 | `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                             | `lib`, `core`                           |
-| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `usePayment`, `useReserveTickets`) and the components that render them                                                              | everything above; never another feature |
+| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `usePayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`) and the components that render them                               | everything above; never another feature |
 | `app/`            | Routes and error boundaries; composes features                                                                                                                                         | everything except backend internals     |
 
 **The rule is enforced, not just described.** `eslint.config.mjs` declares these as
@@ -108,6 +108,10 @@ sequenceDiagram
 - **The contract is schema-first**: Zod schemas parsed at both ends, ISO 8601 on the
   wire, `…Ms` inside ([007](decisions/007-typed-contract-and-iso-times.md)).
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
+- **High demand** — a waiting room (first in, first out, computed from the clock, the
+  server setting the polling pace) gates reserving with a `Queue-Token`, and reserving
+  is rate-limited with `429` + `Retry-After`
+  ([011](decisions/011-waiting-room-and-rate-limits.md)).
 - **Reserved seating** — halls are static data in `core` and server-rendered; which
   seats are gone comes over HTTP. Holds by seat are all-or-nothing, and the server
   chooses "best available" in the same step as the hold

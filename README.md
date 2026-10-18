@@ -31,6 +31,8 @@ is also an end-to-end test that checks both what you see and what the server rec
 | Hold expires mid-payment   | Payment lands after the hold is gone                   | A full refund, explained in plain words                                          |
 | Crowd buys the last ticket | Someone else gets there first                          | "Just missed it", live availability, never oversold                              |
 | Seat snatched              | Someone takes one of your chosen seats first           | Nothing held; the lost seat is named and the rest stay chosen                    |
+| Too many attempts          | Reserving limited to 3 tries every 15 s                | A 429 with Retry-After; Reserve counts down, then works                          |
+| Flash sale                 | 40,000 people (simulated) arrive at once               | A waiting room: your place, an honest wait, your turn announced                  |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 `4000 0025 0000 3155` asks for 3-D Secure.
@@ -81,6 +83,16 @@ available" lets the server choose and hold in one step, keeping a party together
 without stranding a single seat. An e2e budget keeps the longest interaction under
 200 ms with the CPU slowed four times.
 ([decision](docs/decisions/010-reserved-seating.md))
+
+### 6. A waiting room, and a limit on trying
+
+In a flash sale, everyone queues first. The line is first in, first out, a batch at a
+time, and your place is computed from when you joined and the clock: nothing ticks, a
+refresh keeps it, and the server says when to check again. The page shows the people
+ahead, a bar that only moves forward and a coarse wait. When your turn comes, it says
+so and moves focus, but doesn't redirect you. Reserving is also rate-limited: the
+fourth try in 15 seconds is a 429 with `Retry-After`, and the page waits exactly that
+long. ([decision](docs/decisions/011-waiting-room-and-rate-limits.md))
 
 ## How it works
 
@@ -137,13 +149,13 @@ nothing else depends on it.
 
 ## Quality
 
-| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                          |
-| `npm test`                   | 184 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator and the seat map's keyboard model              |
-| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                 |
-| `npm run test:e2e`           | 34 browser tests: one per chaos preset, plus a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
-| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                      |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                          |
+| `npm test`                   | 212 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                   |
+| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                 |
+| `npm run test:e2e`           | 39 browser tests: one per chaos preset, plus a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
