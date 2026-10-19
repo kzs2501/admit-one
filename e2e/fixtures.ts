@@ -52,6 +52,18 @@ export class Buyer {
     await this.page.getByRole("button", { name: new RegExp(card) }).click();
     await this.page.getByRole("button", { name: /^Pay ₹/ }).click();
   }
+
+  /** The buyer's phone, simulated by the sandbox: it shows a UPI request while one waits. */
+  get phone() {
+    return this.page.getByRole("region", { name: "Your phone · simulated" });
+  }
+
+  /** Choose UPI and ask for a payment request; the page then waits for the phone. */
+  async payByUpi() {
+    await this.page.getByRole("radio", { name: /^UPI/ }).check();
+    await this.page.getByRole("button", { name: /^Pay ₹[\d,.]+ with UPI$/ }).click();
+    await expect(this.page.getByRole("heading", { name: /in your UPI app$/ })).toBeFocused();
+  }
 }
 
 export class Sandbox {
