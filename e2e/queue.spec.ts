@@ -2,9 +2,8 @@
  * High demand, end to end: the waiting room for a flash sale, and the rate limit on
  * reserving. Each checks what the buyer sees and what the server recorded.
  */
-import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { axeViolations, expect, test } from "./fixtures";
 
 const QUEUE_PAGE = /\/events\/open-studio-ceramics\/queue$/;
 
@@ -95,8 +94,7 @@ test.describe("queue page accessibility", () => {
       await page.goto("/");
       await sandbox.choosePreset("Flash sale");
       await joinTheQueue(page);
-      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-      expect(results.violations.map((violation) => violation.id)).toEqual([]);
+      expect(await axeViolations(page)).toEqual([]);
     });
   }
 

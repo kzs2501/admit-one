@@ -1,6 +1,5 @@
-import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { axeViolations, expect, test } from "./fixtures";
 
 test("extras appear only for events that have them", async ({ page, buyer }) => {
   await page.goto("/");
@@ -69,8 +68,7 @@ test("a problem's type URI opens its documentation", async ({ page }) => {
   await page.goto("/problems/sold-out");
   await expect(page.getByRole("heading", { level: 1, name: "Not enough tickets left" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText("sold_out");
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-  expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  expect(await axeViolations(page)).toEqual([]);
 });
 
 test("an unknown reservation explains itself", async ({ page }) => {
@@ -79,13 +77,6 @@ test("an unknown reservation explains itself", async ({ page }) => {
 });
 
 test.describe("accessibility", () => {
-  const scan = async (page: Page) => {
-    const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-    return results.violations.map(
-      (violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-    );
-  };
-
   for (const scheme of ["light", "dark"] as const) {
     test(`a hovered primary button keeps its contrast (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
@@ -112,37 +103,37 @@ test.describe("accessibility", () => {
           .getByText(/\d+ left|Sold out/)
           .first(),
       ).toBeVisible();
-      expect(await scan(page), "home").toEqual([]);
+      expect(await axeViolations(page), "home").toEqual([]);
 
       await page.getByRole("link", { name: /Frontend Systems Summit/ }).click();
       await expect(page.getByRole("button", { name: "Reserve tickets" })).toBeVisible();
-      expect(await scan(page), "event").toEqual([]);
+      expect(await axeViolations(page), "event").toEqual([]);
 
       await page.getByRole("button", { name: "More: General" }).click();
       await page.getByRole("button", { name: "Reserve tickets" }).click();
       await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
       await page.getByRole("button", { name: "Continue" }).click(); // show validation errors too
       await expect(page.getByText("Enter the attendee’s full name.")).toBeVisible();
-      expect(await scan(page), "attendees with errors").toEqual([]);
+      expect(await axeViolations(page), "attendees with errors").toEqual([]);
 
       await page.getByLabel("Full name").fill("Asha Rao");
       await page.getByLabel(/^Email/).fill("asha@example.com");
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page.getByRole("heading", { name: "Add extras" })).toBeVisible();
-      expect(await scan(page), "extras").toEqual([]);
+      expect(await axeViolations(page), "extras").toEqual([]);
 
       await page.getByRole("button", { name: "Continue without extras" }).click();
       await page.getByRole("button", { name: "Continue to payment" }).click();
       await expect(page.getByRole("heading", { name: "Payment", exact: true })).toBeVisible();
-      expect(await scan(page), "payment").toEqual([]);
+      expect(await axeViolations(page), "payment").toEqual([]);
 
       await buyer.pay();
       await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
-      expect(await scan(page), "tickets").toEqual([]);
+      expect(await axeViolations(page), "tickets").toEqual([]);
 
       await page.getByRole("button", { name: /^Chaos/ }).click();
       await expect(page.getByRole("dialog", { name: "Chaos panel" })).toBeVisible();
-      expect(await scan(page), "chaos panel").toEqual([]);
+      expect(await axeViolations(page), "chaos panel").toEqual([]);
     });
   }
 });

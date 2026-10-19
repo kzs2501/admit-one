@@ -3,10 +3,9 @@
  * another buyer, the server's best available, accessibility, and a responsiveness
  * budget for a thousand interactive seats.
  */
-import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import type { Seat } from "../src/core/seating";
-import { expect, test } from "./fixtures";
+import { axeViolations, expect, test } from "./fixtures";
 
 declare global {
   interface Window {
@@ -118,8 +117,7 @@ test.describe("seat map accessibility", () => {
       await openMap(page);
       const { seats } = await sandbox.freeSeatRun(SLUG, 2);
       for (const seat of seats) await seatCell(page, seat).click();
-      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-      expect(results.violations.map((violation) => violation.id)).toEqual([]);
+      expect(await axeViolations(page)).toEqual([]);
     });
   }
 

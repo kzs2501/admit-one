@@ -3,8 +3,7 @@
  * one — and the page learns the outcome the way a real shop does: from the server,
  * which hears it from the provider's webhook.
  */
-import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { axeViolations, expect, test } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -101,8 +100,7 @@ test.describe("accessibility", () => {
       await buyer.goToPayment(1);
       await buyer.payByUpi();
       await expect(buyer.phone).toBeVisible();
-      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-      expect(results.violations.map((violation) => violation.id)).toEqual([]);
+      expect(await axeViolations(page)).toEqual([]);
     });
   }
 

@@ -4,12 +4,27 @@
  * by role and label, never by CSS — and the `sandbox` behind the page, whose state
  * is the tests' oracle. Both are injected with `test.extend`.
  */
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test as base, type Page } from "@playwright/test";
 import { SANDBOX_STORAGE_KEY, type ServerState } from "../src/backend/domain/state";
 import { seatAvailabilityDtoSchema } from "../src/contract/dto";
 import { getSeatPlan } from "../src/core/catalog";
 import { findSingleSeatGaps, type Seat } from "../src/core/seating";
 import type { TestCardLabel } from "../src/features/checkout/domain/test-cards";
+
+/**
+ * WCAG 2.2 AA violations on the page as a visitor gets it, each with where it is.
+ * Next streams a page's metadata, so after a client-side navigation the <title> can
+ * arrive a moment after the content; a scan in between would fault a page that's
+ * still loading. So wait for the title first.
+ */
+export async function axeViolations(page: Page) {
+  await expect(page).toHaveTitle(/\S/);
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  return results.violations.map(
+    (violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
+  );
+}
 
 export class Buyer {
   constructor(readonly page: Page) {}
