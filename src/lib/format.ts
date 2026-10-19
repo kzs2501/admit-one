@@ -91,3 +91,18 @@ export function describePayment({ method, last4 }: { method: PaymentMethod; last
   if (method === "upi") return "by UPI";
   return last4 ? `with a card ending ${last4}` : "by card";
 }
+
+/** `2026-09-12` → "12 Sep": a calendar day, as a chart's axis or summary says it. */
+export const formatShortDate = (isoDate: string) =>
+  new Intl.DateTimeFormat(DISPLAY_LOCALE, { day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(`${isoDate}T00:00:00Z`),
+  );
+
+const percentFormatter = new Intl.NumberFormat(DISPLAY_LOCALE, { style: "percent", maximumFractionDigits: 0 });
+
+/** 0.7 → "70%". A share of nothing is 0%. */
+export const formatPercent = (part: number, whole: number) => percentFormatter.format(whole > 0 ? part / whole : 0);
+
+/** 1234 → "1.2 s", 640 → "640 ms": a duration someone waited. */
+export const formatDuration = (ms: number) =>
+  ms < 1_000 ? `${String(Math.round(ms))} ms` : `${(ms / 1_000).toFixed(1)} s`;

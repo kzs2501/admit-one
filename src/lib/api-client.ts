@@ -72,7 +72,7 @@ export function setApiReadiness(ready: Promise<unknown>) {
   readiness = ready;
 }
 
-async function request<Schema extends z.ZodType>(
+export async function request<Schema extends z.ZodType>(
   path: string,
   schema: Schema,
   init: RequestInit = {},
@@ -105,7 +105,22 @@ async function request<Schema extends z.ZodType>(
   return parsed.data;
 }
 
-const post = <Schema extends z.ZodType>(
+/** A file from the API, such as a CSV export: a blob on success, the problem on failure. */
+export async function requestFile(path: string, init: RequestInit = {}): Promise<Blob> {
+  await readiness;
+  let response: Response;
+  try {
+    response = await fetch(path, init);
+  } catch (cause) {
+    throw new NetworkError("Couldn’t reach the server. Check your connection and try again.", { cause });
+  }
+  if (response.ok) return response.blob();
+  const problem = problemSchema.safeParse(await response.json().catch(() => undefined));
+  if (problem.success) throw new ApiError(problem.data, null);
+  throw new NetworkError(`The server answered ${response.status} without a problem description.`);
+}
+
+export const post = <Schema extends z.ZodType>(
   path: string,
   schema: Schema,
   body: unknown,

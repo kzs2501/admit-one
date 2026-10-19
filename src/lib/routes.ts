@@ -12,6 +12,12 @@ export const routes = {
   checkoutStep: (holdId: string, step: string) =>
     `/checkout/${encodeURIComponent(holdId)}/${encodeURIComponent(step)}` as Route,
   order: (orderId: string) => `/orders/${encodeURIComponent(orderId)}` as Route,
+  organiser: (eventSlug?: string): Route =>
+    eventSlug ? `/organiser?event=${encodeURIComponent(eventSlug)}` : "/organiser",
+  organiserSignIn: (): Route => "/organiser/sign-in",
+  organiserOrders: (query?: URLSearchParams) =>
+    (query?.size ? `/organiser/orders?${query.toString()}` : "/organiser/orders") as Route,
+  organiserOrder: (orderId: string) => `/organiser/orders/${encodeURIComponent(orderId)}` as Route,
   problems: (): Route => "/problems",
   problem: (code: ProblemCode) => problemPathFor(code) as Route,
 };

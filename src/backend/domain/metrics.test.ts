@@ -36,7 +36,9 @@ describe("sales metrics", () => {
     const { salesByDay, paidOrders, revenue } = valueOf(backend.salesMetrics(account("acc-lakeside-owner")));
     expect(salesByDay.at(-1)?.date).toBe("2026-10-12"); // START_MS is the afternoon of the 12th in Kolkata
     expect(salesByDay[0]?.date).toBe("2026-09-12");
-    expect(salesByDay.reduce((sum, day) => sum + day.revenueMinor, 0)).toBe(revenue.grossMinor);
+    expect(salesByDay.reduce((sum, day) => sum + day.revenueMinor, 0)).toBe(revenue.netMinor);
+    const { tickets } = valueOf(backend.salesMetrics(account("acc-lakeside-owner")));
+    expect(salesByDay.reduce((sum, day) => sum + day.tickets, 0)).toBe(tickets.sold);
     expect(paidOrders).toBeGreaterThan(7_000);
     expect(revenue.netMinor).toBe(revenue.grossMinor - revenue.refundedMinor);
     expect(revenue.refundedMinor).toBeGreaterThan(0);

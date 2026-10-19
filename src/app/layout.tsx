@@ -46,7 +46,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
                 Demo — no real payments
               </span>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-3">
+                <Link
+                  href="/organiser"
+                  className="rounded-md px-2 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                >
+                  <span className="sm:hidden">Organisers</span>
+                  <span className="hidden sm:inline">For organisers</span>
+                </Link>
                 {/* The panel lives in the root layout, which no error.tsx covers: contain it here. */}
                 <ErrorBoundary
                   fallback={<span className="text-xs text-ink-3">Chaos panel unavailable — reload to retry</span>}

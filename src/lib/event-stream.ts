@@ -49,24 +49,41 @@ export function createEventStreamParser(onEvent: (event: StreamEvent) => void) {
   };
 }
 
+/** The stream couldn't be opened; `status` says why (a 401 means the session is over). */
+export class StreamError extends Error {
+  override readonly name = "StreamError";
+
+  constructor(readonly status: number) {
+    super(`The stream answered ${String(status)}.`);
+  }
+}
+
 /**
  * Read a stream of server-sent events until it ends, the signal aborts, or the
- * connection fails (which rejects, so the caller can reconnect).
+ * connection fails (which rejects, so the caller can reconnect). `onOpen` says when
+ * it's connected, before any event has arrived.
  */
 export async function readEventStream(
   url: string,
   {
     headers,
     signal,
+    onOpen,
     onEvent,
-  }: { headers: Record<string, string>; signal: AbortSignal; onEvent: (event: StreamEvent) => void },
+  }: {
+    headers: Record<string, string>;
+    signal: AbortSignal;
+    onOpen?: () => void;
+    onEvent: (event: StreamEvent) => void;
+  },
 ): Promise<void> {
   const response = await fetch(url, {
     headers: { ...headers, Accept: "text/event-stream" },
     signal,
     cache: "no-store",
   });
-  if (!response.ok || !response.body) throw new Error(`The stream answered ${String(response.status)}.`);
+  if (!response.ok || !response.body) throw new StreamError(response.status);
+  onOpen?.();
   const parse = createEventStreamParser(onEvent);
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) {

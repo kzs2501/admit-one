@@ -34,6 +34,7 @@ const LAYER_RULES = [
       "./src/features/checkout",
       "./src/features/orders",
       "./src/features/queue",
+      "./src/features/organiser",
     ],
     from: "./src/backend",
     message: "Talk to the backend over HTTP (lib/api-client). Only the sandbox feature uses its port.",
@@ -49,7 +50,7 @@ const LAYER_RULES = [
     from: ["./src/features", "./src/app"],
     message: "Shared code may not depend on features or routes.",
   },
-  ...["events", "checkout", "orders", "queue", "sandbox"].map((feature) => ({
+  ...["events", "checkout", "orders", "queue", "organiser", "sandbox"].map((feature) => ({
     target: `./src/features/${feature}`,
     from: ["./src/app", "./src/features"],
     except: [`./${feature}`],

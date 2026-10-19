@@ -142,3 +142,23 @@ input[type="radio"] {
     animation-duration: 2.4s !important;
   }
 }
+
+/* Native meters, in the accent colour rather than each browser's green. */
+meter {
+  appearance: none;
+  border-radius: 9999px;
+  background: var(--sunk);
+}
+meter::-webkit-meter-bar {
+  border: 0;
+  border-radius: 9999px;
+  background: var(--sunk);
+}
+meter::-webkit-meter-optimum-value {
+  border-radius: 9999px;
+  background: var(--accent);
+}
+meter::-moz-meter-bar {
+  border-radius: 9999px;
+  background: var(--accent);
+}

@@ -6,7 +6,9 @@
  * Keys run from general to specific, so invalidating `eventQueries.all()` refreshes
  * every event query at once.
  */
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { writeOrderSearchParams, type OrderFilters } from "@/contract/queries";
+import { organiserApi } from "./organiser-api";
 import type { HoldDetailsDto } from "@/contract/dto";
 import { ApiError, apiClient, isTransientError } from "./api-client";
 
@@ -76,6 +78,37 @@ export function patchHoldDetails(
   if (!cached?.data) return;
   queryClient.setQueryData(queryKey, patch(cached.data), { updatedAt: cached.dataUpdatedAt });
 }
+
+/**
+ * The organisers' dashboard. Everything sits under one key, so signing out (or in as
+ * someone else) clears it all: one account's orders are never shown to another.
+ */
+export const organiserQueries = {
+  all: () => ["organiser"] as const,
+  account: () => queryOptions({ queryKey: [...organiserQueries.all(), "account"], queryFn: organiserApi.getAccount }),
+  events: () => queryOptions({ queryKey: [...organiserQueries.all(), "events"], queryFn: organiserApi.listEvents }),
+  metricsAll: () => [...organiserQueries.all(), "metrics"] as const,
+  metrics: (eventSlug?: string) =>
+    queryOptions({
+      queryKey: [...organiserQueries.metricsAll(), eventSlug ?? "all"],
+      queryFn: () => organiserApi.getMetrics(eventSlug),
+    }),
+  ordersAll: () => [...organiserQueries.all(), "orders"] as const,
+  /** Keyed by the canonical query string, so the same filters are the same cache entry. */
+  orders: (filters: OrderFilters) =>
+    infiniteQueryOptions({
+      queryKey: [...organiserQueries.ordersAll(), writeOrderSearchParams(filters).toString()],
+      queryFn: ({ pageParam }) => organiserApi.listOrders(filters, pageParam),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (page) => page.nextPageToken ?? undefined,
+    }),
+  orderAll: () => [...organiserQueries.all(), "order"] as const,
+  order: (orderId: string) =>
+    queryOptions({
+      queryKey: [...organiserQueries.orderAll(), orderId],
+      queryFn: () => organiserApi.getOrder(orderId),
+    }),
+};
 
 export const orderQueries = {
   all: () => ["orders"] as const,

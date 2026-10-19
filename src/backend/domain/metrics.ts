@@ -27,7 +27,11 @@ export interface SalesMetrics {
   tiers: { eventSlug: string; eventName: string; tierId: string; tierName: string; sold: number; capacity: number }[];
   paidOrders: number;
   averageOrderMinor: number;
-  /** One entry per calendar day in the organisation's zone, oldest first, quiet days included. */
+  /**
+   * One entry per calendar day in the organisation's zone, oldest first, quiet days
+   * included. Tickets still sold, so the days add up to the tickets sold, and their
+   * revenue to the net revenue.
+   */
   salesByDay: { date: string; tickets: number; revenueMinor: number }[];
   /** Each stage counts orders that got at least that far, so it never widens. */
   funnel: { holds: number; orders: number; paid: number; fulfilled: number };
@@ -104,6 +108,7 @@ export function salesMetrics(context: BackendContext, account: Account, eventSlu
   const { dates, starts } = daysOf(context, timeZone);
   const salesByDay = dates.map((date) => ({ date, tickets: 0, revenueMinor: 0 }));
   for (const row of paid) {
+    if (row.status === "refunded") continue;
     const day = salesByDay[dayIndex(starts, row.createdAtMs)];
     if (!day) continue;
     day.tickets += row.ticketCount;
