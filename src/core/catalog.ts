@@ -24,6 +24,12 @@ export interface AddOnInfo {
   name: string;
   description: string;
   priceMinor: number;
+  /**
+   * GST on this extra. Illustrative, not tax advice: an extra's rate depends on what it
+   * is (food, clothing, printed matter), and these show the engine handling more than
+   * one rate, not a ruling on any of them.
+   */
+  gstRateBasisPoints: number;
 }
 
 /** Whether buyers pick a quantity of each tier, or particular seats. */
@@ -98,8 +104,20 @@ export const CATALOG: EventInfo[] = [
       },
     ],
     addOns: [
-      { id: "fss-lunch", name: "Lunch pass", description: "Hot lunch on the day.", priceMinor: 45000 },
-      { id: "fss-tee", name: "Summit T-shirt", description: "Collected at registration.", priceMinor: 79900 },
+      {
+        id: "fss-lunch",
+        name: "Lunch pass",
+        description: "Hot lunch on the day.",
+        priceMinor: 45000,
+        gstRateBasisPoints: 500,
+      },
+      {
+        id: "fss-tee",
+        name: "Summit T-shirt",
+        description: "Collected at registration.",
+        priceMinor: 79900,
+        gstRateBasisPoints: 500,
+      },
     ],
   },
   {
@@ -122,6 +140,14 @@ export const CATALOG: EventInfo[] = [
         priceMinor: 120000,
         capacity: 40,
         baselineSold: 38,
+      },
+      {
+        id: "nmj-student",
+        name: "Student standing",
+        description: "With a valid student ID. At ₹500 or less, there’s no GST on the ticket.",
+        priceMinor: 45000,
+        capacity: 10,
+        baselineSold: 4,
       },
     ],
     addOns: [],
@@ -188,6 +214,7 @@ export const CATALOG: EventInfo[] = [
         name: "Printed programme",
         description: "Notes on every piece; collected at the door.",
         priceMinor: 15000,
+        gstRateBasisPoints: 1800,
       },
     ],
   },

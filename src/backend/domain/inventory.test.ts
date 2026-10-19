@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CHAOS } from "@/backend/chaos/presets";
+import { CATALOG } from "@/core/catalog";
 import {
   createTestBackend,
   freeSeatRun,
@@ -68,16 +69,17 @@ describe("inventory", () => {
     expect(backend.getState().log.some((entry) => entry.kind === "crowd")).toBe(true);
   });
 
-  it("crowd ticks only buy from tiers with plenty left", () => {
+  it("crowd ticks buy one ticket at a time, and only from tiers with plenty left", () => {
     const { backend } = createTestBackend("crowd");
-    const before = backend.available("fss-general");
+    const tierIds = CATALOG.flatMap((event) => event.tiers.map((tier) => tier.id));
+    const before = new Map(tierIds.map((tierId) => [tierId, backend.available(tierId)]));
     expect(backend.runCrowdTick()).toBe(true);
+    const bought = tierIds.filter((tierId) => backend.available(tierId) !== before.get(tierId));
+    expect(bought).toHaveLength(1);
+    const [tierId] = bought;
+    expect(backend.available(tierId ?? "")).toBe((before.get(tierId ?? "") ?? 0) - 1);
+    expect(before.get(tierId ?? "")).toBeGreaterThan(3); // never one that's nearly gone
     expect(backend.available("nmj-standing")).toBe(2);
-    const total = ["fss-general", "fss-workshop", "osc-session"].reduce(
-      (sum, tierId) => sum + backend.available(tierId),
-      0,
-    );
-    expect(total).toBe(before + 6 + 9 - 1);
   });
 });
 
