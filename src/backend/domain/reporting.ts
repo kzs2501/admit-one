@@ -275,6 +275,23 @@ export function listOrders(
   });
 }
 
+/**
+ * What's happened to an event's orders in this sandbox, as a short string: when it
+ * changes, something an organiser would want to see did. The history never changes,
+ * so it isn't part of it.
+ */
+export function activityOf(context: BackendContext, eventSlug: string): string {
+  const { state } = context;
+  const orders = Object.values(state.orders)
+    .filter((order) => order.eventSlug === eventSlug)
+    .map((order) => `${order.id}:${resolveOrderStatus(context, order).status}`);
+  const refunds = Object.values(state.refunds)
+    .filter((refund) => refund.eventSlug === eventSlug)
+    .map((refund) => `${refund.id}:${refund.status}`);
+  const liveSales = state.liveSales.filter((sale) => findTier(sale.tierId)?.event.slug === eventSlug).length;
+  return [orders.join(","), refunds.join(","), String(liveSales)].join("|");
+}
+
 /** One order, in full, for its organiser. Another organiser's order is simply not found. */
 export interface OrganiserOrder extends OrderRow {
   items: { tierId: string; quantity: number }[];

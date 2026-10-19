@@ -15,7 +15,7 @@ import { authenticate, eventFor, eventsFor, signIn, signOut } from "./domain/acc
 import type { RefundReason } from "@/core/statuses";
 import { salesMetrics, type SalesMetrics } from "./domain/metrics";
 import { requestRefund } from "./domain/refunds";
-import { findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
+import { activityOf, findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
 import {
@@ -235,6 +235,9 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
           order: toOrganiserOrderView(order),
         })),
       ),
+    /** What's happened to each of the account's events' orders, to tell when it changes. */
+    activityFor: (account: Account): Map<string, string> =>
+      new Map(eventsFor(account).map((event) => [event.slug, activityOf(context, event.slug)])),
     /** Sales across the account's events, or for one. */
     salesMetrics: (account: Account, eventSlug?: string): Result<SalesMetrics> =>
       salesMetrics(context, account, eventSlug),

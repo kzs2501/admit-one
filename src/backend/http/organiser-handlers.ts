@@ -10,7 +10,7 @@
  * - **404** — private things that belong to someone else, like their orders, aren't
  *   confirmed to exist.
  */
-import { http } from "msw/http";
+import { http, HttpResponse } from "msw/http";
 import type { Backend } from "@/backend/backend";
 import { toDecimalString } from "@/core/money";
 import { getOrganisation, type Account } from "@/core/organisations";
@@ -32,6 +32,10 @@ import {
 } from "./mappers";
 
 const CHALLENGE = 'Bearer realm="admit-one"';
+/** Often enough that proxies along the way don't close an idle stream. */
+export const HEARTBEAT_MS = 15_000;
+/** Changes are gathered for this long and sent as one event, so a burst is one refresh. */
+export const COALESCE_MS = 250;
 const PRIVATE = { "Cache-Control": "no-store" };
 
 /** `Authorization: Bearer <token>`; the scheme is case-insensitive (RFC 9110 §11.1). */
@@ -199,6 +203,68 @@ export function createOrganiserHandlers(
       });
       await latency();
       return sendPrivate(request, reply);
+    }),
+
+    /**
+     * Server-sent events, streamed as a `text/event-stream` body: `ordersChanged` names
+     * the account's events whose orders, sales or refunds changed — only theirs — and a
+     * comment every 15 seconds keeps the connection alive. The dashboard re-reads what
+     * changed; the stream carries no data itself. It's read with `fetch`, so it can be
+     * authenticated like any other request.
+     */
+    http.get(anyOrigin(API_ROUTES.organiserStream), ({ request }) => {
+      const auth = signedIn(request);
+      if (!auth.ok) return sendPrivate(request, auth.reply);
+      const { account } = auth;
+      const encoder = new TextEncoder();
+      let stop = (): void => {
+        // replaced once the stream starts
+      };
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // A stream the reader has left refuses writes: that's the cue to stop.
+          const write = (frame: string) => {
+            try {
+              controller.enqueue(encoder.encode(frame));
+            } catch {
+              stop();
+            }
+          };
+          let seen = backend.activityFor(account);
+          const changed = new Set<string>();
+          let flushTimer: ReturnType<typeof setTimeout> | undefined;
+          const flush = () => {
+            flushTimer = undefined;
+            write(`event: ordersChanged\ndata: ${JSON.stringify({ eventSlugs: [...changed] })}\n\n`);
+            changed.clear();
+          };
+          const unsubscribe = backend.subscribe(() => {
+            const now = backend.activityFor(account);
+            for (const [slug, activity] of now) if (seen.get(slug) !== activity) changed.add(slug);
+            seen = now;
+            if (changed.size && !flushTimer) flushTimer = setTimeout(flush, COALESCE_MS);
+          });
+          const heartbeat = setInterval(() => {
+            write(": heartbeat\n\n");
+          }, HEARTBEAT_MS);
+          stop = () => {
+            unsubscribe();
+            clearTimeout(flushTimer);
+            clearInterval(heartbeat);
+          };
+          request.signal.addEventListener("abort", stop);
+          write(": connected\n\n");
+        },
+        cancel() {
+          stop();
+        },
+      });
+      backend.log("request", `GET ${new URL(request.url).pathname} → 200 (stream)`);
+      return new HttpResponse(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream", ...PRIVATE },
+      });
     }),
 
     /** One order. Another organiser's is a 404: it isn't confirmed to exist. */

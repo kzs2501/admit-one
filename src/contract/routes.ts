@@ -25,6 +25,8 @@ export const API_ROUTES = {
   organiserOrder: "/api/organiser/orders/:orderId",
   organiserRefunds: "/api/organiser/orders/:orderId/refunds",
   organiserMetrics: "/api/organiser/metrics",
+  /** Server-sent events (`Accept: text/event-stream`) saying when the account's orders change. */
+  organiserStream: "/api/organiser/stream",
 } as const;
 
 export type ApiRoute = (typeof API_ROUTES)[keyof typeof API_ROUTES];

@@ -3,9 +3,10 @@
  * The organisers' API contract: who's signed in, and the difference between 401, 403
  * and 404, as a client sees it.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SESSION_TTL_MS } from "@/backend/domain/access";
 import { getHistory } from "@/backend/domain/history";
+import { purchase } from "@/backend/testing/fixtures";
 import { BASE_URL, createHttpHarness, expectProblem } from "@/backend/testing/http";
 import {
   accountDtoSchema,
@@ -160,6 +161,41 @@ describe("organisers' API", () => {
         "not_found",
       );
     });
+  });
+
+  it("streams ordersChanged for the account's own events only, and refuses a request without a token", async () => {
+    await expectProblem(
+      await call("/api/organiser/stream", { headers: { Accept: "text/event-stream" } }),
+      401,
+      "unauthenticated",
+    );
+    const { token } = await signIn("acc-rangmanch-owner");
+    const controller = new AbortController();
+    const response = await call("/api/organiser/stream", {
+      headers: { ...bearer(token), Accept: "text/event-stream" },
+      signal: controller.signal,
+    });
+    expect(response.headers.get("Content-Type")).toBe("text/event-stream");
+    // Read the raw stream, as any client would: the backend can't use the app's own reader.
+    let text = "";
+    const reader = response.body?.pipeThrough(new TextDecoderStream()).getReader();
+    void (async () => {
+      for (;;) {
+        const chunk = await reader?.read().catch(() => ({ done: true, value: "" }));
+        if (!chunk || chunk.done) return;
+        text += chunk.value;
+      }
+    })();
+
+    purchase(backend, { quantity: 1, eventSlug: "night-market-jazz", tierId: "nmj-student" }); // Lakeside's: not theirs
+    purchase(backend, { quantity: 1 }); // the ceramics session: theirs
+    await vi.waitFor(() => {
+      expect(text).toContain("event: ordersChanged");
+    });
+    expect(text).toContain('data: {"eventSlugs":["open-studio-ceramics"]}');
+    expect(text.match(/event: ordersChanged/g)).toHaveLength(1);
+    expect(text.startsWith(": connected")).toBe(true);
+    controller.abort();
   });
 
   describe("refunds", () => {

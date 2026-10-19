@@ -319,6 +319,14 @@ export const salesMetricsDtoSchema = z.object({
   }),
 });
 
+/**
+ * The organisers' stream: an `ordersChanged` event names the events whose orders,
+ * sales or refunds changed, so the dashboard re-reads what it's showing. It carries no
+ * data itself, so there's one source of truth: the API. A `heartbeat` event comes every
+ * 15 seconds, so idle connections aren't closed along the way.
+ */
+export const ordersChangedEventSchema = z.object({ eventSlugs: z.array(z.string()).min(1) });
+
 export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
 export type TierDto = z.infer<typeof tierDtoSchema>;
 export type SeatDto = z.infer<typeof seatDtoSchema>;
@@ -346,3 +354,4 @@ export type OrganiserOrderDto = z.infer<typeof organiserOrderDtoSchema>;
 export type SalesMetricsDto = z.infer<typeof salesMetricsDtoSchema>;
 export type RefundDto = z.infer<typeof refundDtoSchema>;
 export type RefundResultDto = z.infer<typeof refundResultDtoSchema>;
+export type OrdersChangedEvent = z.infer<typeof ordersChangedEventSchema>;
