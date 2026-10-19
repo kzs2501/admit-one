@@ -16,6 +16,7 @@ import { organiserQueries, shouldShowQueryError } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
+import { RefundAction } from "./refund-action";
 
 const STATUS_LABELS: Record<OrganiserOrderDto["status"], string> = {
   pending: "Pending",
@@ -47,14 +48,10 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
 }
 
 /** One order as its organiser sees it. Another organiser's isn't found — not even confirmed to exist. */
-export function OrderDetail({
-  orderId,
-  actions,
-}: {
-  orderId: string;
-  actions?: (order: OrganiserOrderDto) => React.ReactNode;
-}) {
+export function OrderDetail({ orderId }: { orderId: string }) {
   const query = useQuery(organiserQueries.order(orderId));
+  const account = useQuery(organiserQueries.account());
+  const canRefund = account.data?.permissions.includes("orders:refund") ?? false;
   const order = query.data;
 
   if (shouldShowQueryError(order, query.error)) {
@@ -96,7 +93,7 @@ export function OrderDetail({
               {formatEventTime(order.createdAt, "Asia/Kolkata")}
             </p>
           </div>
-          {actions?.(order)}
+          {canRefund && <RefundAction order={order} />}
         </div>
       </div>
 
