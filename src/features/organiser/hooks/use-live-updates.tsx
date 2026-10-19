@@ -34,10 +34,12 @@ interface LiveUpdates {
   status: LiveStatus;
   isPaused: boolean;
   setIsPaused: (isPaused: boolean) => void;
-  /** Events whose orders changed since the orders table last caught up. */
-  changedSlugs: ReadonlySet<string>;
-  /** The table has caught up: forget the changes so far. */
-  acknowledge: () => void;
+  /**
+   * Changes counted as they arrive: `latest` goes up with each one, and each event
+   * remembers the count at its last change. A view that noted `latest` when it loaded
+   * can tell whether anything it shows has changed since.
+   */
+  changes: { latest: number; byEvent: Readonly<Record<string, number>> };
 }
 
 const LiveUpdatesContext = createContext<LiveUpdates | null>(null);
@@ -58,7 +60,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [isPaused, setIsPaused] = useState(false);
   const [connection, setConnection] = useState<Exclude<LiveStatus, "paused">>("connecting");
-  const [changedSlugs, setChangedSlugs] = useState<ReadonlySet<string>>(() => new Set());
+  const [changes, setChanges] = useState<LiveUpdates["changes"]>({ latest: 0, byEvent: {} });
   const lastRefreshAt = useRef(0);
 
   useEffect(() => {
@@ -76,7 +78,10 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: organiserQueries.orderAll() });
       const slugs = [...pending];
       pending.clear();
-      setChangedSlugs((before) => new Set([...before, ...slugs]));
+      setChanges(({ latest, byEvent }) => ({
+        latest: latest + 1,
+        byEvent: { ...byEvent, ...Object.fromEntries(slugs.map((slug) => [slug, latest + 1])) },
+      }));
     };
     const changed = (slugs: readonly string[]) => {
       for (const slug of slugs) pending.add(slug);
@@ -132,12 +137,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
         if (!shouldPause) setConnection("connecting");
         setIsPaused(shouldPause);
       },
-      changedSlugs,
-      acknowledge: () => {
-        setChangedSlugs(new Set());
-      },
+      changes,
     }),
-    [isPaused, connection, changedSlugs],
+    [isPaused, connection, changes],
   );
   return <LiveUpdatesContext.Provider value={value}>{children}</LiveUpdatesContext.Provider>;
 }

@@ -105,8 +105,8 @@ export async function request<Schema extends z.ZodType>(
   return parsed.data;
 }
 
-/** A file from the API, such as a CSV export: a blob on success, the problem on failure. */
-export async function requestFile(path: string, init: RequestInit = {}): Promise<Blob> {
+/** A file from the API, such as a CSV export: its contents and the name the server gave it, or the problem. */
+export async function requestFile(path: string, init: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
   await readiness;
   let response: Response;
   try {
@@ -114,7 +114,11 @@ export async function requestFile(path: string, init: RequestInit = {}): Promise
   } catch (cause) {
     throw new NetworkError("Couldn’t reach the server. Check your connection and try again.", { cause });
   }
-  if (response.ok) return response.blob();
+  if (response.ok) {
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "download";
+    return { blob: await response.blob(), filename };
+  }
   const problem = problemSchema.safeParse(await response.json().catch(() => undefined));
   if (problem.success) throw new ApiError(problem.data, null);
   throw new NetworkError(`The server answered ${response.status} without a problem description.`);

@@ -43,7 +43,14 @@ function LiveToggle() {
   );
 }
 
-const NAV = [{ href: routes.organiser(), label: "Overview", isCurrent: (path: string) => path === "/organiser" }];
+const NAV = [
+  { href: routes.organiser(), label: "Overview", isCurrent: (path: string) => path === "/organiser" },
+  {
+    href: routes.organiserOrders(),
+    label: "Orders",
+    isCurrent: (path: string) => path.startsWith("/organiser/orders"),
+  },
+];
 
 /**
  * The signed-in dashboard: who you are, where you can go, and whether updates are
