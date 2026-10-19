@@ -6,6 +6,7 @@
  */
 import type { BackendContext } from "./context";
 import { findHistoricalOrder } from "./history";
+import { findLiveSale } from "./reporting";
 import { isHoldLive, returnToSale } from "./inventory";
 import { isOrderOpen, issueTickets, setOrderStatus } from "./orders";
 import type { OrderRecord, OutboxItem, PaymentRecord, RefundRecord } from "./state";
@@ -154,6 +155,15 @@ function processRefundSucceeded(context: BackendContext, { eventId, refundId }: 
     if (payment) payment.status = "refunded";
     const hold = state.holds[order.holdId];
     returnToSale(context, { items: order.items, seatIds: hold?.seatIds ?? [], isFromHistory: false });
+    return;
+  }
+  const liveSale = findLiveSale(context, refund.orderId);
+  if (liveSale) {
+    returnToSale(context, {
+      items: [{ tierId: liveSale.tierId, quantity: liveSale.quantity }],
+      seatIds: liveSale.seatIds,
+      isFromHistory: false,
+    });
     return;
   }
   const historical = findHistoricalOrder(refund.orderId);

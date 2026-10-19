@@ -19,7 +19,7 @@ import {
 } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 12;
+const STATE_VERSION = 13;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -137,6 +137,18 @@ const outboxItemSchema = z.discriminatedUnion("type", [
   outboxItemBaseSchema.extend({ type: z.literal("refund.succeeded"), refundId: z.string() }),
 ]);
 
+/**
+ * A sale to another buyer (the crowd), kept small: who they were and what they paid is
+ * worked out from `seq`, like the history, so only what they bought is stored.
+ */
+const liveSaleSchema = z.object({
+  seq: z.number().int().positive(),
+  tierId: z.string(),
+  quantity: z.number().int().positive(),
+  seatIds: z.array(z.string()),
+  atMs: epochMsSchema,
+});
+
 /** A refund an organiser asked for: pending until the provider's webhook settles it. */
 const refundRecordSchema = z.object({
   id: z.string(),
@@ -177,6 +189,8 @@ const serverStateSchema = z.object({
   returnedTickets: z.record(z.string(), z.number().int().nonnegative()),
   /** Seats sold before the sandbox that a refund has put back on sale. */
   releasedSeatIds: z.array(z.string()),
+  /** Other buyers' sales in this sandbox, oldest first. */
+  liveSales: z.array(liveSaleSchema),
   /** The "seat snatched" preset takes a requested seat once, so the retry can succeed. */
   hasSnatchedSeat: z.boolean(),
   holds: z.record(z.string(), holdRecordSchema),
@@ -202,6 +216,7 @@ export type QueueEntryRecord = z.infer<typeof queueEntryRecordSchema>;
 export type IdempotencyRecord = z.infer<typeof idempotencyRecordSchema>;
 export type OutboxItem = z.infer<typeof outboxItemSchema>;
 export type RefundRecord = z.infer<typeof refundRecordSchema>;
+export type LiveSale = z.infer<typeof liveSaleSchema>;
 export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;
@@ -214,6 +229,7 @@ export const createInitialState = (presetId: ServerState["presetId"], createdAtM
   soldSeatIds: [],
   returnedTickets: {},
   releasedSeatIds: [],
+  liveSales: [],
   hasSnatchedSeat: false,
   holds: {},
   queueEntries: {},

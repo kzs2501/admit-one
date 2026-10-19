@@ -30,6 +30,8 @@ export interface ChaosConfig {
   shouldExpireHoldDuringPayment: boolean;
   /** Other buyers compete for the same tickets. */
   isCrowdEnabled: boolean;
+  /** How often one of them buys a ticket in the background. */
+  crowdIntervalMs: number;
   /** Lose the response to an order's first charge: the server did the work, the browser never hears. */
   shouldDropFirstPaymentResponse: boolean;
   /** Lose this many order-status responses after the first, as a flaky connection would. */
@@ -65,6 +67,7 @@ export const PRESET_IDS = [
   "upi-declined",
   "upi-expires",
   "refunds-fail",
+  "busy-on-sale",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -88,6 +91,7 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   forcedOutcome: null,
   shouldExpireHoldDuringPayment: false,
   isCrowdEnabled: false,
+  crowdIntervalMs: 6_000,
   shouldDropFirstPaymentResponse: false,
   droppedStatusChecks: 0,
   shouldSnatchRequestedSeat: false,
@@ -211,6 +215,13 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     expectation:
       "The dashboard shows “Refund pending” at once, then rolls the order back to fulfilled and says why, with focus on the message.",
     config: { shouldFailRefunds: true },
+  },
+  "busy-on-sale": {
+    label: "Busy on-sale",
+    description: "Other buyers (simulated) buy a ticket every second and a half while you watch.",
+    expectation:
+      "The organisers’ dashboard updates live — tickets sold, revenue, the day’s sales — without a reload, and offers new orders in the table rather than moving it under you.",
+    config: { isCrowdEnabled: true, crowdIntervalMs: 1_500 },
   },
 };
 

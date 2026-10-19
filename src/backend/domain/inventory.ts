@@ -107,9 +107,31 @@ function describeSeats(seats: readonly Seat[]) {
   return first && seats.length === 1 ? seatLabel(first) : formatSeatList(seats);
 }
 
+/** Other buyers' sales stop here, so a long session can't fill the sandbox's storage. */
+export const LIVE_SALES_LIMIT = 5_000;
+
+/** Another buyer's sale, as an order the organiser will see. */
+function recordLiveSale(context: BackendContext, tierId: string, quantity: number, seatIds: readonly string[]) {
+  const { liveSales } = context.state;
+  liveSales.push({
+    seq: (liveSales.at(-1)?.seq ?? 0) + 1,
+    tierId,
+    quantity,
+    seatIds: [...seatIds],
+    atMs: context.deps.now(),
+  });
+}
+
 function sellSeatsToCrowd(context: BackendContext, seats: readonly Seat[], why: string) {
-  if (seats.length === 0) return;
+  const [first] = seats;
+  if (!first) return;
   context.state.soldSeatIds.push(...seats.map((seat) => seat.id));
+  recordLiveSale(
+    context,
+    first.tierId,
+    seats.length,
+    seats.map((seat) => seat.id),
+  );
   context.log("crowd", `Another buyer took ${describeSeats(seats)} (${why}).`);
 }
 
@@ -124,6 +146,7 @@ function recordCrowdPurchase(context: BackendContext, tierId: string, quantity: 
     return;
   }
   context.state.sold[tierId] = (context.state.sold[tierId] ?? 0) + quantity;
+  recordLiveSale(context, tierId, quantity, []);
   context.log("crowd", `Another buyer took ${quantity} × ${tier.name} (${why}).`);
 }
 
@@ -259,7 +282,7 @@ export function findSeatAvailability(context: BackendContext, eventSlug: string)
 
 /** Background buying, so availability visibly moves while the crowd preset is on. */
 export function runCrowdTick(context: BackendContext): boolean {
-  if (!context.chaos().isCrowdEnabled) return false;
+  if (!context.chaos().isCrowdEnabled || context.state.liveSales.length >= LIVE_SALES_LIMIT) return false;
   const candidates = CATALOG.flatMap((event) => event.tiers).filter(
     (tier) => availableQuantity(context, tier.id) > CROWD_BACKGROUND_ABOVE,
   );

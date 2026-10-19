@@ -4,7 +4,7 @@
  * the funnel and webhook lag come from the orders — the same rows the orders table
  * lists.
  */
-import type { EventInfo } from "@/core/catalog";
+import { findTier, type EventInfo } from "@/core/catalog";
 import { getOrganisation, type Account } from "@/core/organisations";
 import type { CurrencyCode } from "@/core/money";
 import type { OrderStatus, PaymentMethod } from "@/core/statuses";
@@ -115,6 +115,8 @@ export function salesMetrics(context: BackendContext, account: Account, eventSlu
   const abandonedHolds = [...slugs].reduce((sum, slug) => sum + (history.abandonedHolds[slug] ?? 0), 0);
   const sandboxHolds = Object.values(context.state.holds).filter((hold) => slugs.has(hold.eventSlug)).length;
   const historyOrders = history.orders.filter((order) => slugs.has(order.eventSlug)).length;
+  // Other buyers buy outright, but every sale began as a hold.
+  const liveSales = context.state.liveSales.filter((sale) => slugs.has(findTier(sale.tierId)?.event.slug ?? "")).length;
 
   const lags = paid.flatMap((row) => (row.webhookLagMs === null ? [] : [row.webhookLagMs])).sort((a, b) => a - b);
 
@@ -131,7 +133,7 @@ export function salesMetrics(context: BackendContext, account: Account, eventSlu
     averageOrderMinor: paid.length ? Math.round(grossMinor / paid.length) : 0,
     salesByDay,
     funnel: {
-      holds: historyOrders + abandonedHolds + sandboxHolds,
+      holds: historyOrders + abandonedHolds + sandboxHolds + liveSales,
       orders: rows.length,
       paid: paid.length,
       fulfilled: rows.filter((row) => row.status === "fulfilled").length,

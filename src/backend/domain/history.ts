@@ -238,6 +238,21 @@ export function generateHistory(seed = SEED): History {
   };
 }
 
+/** Another buyer in this sandbox — the crowd — made up from their sale's number, the same every time. */
+export function otherBuyer(seq: number) {
+  const random = seededRandom(SEED + seq);
+  const first = pick(random, FIRST_NAMES);
+  const last = pick(random, LAST_NAMES);
+  const method: PaymentMethod = random() < UPI_SHARE ? "upi" : "card";
+  return {
+    name: `${first} ${last}`,
+    email: `${first}.${last.replace(/\W/g, "")}.${String(seq)}@example.com`.toLowerCase(),
+    method,
+    last4: method === "card" ? String(1000 + Math.floor(random() * 9000)) : null,
+    webhookLagMs: webhookLag(random),
+  };
+}
+
 let history: History | null = null;
 let byId: ReadonlyMap<string, HistoricalOrder> | null = null;
 

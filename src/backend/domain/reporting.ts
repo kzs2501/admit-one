@@ -19,9 +19,11 @@ import { ticketCount } from "@/core/ticketing";
 import { eventFor } from "./access";
 import type { BackendContext } from "./context";
 import { fail, ok, type Result } from "./errors";
-import { findHistoricalOrder, getHistory, type HistoricalOrder } from "./history";
+import { findHistoricalOrder, getHistory, otherBuyer, type HistoricalOrder } from "./history";
 import { resolveOrderStatus } from "./orders";
-import type { OrderRecord, RefundRecord } from "./state";
+import { findTier } from "@/core/catalog";
+import { priceOrder } from "@/core/pricing";
+import type { LiveSale, OrderRecord, RefundRecord } from "./state";
 
 /** One order, as a row in the organiser's table. */
 export interface OrderRow {
@@ -77,6 +79,37 @@ const fromHistory = (order: HistoricalOrder, createdAtMs: number, refund: Refund
   refundStatus: refund?.status ?? null,
 });
 
+/** Other buyers' orders are `ord_l` and their sale's number. */
+export const liveSaleOrderId = (sale: LiveSale) => `ord_l${String(sale.seq).padStart(5, "0")}`;
+
+const priced = new Map<string, Amounts>();
+
+function fromLiveSale(sale: LiveSale, refund: RefundRecord | undefined): OrderRow {
+  const found = findTier(sale.tierId);
+  const eventSlug = found?.event.slug ?? "";
+  const key = `${sale.tierId}:${String(sale.quantity)}`;
+  const amounts =
+    priced.get(key) ?? priceOrder(getEvent(eventSlug), [{ tierId: sale.tierId, quantity: sale.quantity }], {});
+  priced.set(key, amounts);
+  const buyer = otherBuyer(sale.seq);
+  return {
+    id: liveSaleOrderId(sale),
+    eventSlug,
+    createdAtMs: sale.atMs,
+    buyerName: buyer.name,
+    buyerEmail: buyer.email,
+    ticketCount: sale.quantity,
+    amounts,
+    status: refund?.status === "succeeded" ? "refunded" : "fulfilled",
+    method: buyer.method,
+    webhookLagMs: buyer.webhookLagMs,
+    refundStatus: refund?.status ?? null,
+  };
+}
+
+export const findLiveSale = (context: BackendContext, orderId: string) =>
+  context.state.liveSales.find((sale) => liveSaleOrderId(sale) === orderId);
+
 function fromSandbox(context: BackendContext, order: OrderRecord, refund: RefundRecord | undefined): OrderRow {
   const buyer = order.attendees[0];
   const payment = order.paymentId ? context.state.payments[order.paymentId] : undefined;
@@ -106,6 +139,7 @@ export function visibleRows(context: BackendContext, account: Account, permissio
     ...Object.values(context.state.orders)
       .filter(isVisible)
       .map((order) => fromSandbox(context, order, refunds.get(order.id))),
+    ...context.state.liveSales.map((sale) => fromLiveSale(sale, refunds.get(liveSaleOrderId(sale)))).filter(isVisible),
   ];
 }
 
@@ -255,7 +289,9 @@ export function findOrganiserOrder(context: BackendContext, account: Account, or
   const notFound = fail({ code: "not_found", detail: "That order doesn’t exist." });
   const historical = findHistoricalOrder(orderId);
   const sandboxOrder = context.state.orders[orderId];
-  const eventSlug = historical?.eventSlug ?? sandboxOrder?.eventSlug;
+  const liveSale = findLiveSale(context, orderId);
+  const eventSlug =
+    historical?.eventSlug ?? sandboxOrder?.eventSlug ?? (liveSale && findTier(liveSale.tierId)?.event.slug);
   const event = eventSlug === undefined ? undefined : findEvent(eventSlug);
   if (!event || !can(account, "orders:read", event)) return notFound;
   const refund = refundsOf(context).get(orderId);
@@ -269,6 +305,18 @@ export function findOrganiserOrder(context: BackendContext, account: Account, or
       addOns: historical.addOns,
       attendees: [historical.buyer],
       last4: historical.last4,
+      refunds,
+    });
+  }
+  if (liveSale) {
+    const buyer = otherBuyer(liveSale.seq);
+    return ok({
+      ...fromLiveSale(liveSale, refund),
+      items: [{ tierId: liveSale.tierId, quantity: liveSale.quantity }],
+      seatIds: liveSale.seatIds,
+      addOns: {},
+      attendees: [{ name: buyer.name, email: buyer.email }],
+      last4: buyer.last4,
       refunds,
     });
   }

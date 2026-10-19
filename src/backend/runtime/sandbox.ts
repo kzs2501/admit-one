@@ -10,8 +10,6 @@
 import { createBackend, type Backend } from "@/backend/backend";
 import { createInitialState, deserializeState, SANDBOX_STORAGE_KEY, serializeState } from "@/backend/domain/state";
 
-const CROWD_INTERVAL_MS = 6_000;
-
 let sandboxInstance: Backend | null = null;
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
@@ -48,6 +46,7 @@ function save(sandbox: Backend) {
 function startRuntime(sandbox: Backend) {
   let webhookTimer: ReturnType<typeof setTimeout> | undefined;
   let crowdTimer: ReturnType<typeof setInterval> | undefined;
+  let crowdIntervalMs = 0;
 
   const schedule = () => {
     clearTimeout(webhookTimer);
@@ -56,11 +55,13 @@ function startRuntime(sandbox: Backend) {
       webhookTimer = setTimeout(() => sandbox.deliverDue(), Math.max(0, dueAtMs - Date.now()));
     }
 
-    const isCrowdEnabled = sandbox.chaos().isCrowdEnabled;
-    if (isCrowdEnabled && !crowdTimer) crowdTimer = setInterval(() => sandbox.runCrowdTick(), CROWD_INTERVAL_MS);
-    if (!isCrowdEnabled && crowdTimer) {
+    // Restart the crowd when it's switched on or off, or its pace changes with the preset.
+    const { isCrowdEnabled, crowdIntervalMs: pace } = sandbox.chaos();
+    const wanted = isCrowdEnabled ? pace : 0;
+    if (wanted !== crowdIntervalMs) {
       clearInterval(crowdTimer);
-      crowdTimer = undefined;
+      crowdTimer = wanted ? setInterval(() => sandbox.runCrowdTick(), wanted) : undefined;
+      crowdIntervalMs = wanted;
     }
   };
 
