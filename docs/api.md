@@ -15,7 +15,7 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
   `<origin>/problems/<slug>` (`sold_out` → `/problems/sold-out`); `instance` is the
   request's absolute URL.
 - **Idempotency:** `POST /api/orders/:orderId/payments` requires an `Idempotency-Key`
-  header. The response to an attempted charge is stored and replayed for any repeat of
+  header. The response to an attempted payment is stored and replayed for any repeat of
   the same request — the same method, path and body, every field compared (by SHA-256
   hash, so no card details are stored). The same key with a different request is a
   `422 idempotency_key_reused`. Requests rejected before charging aren't stored, and keys
@@ -29,22 +29,62 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
 
 ## Endpoints
 
-| Method and path                           | Body                                                                                             | Success                                                                        | Problems                                                                                                                                                                                                 |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/events`                         | —                                                                                                | `200` `EventDto[]` with live `available` per tier                              | —                                                                                                                                                                                                        |
-| `GET /api/events/:slug`                   | —                                                                                                | `200` `EventDto`                                                               | `not_found`                                                                                                                                                                                              |
-| `POST /api/events/:slug/queue`            | —                                                                                                | `201` a new place / `200` your existing one, `QueueEntryDto`                   | `not_found`, `invalid_state` (no queue right now)                                                                                                                                                        |
-| `GET /api/queue/:token`                   | —                                                                                                | `200` `QueueEntryDto`                                                          | `not_found`                                                                                                                                                                                              |
-| `GET /api/events/:slug/seats`             | —                                                                                                | `200` `{ eventSlug, unavailableSeatIds, serverTime }`                          | `not_found` (no such event, or no reserved seating)                                                                                                                                                      |
-| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`, or `{ eventSlug, seatIds }` for reserved seating | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`), `seats_unavailable` (`seatIds`), `single_seat_gap` (`seatIds`), `rate_limited` (`retryAfterSeconds`), `queue_required` (`eventSlug`) |
-| `GET /api/holds/:holdId`                  | —                                                                                                | `200` `HoldDetailsDto`                                                         | `not_found`                                                                                                                                                                                              |
-| `POST /api/orders`                        | `{ holdId, attendees: [{ name, email }], addOns: { [addOnId]: quantity } }`                      | `201` created / `200` updated, `OrderDto`                                      | `invalid_request`, `not_found`, `hold_expired`, `payment_in_progress`, `already_completed`                                                                                                               |
-| `GET /api/orders/:orderId`                | —                                                                                                | `200` `OrderDto`                                                               | `not_found`                                                                                                                                                                                              |
-| `POST /api/orders/:orderId/payments`      | `{ number, expiry, cvc, name }` + `Idempotency-Key`                                              | `202` `{ payment, order }` — `processing`, or `requires_action` for 3-D Secure | `missing_idempotency_key`, `idempotency_key_reused`, `invalid_card`, `card_declined` (`paymentId`), `hold_expired`, `payment_in_progress`, `already_completed`, `not_found`                              |
-| `POST /api/payments/:paymentId/challenge` | `{ decision: "approve" \| "reject" }`                                                            | `202` `{ payment, order }`                                                     | `authentication_failed` (`paymentId`), `invalid_state`, `not_found`                                                                                                                                      |
+| Method and path                           | Body                                                                                             | Success                                                                             | Problems                                                                                                                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/events`                         | —                                                                                                | `200` `EventDto[]` with live `available` per tier                                   | —                                                                                                                                                                                                        |
+| `GET /api/events/:slug`                   | —                                                                                                | `200` `EventDto`                                                                    | `not_found`                                                                                                                                                                                              |
+| `POST /api/events/:slug/queue`            | —                                                                                                | `201` a new place / `200` your existing one, `QueueEntryDto`                        | `not_found`, `invalid_state` (no queue right now)                                                                                                                                                        |
+| `GET /api/queue/:token`                   | —                                                                                                | `200` `QueueEntryDto`                                                               | `not_found`                                                                                                                                                                                              |
+| `GET /api/events/:slug/seats`             | —                                                                                                | `200` `{ eventSlug, unavailableSeatIds, serverTime }`                               | `not_found` (no such event, or no reserved seating)                                                                                                                                                      |
+| `POST /api/holds`                         | `{ eventSlug, items: [{ tierId, quantity }] }`, or `{ eventSlug, seatIds }` for reserved seating | `201` `HoldDetailsDto` (`hold`, `event`, `order`, `serverTime`)                     | `invalid_request`, `not_found`, `sold_out` (`tierId`, `available`), `seats_unavailable` (`seatIds`), `single_seat_gap` (`seatIds`), `rate_limited` (`retryAfterSeconds`), `queue_required` (`eventSlug`) |
+| `GET /api/holds/:holdId`                  | —                                                                                                | `200` `HoldDetailsDto`                                                              | `not_found`                                                                                                                                                                                              |
+| `POST /api/orders`                        | `{ holdId, attendees: [{ name, email }], addOns: { [addOnId]: quantity } }`                      | `201` created / `200` updated, `OrderDto`                                           | `invalid_request`, `not_found`, `hold_expired`, `payment_in_progress`, `already_completed`                                                                                                               |
+| `GET /api/orders/:orderId`                | —                                                                                                | `200` `OrderDto`                                                                    | `not_found`                                                                                                                                                                                              |
+| `POST /api/orders/:orderId/payments`      | `{ method?: "card", number, expiry, cvc, name }` or `{ method: "upi" }`, + `Idempotency-Key`     | `202` `{ payment, order }` — `processing`, or `requires_action` with a `nextAction` | `missing_idempotency_key`, `idempotency_key_reused`, `invalid_card`, `invalid_request` (UPI), `card_declined` (`paymentId`), `hold_expired`, `payment_in_progress`, `already_completed`, `not_found`     |
+| `POST /api/payments/:paymentId/challenge` | `{ decision: "approve" \| "reject" }`                                                            | `202` `{ payment, order }`                                                          | `authentication_failed` (`paymentId`), `invalid_state`, `not_found`                                                                                                                                      |
+| `POST /api/payments/:paymentId/cancel`    | —                                                                                                | `200` `{ payment, order }` — failed, `cancelled`; the same again if repeated        | `invalid_state` (already approved, or over), `not_found`                                                                                                                                                 |
 
 A `202` never means "paid". The order becomes `paid` and then `fulfilled` when the
 provider's webhook arrives; poll `GET /api/orders/:orderId` until its `status` settles.
+
+A payment is `{ id, method, status, last4, failureCode, nextAction }`. While its status
+is `requires_action`, `nextAction` says what the buyer must do: `{ type:
+"card_challenge" }` for 3-D Secure, or `{ type: "upi", intentUri, expiresAt }`. `last4`
+is `null` for UPI.
+
+## Prices and tax
+
+Every price is all in: what a buyer sees first is what they pay
+([ADR 012](decisions/012-gst-and-all-in-pricing.md)). An order's `amounts` are:
+
+- `ticketsMinor` and `addOnsMinor`, before tax;
+- `feesMinor`, the booking fee: 3% of each ticket;
+- `taxMinor`, the sum of `taxLines`;
+- `totalMinor`, what's charged.
+
+Each tax line is `{ kind, rateBasisPoints, taxableMinor, amountMinor }`, with `kind`
+one of `tickets`, `tickets-exempt` (admission of ₹500 or less, at 0%), `booking-fee`
+or `add-ons` (one line per rate). GST is 18% on admission and on the fee. It's worked
+out per ticket in paise, rounding half-up, as CGST and SGST halves each rounded. One
+ticket's all-in price times the quantity is exactly that line's cost.
+
+## Paying by UPI
+
+For orders in rupees ([ADR 013](decisions/013-upi-by-intent-and-qr.md)):
+
+1. **Ask for a request:** `POST /api/orders/:orderId/payments` with `{ "method": "upi" }`
+   and an `Idempotency-Key`. The answer is `202`, with the payment in `requires_action`
+   and `nextAction: { type: "upi", intentUri, expiresAt }`. A body with anything else
+   in it, such as the buyer's UPI ID for a "collect" request, is `422 invalid_request`.
+   Merchants can no longer collect.
+2. **Show it:** open `intentUri` (a `upi://pay` link) on a phone, or show it as a QR
+   code to scan on a computer.
+3. **Wait:** the buyer approves or declines in their UPI app, outside this API. Poll
+   `GET /api/orders/:orderId`. Once approved, the payment is `processing` and the order
+   settles by webhook, as for a card. A declined payment is `failed` with `upi_declined`.
+4. **Or give up:** after `expiresAt` (5 minutes, never past the hold), the payment reads
+   as `failed` with `upi_expired`. `POST /api/payments/:paymentId/cancel` ends it
+   sooner, with `cancelled`. Either way, a new payment can follow.
 
 ## Waiting room
 
@@ -91,7 +131,7 @@ catalogue (`src/core/venues.ts`); only what changes comes from the API.
 stateDiagram-v2
   [*] --> pending
   pending --> paid: webhook payment.succeeded
-  pending --> failed: declined / authentication failed
+  pending --> failed: declined, authentication failed, UPI request declined, expired or cancelled
   failed --> pending: new payment attempt
   pending --> expired: hold ran out, nothing in flight
   failed --> expired

@@ -13,8 +13,8 @@ flowchart LR
   app -.->|"would be, in production"| provider[("Payment provider\n(simulated inside the backend)")]
 ```
 
-There are no external systems: the payment provider, its webhooks and the other buyers
-(the "crowd") are simulated inside the backend, so anyone can run the demo with no
+There are no external systems: the payment provider, its webhooks, the buyer's UPI app
+(a simulated phone) and the other buyers (the "crowd") are simulated inside the backend, so anyone can run the demo with no
 accounts, keys or cost — and every tab gets its own sandbox.
 
 ## 2. Containers
@@ -71,7 +71,7 @@ flowchart TB
 | `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                     | the domain, the adapter                 |
 | `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                          | `core`, `contract`                      |
 | `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                             | `lib`, `core`                           |
-| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `usePayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`) and the components that render them                               | everything above; never another feature |
+| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `useCardPayment`, `useUpiPayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`) and the components that render them          | everything above; never another feature |
 | `app/`            | Routes and error boundaries; composes features                                                                                                                                         | everything except backend internals     |
 
 **The rule is enforced, not just described.** `eslint.config.mjs` declares these as
@@ -108,6 +108,11 @@ sequenceDiagram
 - **The contract is schema-first**: Zod schemas parsed at both ends, ISO 8601 on the
   wire, `…Ms` inside ([007](decisions/007-typed-contract-and-iso-times.md)).
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
+- **Prices are all in** — fees and GST included from the first screen, worked out by one
+  engine with the tax rules as data ([012](decisions/012-gst-and-all-in-pricing.md)).
+- **UPI is a request, settled by webhook** — an intent link or QR code, approved in
+  another app, expiring lazily and cancellable; payment methods are a registry
+  ([013](decisions/013-upi-by-intent-and-qr.md)).
 - **High demand** — a waiting room (first in, first out, computed from the clock, the
   server setting the polling pace) gates reserving with a `Queue-Token`, and reserving
   is rate-limited with `429` + `Retry-After`
@@ -145,5 +150,7 @@ way it's used:
   conditional `UPDATE … WHERE available >= quantity`), and webhook dedupe a unique insert.
 - A real provider adapter behind the same payment port, with webhook signature
   verification (HMAC over the raw body, with a timestamp check against replay).
-- Authentication, rate limiting on holds, email delivery, and observability on webhook
-  lag. None of these are half-built here; they're next steps.
+- For UPI, intents and QR codes signed by the provider, and a status check with the
+  provider when a webhook is late.
+- Authentication, email delivery, and observability on webhook lag. None of these are
+  half-built here; they're next steps.

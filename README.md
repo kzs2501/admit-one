@@ -2,9 +2,10 @@
 
 **An event-ticketing checkout, done properly — with a chaos panel to break it on purpose.**
 
-Timed ticket holds that can't oversell, a seat map you can use with a keyboard, a typed
-step registry driven by the URL, idempotent payments, deduplicated webhooks, and an
-order page that waits for the truth instead of trusting a redirect. Pick a failure from the chaos panel — a declined
+Timed ticket holds that can't oversell, a seat map you can use with a keyboard, prices
+that are all in from the first screen, card or UPI, a typed step registry driven by the
+URL, idempotent payments, deduplicated webhooks, and an order page that waits for the
+truth instead of trusting a redirect. Pick a failure from the chaos panel — a declined
 card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buying the
 last ticket — and watch the checkout handle it while the server log explains why.
 
@@ -33,9 +34,12 @@ is also an end-to-end test that checks both what you see and what the server rec
 | Seat snatched              | Someone takes one of your chosen seats first           | Nothing held; the lost seat is named and the rest stay chosen                    |
 | Too many attempts          | Reserving limited to 3 tries every 15 s                | A 429 with Retry-After; Reserve counts down, then works                          |
 | Flash sale                 | 40,000 people (simulated) arrive at once               | A waiting room: your place, an honest wait, your turn announced                  |
+| UPI declined               | You approve on your phone; your bank says no           | The webhook says so; a focused notice, nothing taken, pay by card instead        |
+| UPI request expires        | A 15-second request nobody approves                    | The request runs out, the page says so, and a new one can be asked for           |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
-`4000 0025 0000 3155` asks for 3-D Secure.
+`4000 0025 0000 3155` asks for 3-D Secure. Or pay by UPI, and approve or decline on the
+simulated phone that appears below the checkout.
 
 ## The hard parts
 
@@ -94,6 +98,26 @@ so and moves focus, but doesn't redirect you. Reserving is also rate-limited: th
 fourth try in 15 seconds is a 429 with `Retry-After`, and the page waits exactly that
 long. ([decision](docs/decisions/011-waiting-room-and-rate-limits.md))
 
+### 7. The price you see is the price you pay
+
+Showing a base price and adding fees at checkout is drip pricing, which India's dark
+patterns guidelines and the US FTC's fees rule both ban. So every price on screen is all
+in: the 3% booking fee and GST included, with what it's made of one line away. One
+pricing engine serves the server's charge and every label. GST rules are data: 18% on
+admission, none at ₹500 or less, and 18% on the fee. Tax is worked out per ticket in
+paise, as CGST and SGST halves each rounded, so one ticket's price times the quantity
+is exactly the total. ([decision](docs/decisions/012-gst-and-all-in-pricing.md))
+
+### 8. UPI: approved in another app, settled by webhook
+
+Merchants can't send "collect" requests any more (NPCI, 2026), so a UPI payment is an
+intent. That's a `upi://pay` link, with the merchant category code and a reference
+unique to the payment, shown as a QR code on a computer or opened as the UPI app on a
+phone. The buyer answers in another app, so the page never learns the outcome from the
+browser: it re-reads the order, and the webhook decides. A request runs out after five
+minutes (lazily, like a hold), never outlasts the hold, and can be cancelled to pay by
+card. ([decision](docs/decisions/013-upi-by-intent-and-qr.md))
+
 ## How it works
 
 ```mermaid
@@ -149,13 +173,13 @@ nothing else depends on it.
 
 ## Quality
 
-| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                          |
-| `npm test`                   | 212 unit, component and HTTP-contract tests: inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                   |
-| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                 |
-| `npm run test:e2e`           | 39 browser tests: one per chaos preset, plus a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
-| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                                                                                                                  |
+| `npm test`                   | 268 unit, component and HTTP-contract tests: pricing and GST, UPI intents, expiry and cancelling, inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                                                      |
+| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `npm run test:e2e`           | 50 browser tests: one per chaos preset, plus paying by UPI (approved, declined, expired, cancelled, after a refresh), all-in prices, a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
@@ -163,8 +187,8 @@ their fields and the first one gets focus; the chaos panel and 3-D Secure challe
 native `<dialog>`s.
 
 Money is an integer amount in minor units together with its currency (the events are
-priced in INR), priced by one shared function (`priceOrder`) on both the client and the
-server, so the total you see is the total that's charged. Errors are RFC 9457 problem
+priced in INR), priced by one engine (`core/pricing.ts`) on both the client and the
+server, so the price you see is the price that's charged. Errors are RFC 9457 problem
 details — see [docs/api.md](docs/api.md).
 
 ## Running it
@@ -183,11 +207,11 @@ No environment variables, keys or accounts needed.
 ```
 src/
   app/              routes, error boundaries, providers; /problems documents every error type
-  features/         events · checkout · orders · sandbox — view-model hooks and their components
+  features/         events · checkout · orders · queue · sandbox — view-model hooks and their components
   components/ui/    design-system primitives (Button, TextField, Notice, ErrorState, …)
   lib/              API client, query factories, routes, safe storage, formatting
   contract/         the HTTP contract: routes, DTO and request schemas, problem types
-  core/             the shared kernel: catalogue, money, statuses, validation
+  core/             the shared kernel: catalogue, pricing and GST, statuses, validation
   backend/          the simulated service: domain, HTTP adapter, runtime, chaos presets
   instrumentation-client.ts   starts the backend before the app is interactive
 docs/               architecture, conventions, API, and decision records

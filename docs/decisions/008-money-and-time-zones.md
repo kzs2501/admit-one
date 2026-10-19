@@ -1,6 +1,6 @@
 # 008 — Currency and time zone are data
 
-**Status:** Accepted
+**Status:** Accepted. The fee rule is amended by [012](012-gst-and-all-in-pricing.md): 3% of each ticket, with GST.
 
 ## Context
 
