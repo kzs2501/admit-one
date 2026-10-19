@@ -1,6 +1,7 @@
 /**
  * Halls with reserved seating, as data. Fictional, like everything in the catalogue.
  */
+import { seededRandom } from "./random";
 import { expandLayout, type RowSpec, type SeatPlan, type VenueLayout } from "./seating";
 
 /** Theatres skip I and O, which read as 1 and 0 on a ticket. */
@@ -32,17 +33,6 @@ export const RANGMANCH_LAYOUT: VenueLayout = {
 };
 
 export const RANGMANCH_PLAN: SeatPlan = expandLayout(RANGMANCH_LAYOUT);
-
-/** mulberry32: a tiny seeded generator, so "already sold" is the same on every run. */
-function seededRandom(seed: number) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
-    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
-    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
 
 /**
  * Seats sold before the sandbox started: runs of two to four, the way groups book,

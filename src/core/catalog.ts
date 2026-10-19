@@ -6,6 +6,7 @@
  * All events, venues and people are fictional.
  */
 import type { CurrencyCode } from "./money";
+import type { OrganisationId } from "./organisations";
 import type { SeatPlan } from "./seating";
 import { baselineSoldSeatIds, RANGMANCH_PLAN } from "./venues";
 
@@ -44,6 +45,8 @@ export type Seating =
 
 export interface EventInfo {
   slug: string;
+  /** The organisation that runs it, and whose accounts may see its orders. */
+  organiserId: OrganisationId;
   name: string;
   tagline: string;
   /** ISO 8601, with the venue's offset. */
@@ -75,6 +78,7 @@ function seatedTier(
 export const CATALOG: EventInfo[] = [
   {
     slug: "frontend-systems-summit",
+    organiserId: "lakeside-live",
     name: "Frontend Systems Summit",
     tagline: "One day of talks on design systems, performance and the web platform.",
     startsAt: "2026-11-21T09:30:00+05:30",
@@ -122,6 +126,7 @@ export const CATALOG: EventInfo[] = [
   },
   {
     slug: "night-market-jazz",
+    organiserId: "lakeside-live",
     name: "Night Market Jazz",
     tagline: "A standing-room trio set in a covered courtyard.",
     startsAt: "2026-11-07T20:00:00+05:30",
@@ -154,6 +159,7 @@ export const CATALOG: EventInfo[] = [
   },
   {
     slug: "open-studio-ceramics",
+    organiserId: "rangmanch-arts",
     name: "Open Studio: Ceramics",
     tagline: "Two hours at the wheel, materials and firing included.",
     startsAt: "2026-12-05T11:00:00+05:30",
@@ -178,6 +184,7 @@ export const CATALOG: EventInfo[] = [
   },
   {
     slug: "monsoon-strings",
+    organiserId: "rangmanch-arts",
     name: "Monsoon Strings",
     tagline: "A chamber orchestra plays The Four Seasons — and four new ones, written for the monsoon.",
     startsAt: "2026-12-12T19:00:00+05:30",
@@ -214,6 +221,55 @@ export const CATALOG: EventInfo[] = [
         name: "Printed programme",
         description: "Notes on every piece; collected at the door.",
         priceMinor: 15000,
+        gstRateBasisPoints: 1800,
+      },
+    ],
+  },
+  {
+    slug: "lakeside-lights",
+    organiserId: "lakeside-live",
+    name: "Lakeside Lights Festival",
+    tagline: "Two days of music by the water, and a lantern parade at dusk.",
+    startsAt: "2027-01-16T14:00:00+05:30",
+    timeZone: "Asia/Kolkata",
+    currency: "INR",
+    venue: "Lakefront Grounds",
+    city: "Udaipur",
+    seating: { kind: "general" },
+    description:
+      "Twenty acts across two stages over a weekend, with food stalls, a craft market and a lantern parade along the shore on both evenings. Day passes are for either day; weekend passes are for both.",
+    tiers: [
+      {
+        id: "llf-day",
+        name: "Day pass",
+        description: "Either day, gates from 2 pm.",
+        priceMinor: 249900,
+        capacity: 12_000,
+        baselineSold: 8_400,
+      },
+      {
+        id: "llf-weekend",
+        name: "Weekend pass",
+        description: "Both days.",
+        priceMinor: 399900,
+        capacity: 7_000,
+        baselineSold: 4_550,
+      },
+      {
+        id: "llf-vip",
+        name: "VIP weekend",
+        description: "Both days, with a raised deck by the main stage and shaded seating.",
+        priceMinor: 1299900,
+        capacity: 500,
+        baselineSold: 360,
+      },
+    ],
+    addOns: [
+      {
+        id: "llf-parking",
+        name: "Parking pass",
+        description: "One car, both days.",
+        priceMinor: 50000,
         gstRateBasisPoints: 1800,
       },
     ],

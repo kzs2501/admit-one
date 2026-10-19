@@ -27,7 +27,7 @@ export interface TierView {
 /** How the event is sold; a reserved hall's layout is static content, so only its id goes out. */
 export type SeatingView = { kind: "general" } | { kind: "reserved"; venueId: string };
 
-export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating"> & {
+export type EventView = Omit<EventInfo, "tiers" | "addOns" | "seating" | "organiserId"> & {
   seating: SeatingView;
   isQueueActive: boolean;
   tiers: TierView[];
