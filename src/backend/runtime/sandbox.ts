@@ -16,6 +16,15 @@ let sandboxInstance: Backend | null = null;
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 
+/** 256 random bits, base64url: far beyond guessing (OWASP asks for at least 64 bits of entropy). */
+function newToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
 function load() {
   try {
     return deserializeState(sessionStorage.getItem(SANDBOX_STORAGE_KEY));
@@ -65,7 +74,10 @@ function startRuntime(sandbox: Backend) {
 /** The tab's sandbox, created (and restored) on first use. Browser only. */
 export function getSandbox(): Backend {
   if (!sandboxInstance) {
-    sandboxInstance = createBackend({ now: Date.now, newId, random: Math.random }, load() ?? createInitialState());
+    sandboxInstance = createBackend(
+      { now: Date.now, newId, newToken, random: Math.random },
+      load() ?? createInitialState(),
+    );
     startRuntime(sandboxInstance);
   }
   return sandboxInstance;

@@ -3,6 +3,9 @@
  * and the place to look when the contract and the domain need to differ.
  */
 import type {
+  AccountDto,
+  OrganiserEventDto,
+  SessionDto,
   EventDto,
   HoldDetailsDto,
   HoldDto,
@@ -13,6 +16,8 @@ import type {
   SeatAvailabilityDto,
 } from "@/contract/dto";
 import type {
+  AccountView,
+  OrganiserEventView,
   EventView,
   HoldDetailsView,
   HoldView,
@@ -26,6 +31,15 @@ import type {
 const toIso = (epochMs: number) => new Date(epochMs).toISOString();
 
 export const toEventDto = (event: EventView): EventDto => event;
+
+export const toAccountDto = (account: AccountView): AccountDto => account;
+
+export const toSessionDto = ({ token, account }: { token: string; account: AccountView }): SessionDto => ({
+  token,
+  account: toAccountDto(account),
+});
+
+export const toOrganiserEventDto = (event: OrganiserEventView): OrganiserEventDto => event;
 
 function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
   return { ...hold, createdAt: toIso(createdAtMs), expiresAt: toIso(expiresAtMs) };

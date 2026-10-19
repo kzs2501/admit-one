@@ -24,7 +24,12 @@ let idCount = 0;
 // The backend's clock: real time, until a test needs to move it on (a queue, say).
 let backendNowMs = Date.now();
 const backend = createBackend(
-  { now: () => backendNowMs, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.5 },
+  {
+    now: () => backendNowMs,
+    newId: (prefix) => `${prefix}_${++idCount}`,
+    newToken: () => `token_${++idCount}`,
+    random: () => 0.5,
+  },
   createInitialState(),
 );
 // The rate limiter's clock: a whole window passes between tests, so each starts fresh.

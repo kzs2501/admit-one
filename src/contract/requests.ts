@@ -51,6 +51,9 @@ export const createPaymentRequestSchemaFor = (body: unknown) =>
 /** The buyer's answer to the bank's 3-D Secure challenge. */
 export const confirmChallengeRequestSchema = z.object({ decision: z.enum(["approve", "reject"]) });
 
+/** Sign in to the organisers' dashboard as one of the demo accounts. */
+export const createSessionRequestSchema = z.object({ accountId: z.string().min(1) });
+
 export type CreateHoldRequest = z.input<typeof holdByTiersRequestSchema> | z.input<typeof holdBySeatsRequestSchema>;
 export type UpsertOrderRequest = z.input<typeof upsertOrderRequestSchema>;
 export type CreatePaymentRequest = z.input<typeof cardPaymentRequestSchema> | z.input<typeof upiPaymentRequestSchema>;

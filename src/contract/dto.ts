@@ -8,6 +8,7 @@
  */
 import { z } from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
+import { PERMISSIONS, ROLES } from "@/core/organisations";
 import { TAX_LINE_KINDS } from "@/core/pricing";
 import { SEAT_ID_PATTERN } from "@/core/seating";
 import {
@@ -204,6 +205,33 @@ export const seatAvailabilityDtoSchema = z.object({
   serverTime: isoDateTimeSchema,
 });
 
+export const permissionSchema = z.enum(PERMISSIONS);
+
+/** Who's signed in to the organisers' dashboard, and what they may do. */
+export const accountDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  role: z.enum(ROLES),
+  organisation: z.object({ id: z.string(), name: z.string(), timeZone: z.string() }),
+  permissions: z.array(permissionSchema),
+});
+
+/** A signed-in session: send `token` as `Authorization: Bearer <token>`. */
+export const sessionDtoSchema = z.object({ token: z.string().min(1), account: accountDtoSchema });
+
+/** An event as its organiser sees it, with what this account may do for it. */
+export const organiserEventDtoSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  startsAt: isoDateTimeSchema,
+  timeZone: z.string(),
+  currency: currencySchema,
+  venue: z.string(),
+  city: z.string(),
+  permissions: z.array(permissionSchema),
+});
+
 export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
 export type TierDto = z.infer<typeof tierDtoSchema>;
 export type SeatDto = z.infer<typeof seatDtoSchema>;
@@ -222,3 +250,6 @@ export type NextActionDto = z.infer<typeof nextActionDtoSchema>;
 export type OrderDto = z.infer<typeof orderDtoSchema>;
 export type HoldDetailsDto = z.infer<typeof holdDetailsDtoSchema>;
 export type PaymentResultDto = z.infer<typeof paymentResultDtoSchema>;
+export type AccountDto = z.infer<typeof accountDtoSchema>;
+export type SessionDto = z.infer<typeof sessionDtoSchema>;
+export type OrganiserEventDto = z.infer<typeof organiserEventDtoSchema>;

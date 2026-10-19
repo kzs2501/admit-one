@@ -13,7 +13,7 @@ describe("persisted state", () => {
     expect(restoredState).not.toBeNull();
 
     const restored = createBackend(
-      { now: clock.now, newId: (prefix) => `${prefix}_restored`, random: () => 0.1 },
+      { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
       restoredState ?? createInitialState(),
     );
     expect(restored.nextDeliveryAtMs()).not.toBeNull();
@@ -34,7 +34,7 @@ describe("persisted state", () => {
     const restoredState = deserializeState(serializeState(backend.getState()));
     expect(restoredState?.payments[payment.id]).toMatchObject({ method: "upi", status: "processing" });
     const restored = createBackend(
-      { now: clock.now, newId: (prefix) => `${prefix}_restored`, random: () => 0.1 },
+      { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
       restoredState ?? createInitialState(),
     );
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);

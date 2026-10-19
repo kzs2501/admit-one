@@ -5,6 +5,16 @@
  * into ISO 8601 strings.
  */
 import { getEvent, type AddOnInfo, type EventInfo } from "@/core/catalog";
+import {
+  can,
+  getOrganisation,
+  PERMISSIONS,
+  permissionsOf,
+  type Account,
+  type Organisation,
+  type Permission,
+  type Role,
+} from "@/core/organisations";
 import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/pricing";
 import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentMethod, PaymentStatus } from "@/core/statuses";
@@ -110,6 +120,45 @@ export interface QueueEntryView extends QueuePlace {
   aheadAtJoin: number;
   serverTimeMs: number;
 }
+
+/** Who's signed in, as the dashboard needs to know them. */
+export interface AccountView {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  organisation: Organisation;
+  permissions: Permission[];
+}
+
+export interface OrganiserEventView {
+  slug: string;
+  name: string;
+  startsAt: string;
+  timeZone: string;
+  currency: EventInfo["currency"];
+  venue: string;
+  city: string;
+  /** What this account may do for this event. */
+  permissions: Permission[];
+}
+
+export const toAccountView = ({ organisationId, ...account }: Account): AccountView => ({
+  ...account,
+  organisation: getOrganisation(organisationId),
+  permissions: [...permissionsOf({ organisationId, ...account })],
+});
+
+export const toOrganiserEventView = (account: Account, event: EventInfo): OrganiserEventView => ({
+  slug: event.slug,
+  name: event.name,
+  startsAt: event.startsAt,
+  timeZone: event.timeZone,
+  currency: event.currency,
+  venue: event.venue,
+  city: event.city,
+  permissions: PERMISSIONS.filter((permission) => can(account, permission, event)),
+});
 
 export const toQueueEntryView = (context: BackendContext, entry: QueueEntryRecord): QueueEntryView => {
   const nowMs = context.deps.now();

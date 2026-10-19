@@ -29,6 +29,8 @@ const plainProblemCodeSchema = z.enum([
   "idempotency_key_reused",
   "invalid_card",
   "invalid_state",
+  "unauthenticated",
+  "forbidden",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -154,6 +156,18 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     status: 409,
     title: "Not allowed right now",
     description: "The resource isn’t in a state that allows this action, such as answering a finished challenge.",
+  },
+  unauthenticated: {
+    status: 401,
+    title: "Sign in first",
+    description:
+      "The organisers’ API needs `Authorization: Bearer <token>` from signing in. The `WWW-Authenticate` header says whether a token was missing or is no longer valid (RFC 6750).",
+  },
+  forbidden: {
+    status: 403,
+    title: "Not allowed for this account",
+    description:
+      "The account is signed in but may not do this: the event belongs to another organiser, or the account’s role doesn’t include the permission. Private things that belong to another organiser, such as orders, are `not_found` instead, so their existence isn’t confirmed.",
   },
 };
 

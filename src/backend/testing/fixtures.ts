@@ -23,7 +23,12 @@ export function createTestBackend(presetId: PresetId = "happy") {
     },
   };
   const backend = createBackend(
-    { now: clock.now, newId: (prefix) => `${prefix}_${++idCount}`, random: () => 0.42 },
+    {
+      now: clock.now,
+      newId: (prefix) => `${prefix}_${++idCount}`,
+      newToken: () => `token_${++idCount}`,
+      random: () => 0.42,
+    },
     createInitialState(presetId),
   );
   return { backend, clock };

@@ -9,6 +9,8 @@
  */
 import { CATALOG, findEvent } from "@/core/catalog";
 import { getPreset, type PresetId } from "@/backend/chaos/presets";
+import type { Account } from "@/core/organisations";
+import { authenticate, eventFor, eventsFor, signIn, signOut } from "./domain/access";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
 import {
@@ -42,6 +44,10 @@ import {
   type OrderView,
   type PaymentResultView,
   type SeatAvailabilityView,
+  toAccountView,
+  toOrganiserEventView,
+  type AccountView,
+  type OrganiserEventView,
   toQueueEntryView,
   toUpiRequestView,
   type QueueEntryView,
@@ -173,6 +179,24 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     /** The buyer's answer in their UPI app. The merchant hears it from the webhook. */
     respondInUpiApp: (paymentId: string, decision: UpiAppDecision): Result<PaymentResultView> =>
       command(() => map(respondInUpiApp(context, paymentId, decision), toPaymentResultView)),
+
+    /** Sign in to the organisers' dashboard as a demo account: a bearer token, and who it's for. */
+    signIn: (accountId: string): Result<{ token: string; account: AccountView }> =>
+      command(() =>
+        map(signIn(context, accountId), ({ token, account }) => ({ token, account: toAccountView(account) })),
+      ),
+    signOut: (token: string) => {
+      command(() => {
+        signOut(context, token);
+      });
+    },
+    /** The account behind a bearer token, if its session is live. */
+    authenticate: (token: string | null): Account | null => authenticate(context, token),
+    accountView: (account: Account): AccountView => toAccountView(account),
+    listOrganiserEvents: (account: Account): OrganiserEventView[] =>
+      eventsFor(account).map((event) => toOrganiserEventView(account, event)),
+    getOrganiserEvent: (account: Account, slug: string): Result<OrganiserEventView> =>
+      map(eventFor(account, slug), (event) => toOrganiserEventView(account, event)),
 
     /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A key past its TTL is new again. */
     idempotency: {

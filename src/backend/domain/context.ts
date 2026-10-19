@@ -5,6 +5,8 @@ import type { LogKind, ServerState } from "./state";
 export interface Deps {
   now: () => number;
   newId: (prefix: string) => string;
+  /** A secret, such as a session token: unguessable, unlike an id. */
+  newToken: () => string;
   random: () => number;
 }
 

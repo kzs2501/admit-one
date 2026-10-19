@@ -13,7 +13,7 @@ import { TAX_LINE_KINDS } from "@/core/pricing";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 8;
+const STATE_VERSION = 9;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -126,7 +126,10 @@ const outboxItemSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-const LOG_KINDS = ["request", "queue", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
+const LOG_KINDS = ["request", "auth", "queue", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
+
+/** An organiser's signed-in session, keyed by its bearer token. */
+const sessionRecordSchema = z.object({ accountId: z.string(), expiresAtMs: epochMsSchema });
 
 const logEntrySchema = z.object({
   id: z.number().int(),
@@ -150,6 +153,8 @@ const serverStateSchema = z.object({
   orders: z.record(z.string(), orderRecordSchema),
   payments: z.record(z.string(), paymentRecordSchema),
   idempotency: z.record(z.string(), idempotencyRecordSchema),
+  /** Organisers' sessions, by token. */
+  sessions: z.record(z.string(), sessionRecordSchema),
   /** Webhook event ids already processed — the dedupe set. */
   processedEventIds: z.array(z.string()),
   outbox: z.array(outboxItemSchema),
@@ -178,6 +183,7 @@ export const createInitialState = (presetId: ServerState["presetId"] = "happy"):
   orders: {},
   payments: {},
   idempotency: {},
+  sessions: {},
   processedEventIds: [],
   outbox: [],
   log: [],

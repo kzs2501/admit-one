@@ -4,12 +4,9 @@
  * delegated to the backend; these handlers are as thin as a real API's controllers.
  */
 import { http, HttpResponse } from "msw/http";
-import type { z } from "@/core/zod";
 import type { Backend } from "@/backend/backend";
-import type { DomainError, Result } from "@/backend/domain/errors";
-import type { JsonValue } from "@/backend/domain/state";
+import type { Result } from "@/backend/domain/errors";
 import type { PaymentResultView } from "@/backend/domain/views";
-import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
 import {
   confirmChallengeRequestSchema,
   createHoldRequestSchemaFor,
@@ -27,23 +24,9 @@ import {
   toQueueEntryDto,
   toSeatAvailabilityDto,
 } from "./mappers";
-import { toProblem } from "./problems";
+import { anyOrigin, createKit, pathOf, readJson, type HandlerOptions, type Reply } from "./kit";
+import { createOrganiserHandlers } from "./organiser-handlers";
 import { createSlidingWindow } from "./rate-limit";
-
-interface HandlerOptions {
-  /** Wait helper — real timers in the browser, instant in tests. */
-  sleep: (ms: number) => Promise<void>;
-  random: () => number;
-  /** The adapter's clock, for rate limiting. */
-  now: () => number;
-}
-
-/** A response before it's sent: a status, a JSON body (a DTO or a problem), and any extra headers. */
-interface Reply {
-  status: number;
-  body: JsonValue;
-  headers?: Record<string, string>;
-}
 
 /** A card payment can fail as it's attempted; a UPI payment only fails later, by webhook. */
 const CARD_FAILURE_DETAILS = {
@@ -54,27 +37,10 @@ const CARD_FAILURE_DETAILS = {
 const isCardFailure = (code: string | null): code is keyof typeof CARD_FAILURE_DETAILS =>
   code !== null && Object.hasOwn(CARD_FAILURE_DETAILS, code);
 
-// `*/api/...` matches any origin, so the same handlers work in the browser and in
-// Node-based tests.
-const anyOrigin = (route: string) => `*${route}`;
-
-async function readJson(request: Request): Promise<unknown> {
-  try {
-    return await request.json();
-  } catch {
-    return undefined;
-  }
-}
-
 export function createHandlers(backend: Backend, { sleep, random, now }: HandlerOptions) {
   const holdAttempts = createSlidingWindow(now);
-
-  const latency = (extraMs = 0) => {
-    const [minMs, maxMs] = backend.chaos().latencyRangeMs;
-    return sleep(minMs + random() * (maxMs - minMs) + extraMs);
-  };
-
-  const pathOf = (request: Request) => new URL(request.url).pathname;
+  const kit = createKit(backend, { sleep, random });
+  const { latency, problemReply, resultReply, send, parseBody } = kit;
 
   // What the "connection drops" preset loses. The work has already happened; only the
   // answer goes missing — the case that makes retrying a payment dangerous without a key.
@@ -83,21 +49,6 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
   const lostResponse = (request: Request) => {
     backend.log("warn", `${request.method} ${pathOf(request)} → the response was lost on the way back.`);
     return HttpResponse.error();
-  };
-
-  const problemReply = (error: DomainError, request: Request): Reply => {
-    const problem = toProblem(error, request.url);
-    return { status: problem.status, body: problem };
-  };
-
-  const resultReply = <T>(result: Result<T>, request: Request, toBody: (value: T) => JsonValue, status = 200): Reply =>
-    result.ok ? { status, body: toBody(result.value) } : problemReply(result.error, request);
-
-  const send = (request: Request, { status, body, headers = {} }: Reply) => {
-    backend.log("request", `${request.method} ${pathOf(request)} → ${status}`);
-    return status >= 400
-      ? HttpResponse.json(body, { status, headers: { ...headers, "Content-Type": PROBLEM_CONTENT_TYPE } })
-      : HttpResponse.json(body, { status, headers });
   };
 
   /**
@@ -119,23 +70,6 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
     );
     return { ...problem, headers: { [RETRY_AFTER_HEADER]: String(retryAfterSeconds), "Cache-Control": "no-store" } };
   };
-
-  /**
-   * Parse a request body against its schema — or, for an endpoint that takes more than
-   * one shape, the schema for the shape it is. A body that doesn't parse is the
-   * client's problem.
-   */
-  async function parseBody<Schema extends z.ZodType>(
-    request: Request,
-    schemaFor: Schema | ((body: unknown) => Schema),
-  ): Promise<{ ok: true; value: z.output<Schema> } | { ok: false; reply: Reply }> {
-    const body = await readJson(request);
-    const schema = typeof schemaFor === "function" ? schemaFor(body) : schemaFor;
-    const parsed = schema.safeParse(body);
-    if (parsed.success) return { ok: true, value: parsed.data };
-    const detail = parsed.error.issues[0]?.message ?? "The request body is invalid.";
-    return { ok: false, reply: problemReply({ code: "invalid_request", detail }, request) };
-  }
 
   /**
    * An attempted payment: 202 while it's processing or waiting for the buyer (a 3-D
@@ -302,5 +236,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       await latency();
       return send(request, resultReply(backend.cancelPayment(params.paymentId), request, toPaymentResultDto));
     }),
+
+    ...createOrganiserHandlers(backend, kit),
   ];
 }
