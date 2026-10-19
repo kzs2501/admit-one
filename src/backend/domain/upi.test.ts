@@ -51,6 +51,7 @@ describe("isUpiRequestExpired", () => {
     amountMinor: 100,
     status: "requires_action",
     failureCode: null,
+    webhookLagMs: null,
     expiresAtMs: 1_000,
     createdAtMs: 0,
   };

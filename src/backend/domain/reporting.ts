@@ -34,6 +34,8 @@ export interface OrderRow {
   amounts: Amounts;
   status: OrderStatus;
   method: PaymentMethod | null;
+  /** For orders that were paid: how long the provider's webhook took. */
+  webhookLagMs: number | null;
 }
 
 export interface OrderQuery {
@@ -64,6 +66,7 @@ const fromHistory = (order: HistoricalOrder, createdAtMs: number): OrderRow => (
   amounts: order.amounts,
   status: order.status,
   method: order.method,
+  webhookLagMs: order.webhookLagMs,
 });
 
 function fromSandbox(context: BackendContext, order: OrderRecord): OrderRow {
@@ -79,11 +82,12 @@ function fromSandbox(context: BackendContext, order: OrderRecord): OrderRow {
     amounts: order.amounts,
     status: resolveOrderStatus(context, order).status,
     method: payment?.method ?? null,
+    webhookLagMs: payment?.webhookLagMs ?? null,
   };
 }
 
 /** Every order this account may see for this permission: the history, then this sandbox's. */
-function visibleRows(context: BackendContext, account: Account, permission: Permission): OrderRow[] {
+export function visibleRows(context: BackendContext, account: Account, permission: Permission): OrderRow[] {
   const isVisible = (row: { eventSlug: string }) => can(account, permission, getEvent(row.eventSlug));
   return [
     ...getHistory()

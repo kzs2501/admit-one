@@ -11,6 +11,7 @@ import {
   orderPageDtoSchema,
   organiserEventDtoSchema,
   organiserOrderDtoSchema,
+  salesMetricsDtoSchema,
   sessionDtoSchema,
 } from "@/contract/dto";
 
@@ -69,6 +70,23 @@ describe("organisers' API", () => {
     await expectProblem(await call("/api/organiser/events/nope", { headers: bearer(token) }), 404, "not_found");
     const own = await call("/api/organiser/events/monsoon-strings", { headers: bearer(token) });
     expect(organiserEventDtoSchema.parse(await own.json()).permissions).toContain("orders:refund");
+  });
+
+  it("reports sales across the account's events, or for one of them", async () => {
+    const { token } = await signIn("acc-lakeside-owner");
+    const all = salesMetricsDtoSchema.parse(
+      await (await call("/api/organiser/metrics", { headers: bearer(token) })).json(),
+    );
+    const festival = salesMetricsDtoSchema.parse(
+      await (await call("/api/organiser/metrics?event=lakeside-lights", { headers: bearer(token) })).json(),
+    );
+    expect(all.tickets.capacity).toBeGreaterThan(festival.tickets.capacity);
+    expect(festival.tiers.map((tier) => tier.tierId)).toEqual(["llf-day", "llf-weekend", "llf-vip"]);
+    await expectProblem(
+      await call("/api/organiser/metrics?event=monsoon-strings", { headers: bearer(token) }),
+      403,
+      "forbidden",
+    );
   });
 
   describe("orders", () => {

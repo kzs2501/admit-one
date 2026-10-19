@@ -60,6 +60,19 @@ export function availableQuantity(context: BackendContext, tierId: string): numb
   return Math.max(0, tier.capacity - tier.baselineSold - (context.state.sold[tierId] ?? 0) - heldQuantity);
 }
 
+/** Tickets sold in a tier: before the sandbox, and in it — by buyers, and by the crowd. */
+export function soldQuantity(context: BackendContext, tierId: string): number {
+  const found = findTier(tierId);
+  if (!found) return 0;
+  const { event, tier } = found;
+  if (isReservedEvent(event)) {
+    const { plan, baselineSoldSeatIds } = event.seating;
+    const sold = new Set([...baselineSoldSeatIds, ...context.state.soldSeatIds]);
+    return plan.seats.filter((seat) => seat.tierId === tierId && sold.has(seat.id)).length;
+  }
+  return tier.baselineSold + (context.state.sold[tierId] ?? 0);
+}
+
 /** "Stalls, row F, seat 12", or "Stalls F12–F13" for more than one. */
 function describeSeats(seats: readonly Seat[]) {
   const [first] = seats;

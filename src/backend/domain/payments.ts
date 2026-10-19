@@ -68,6 +68,7 @@ function chargeCard(context: BackendContext, order: OrderRecord, { number }: Car
     status: outcome === "decline" ? "failed" : outcome === "challenge" ? "requires_action" : "processing",
     last4: number.slice(-4),
     failureCode: outcome === "decline" ? "card_declined" : null,
+    webhookLagMs: null,
     createdAtMs: context.deps.now(),
   };
   record(context, order, payment);
@@ -100,6 +101,7 @@ function requestUpiPayment(context: BackendContext, order: OrderRecord): Payment
     amountMinor: order.amounts.totalMinor,
     status: "requires_action",
     failureCode: null,
+    webhookLagMs: null,
     expiresAtMs: Math.min(nowMs + upiRequestMs, holdExpiresAtMs),
     createdAtMs: nowMs,
   };

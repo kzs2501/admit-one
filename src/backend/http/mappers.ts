@@ -3,6 +3,7 @@
  * and the place to look when the contract and the domain need to differ.
  */
 import type {
+  SalesMetricsDto,
   OrderPageDto,
   OrderRowDto,
   OrganiserOrderDto,
@@ -32,6 +33,7 @@ import type {
   QueueEntryView,
   SeatAvailabilityView,
 } from "@/backend/domain/views";
+import type { SalesMetrics } from "@/backend/domain/metrics";
 
 const toIso = (epochMs: number) => new Date(epochMs).toISOString();
 
@@ -45,6 +47,9 @@ export const toSessionDto = ({ token, account }: { token: string; account: Accou
 });
 
 export const toOrganiserEventDto = (event: OrganiserEventView): OrganiserEventDto => event;
+
+/** Metrics have no timestamps to convert: the domain's shape is the contract's. */
+export const toSalesMetricsDto = (metrics: SalesMetrics): SalesMetricsDto => metrics;
 
 export const toOrderRowDto = ({ createdAtMs, ...row }: OrderRowView): OrderRowDto => ({
   ...row,

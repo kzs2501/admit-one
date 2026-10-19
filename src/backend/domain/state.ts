@@ -13,7 +13,7 @@ import { TAX_LINE_KINDS } from "@/core/pricing";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 10;
+const STATE_VERSION = 11;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -74,6 +74,8 @@ const paymentRecordBaseSchema = z.object({
   amountMinor: z.number().int(),
   status: z.enum(PAYMENT_STATUSES),
   failureCode: z.enum(PAYMENT_FAILURE_CODES).nullable(),
+  /** How long the provider's webhook took to arrive, once it did. */
+  webhookLagMs: z.number().int().nonnegative().nullable(),
   createdAtMs: epochMsSchema,
 });
 
@@ -114,6 +116,8 @@ const outboxItemBaseSchema = z.object({
   deliveryId: z.string(),
   eventId: z.string(),
   paymentId: z.string(),
+  /** When the provider sent it: the start of its lag. */
+  enqueuedAtMs: epochMsSchema,
   deliverAtMs: epochMsSchema,
 });
 

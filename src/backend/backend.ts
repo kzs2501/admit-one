@@ -12,6 +12,7 @@ import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { Account } from "@/core/organisations";
 import type { OrderFilters, OrderListParams } from "@/contract/queries";
 import { authenticate, eventFor, eventsFor, signIn, signOut } from "./domain/access";
+import { salesMetrics, type SalesMetrics } from "./domain/metrics";
 import { findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
@@ -218,6 +219,9 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     /** Every matching order, for a CSV export. Needs `orders:export`. */
     exportOrders: (account: Account, filters: OrderFilters): Result<OrderRowView[]> =>
       map(queryOrders(context, account, filters, "orders:export"), (rows) => rows.map(toOrderRowView)),
+    /** Sales across the account's events, or for one. */
+    salesMetrics: (account: Account, eventSlug?: string): Result<SalesMetrics> =>
+      salesMetrics(context, account, eventSlug),
     getOrganiserOrder: (account: Account, orderId: string): Result<OrganiserOrderView> =>
       map(findOrganiserOrder(context, account, orderId), toOrganiserOrderView),
 

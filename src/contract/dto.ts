@@ -265,6 +265,41 @@ export const organiserOrderDtoSchema = orderRowDtoSchema.extend({
   last4: z.string().nullable(),
 });
 
+/** Sales across an organiser's events, or for one (`?event=`). Days are in the organisation's time zone. */
+export const salesMetricsDtoSchema = z.object({
+  currency: currencySchema,
+  timeZone: z.string(),
+  revenue: z.object({ grossMinor: minorUnitsSchema, refundedMinor: minorUnitsSchema, netMinor: z.number().int() }),
+  tickets: z.object({ sold: z.number().int().nonnegative(), capacity: z.number().int().nonnegative() }),
+  tiers: z.array(
+    z.object({
+      eventSlug: z.string(),
+      eventName: z.string(),
+      tierId: z.string(),
+      tierName: z.string(),
+      sold: z.number().int().nonnegative(),
+      capacity: z.number().int().nonnegative(),
+    }),
+  ),
+  paidOrders: z.number().int().nonnegative(),
+  averageOrderMinor: minorUnitsSchema,
+  salesByDay: z.array(
+    z.object({ date: z.iso.date(), tickets: z.number().int().nonnegative(), revenueMinor: minorUnitsSchema }),
+  ),
+  funnel: z.object({
+    holds: z.number().int().nonnegative(),
+    orders: z.number().int().nonnegative(),
+    paid: z.number().int().nonnegative(),
+    fulfilled: z.number().int().nonnegative(),
+  }),
+  paymentMethods: z.array(z.object({ method: z.enum(PAYMENT_METHODS), orders: z.number().int().nonnegative() })),
+  webhookLag: z.object({
+    p50Ms: z.number().int().nonnegative().nullable(),
+    p95Ms: z.number().int().nonnegative().nullable(),
+    samples: z.number().int().nonnegative(),
+  }),
+});
+
 export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
 export type TierDto = z.infer<typeof tierDtoSchema>;
 export type SeatDto = z.infer<typeof seatDtoSchema>;
@@ -289,3 +324,4 @@ export type OrganiserEventDto = z.infer<typeof organiserEventDtoSchema>;
 export type OrderRowDto = z.infer<typeof orderRowDtoSchema>;
 export type OrderPageDto = z.infer<typeof orderPageDtoSchema>;
 export type OrganiserOrderDto = z.infer<typeof organiserOrderDtoSchema>;
+export type SalesMetricsDto = z.infer<typeof salesMetricsDtoSchema>;

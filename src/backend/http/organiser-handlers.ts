@@ -21,7 +21,14 @@ import { createSessionRequestSchema } from "@/contract/requests";
 import { API_ROUTES, AUTHORIZATION_HEADER } from "@/contract/routes";
 import { anyOrigin, type Kit, type Reply } from "./kit";
 import { toCsv, type CsvCell } from "./csv";
-import { toAccountDto, toOrderPageDto, toOrganiserEventDto, toOrganiserOrderDto, toSessionDto } from "./mappers";
+import {
+  toAccountDto,
+  toOrderPageDto,
+  toOrganiserEventDto,
+  toOrganiserOrderDto,
+  toSalesMetricsDto,
+  toSessionDto,
+} from "./mappers";
 
 const CHALLENGE = 'Bearer realm="admit-one"';
 const PRIVATE = { "Cache-Control": "no-store" };
@@ -149,6 +156,18 @@ export function createOrganiserHandlers(
           "Content-Disposition": `attachment; filename="${filename}"`,
           ...PRIVATE,
         },
+      );
+    }),
+
+    /** Sales across the account's events, or for one: `?event=lakeside-lights`. */
+    http.get(anyOrigin(API_ROUTES.organiserMetrics), async ({ request }) => {
+      await latency();
+      const auth = signedIn(request);
+      if (!auth.ok) return sendPrivate(request, auth.reply);
+      const { event: eventSlug } = readOrderSearchParams(new URL(request.url).searchParams);
+      return sendPrivate(
+        request,
+        resultReply(backend.salesMetrics(auth.account, eventSlug), request, toSalesMetricsDto),
       );
     }),
 

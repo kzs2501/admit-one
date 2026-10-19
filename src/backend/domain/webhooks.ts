@@ -20,7 +20,8 @@ type PaymentEvent = { type: "payment.succeeded" } | PaymentFailedEvent;
 
 export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRecord, event: PaymentEvent) {
   const eventId = context.deps.newId("evt");
-  const deliverAtMs = context.deps.now() + context.chaos().webhookDelayMs;
+  const enqueuedAtMs = context.deps.now();
+  const deliverAtMs = enqueuedAtMs + context.chaos().webhookDelayMs;
   const deliveries = context.chaos().shouldDuplicateWebhook
     ? [deliverAtMs, deliverAtMs + DUPLICATE_GAP_MS]
     : [deliverAtMs];
@@ -29,6 +30,7 @@ export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRec
       deliveryId: context.deps.newId("dlv"),
       eventId,
       paymentId: payment.id,
+      enqueuedAtMs,
       deliverAtMs: at,
       ...event,
     });
@@ -43,7 +45,7 @@ export const enqueuePaymentSucceeded = (context: BackendContext, payment: Paymen
  * Take an event for processing, once: providers deliver at least once, so a duplicate
  * is normal. Returns the payment and its order if there's anything left to do.
  */
-function claim(context: BackendContext, { eventId, type, paymentId }: OutboxItem) {
+function claim(context: BackendContext, { eventId, type, paymentId, enqueuedAtMs }: OutboxItem) {
   const { state } = context;
   if (state.processedEventIds.includes(eventId)) {
     context.log("webhook", `${type} ${eventId} arrived again — already processed, ignored.`);
@@ -62,6 +64,7 @@ function claim(context: BackendContext, { eventId, type, paymentId }: OutboxItem
     return null;
   }
   context.log("webhook", `${type} ${eventId} received for ${payment.id}.`);
+  payment.webhookLagMs = context.deps.now() - enqueuedAtMs;
   return { payment, order };
 }
 

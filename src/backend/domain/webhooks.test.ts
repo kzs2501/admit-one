@@ -68,6 +68,7 @@ describe("webhooks", () => {
       eventId: "evt_new",
       type: "payment.succeeded",
       paymentId: valueOf(payment).payment.id,
+      enqueuedAtMs: clock.now(),
       deliverAtMs: clock.now(),
     });
     expect(() => backend.deliverDue()).not.toThrow();
@@ -107,6 +108,7 @@ describe("webhooks", () => {
         type: "payment.failed",
         failureCode: "upi_declined",
         paymentId: payment.id,
+        enqueuedAtMs: clock.now(),
         deliverAtMs: clock.now(),
       });
       backend.deliverDue();
