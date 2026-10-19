@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, problemOf } from "@/lib/api-client";
-import { holdQueries } from "@/lib/queries";
+import { patchHoldDetails } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { FormActions } from "@/components/ui/form-actions";
@@ -20,9 +20,11 @@ export function ReviewStep({ context, goNext, goBack, onExpired }: StepProps) {
   const save = useMutation({
     mutationFn: () => apiClient.upsertOrder({ holdId: hold.id, attendees: draft.attendees, addOns: draft.addOns }),
     onSuccess: (order) => {
-      queryClient.setQueryData(holdQueries.detail(hold.id).queryKey, (cached) =>
-        cached ? { ...cached, order, hold: { ...cached.hold, orderId: order.id } } : cached,
-      );
+      patchHoldDetails(queryClient, hold.id, (cached) => ({
+        ...cached,
+        order,
+        hold: { ...cached.hold, orderId: order.id },
+      }));
       goNext();
     },
     onError: (error) => {

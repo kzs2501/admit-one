@@ -6,7 +6,8 @@
  * Keys run from general to specific, so invalidating `eventQueries.all()` refreshes
  * every event query at once.
  */
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import type { HoldDetailsDto } from "@/contract/dto";
 import { ApiError, apiClient, isTransientError } from "./api-client";
 
 /** Client errors (4xx) are answers, not glitches — retrying them just repeats the answer. */
@@ -58,6 +59,23 @@ export const holdQueries = {
   detail: (holdId: string) =>
     queryOptions({ queryKey: [...holdQueries.all(), holdId], queryFn: () => apiClient.getHold(holdId) }),
 };
+
+/**
+ * Patch cached hold details with something fresher — the order a write returned, say —
+ * keeping the time they were fetched. Their `serverTime` is from then, and every
+ * countdown corrects its clock by comparing the two: stamp the patch "now" and the
+ * clock runs fast by however long the buyer took.
+ */
+export function patchHoldDetails(
+  queryClient: QueryClient,
+  holdId: string,
+  patch: (details: HoldDetailsDto) => HoldDetailsDto,
+) {
+  const { queryKey } = holdQueries.detail(holdId);
+  const cached = queryClient.getQueryState(queryKey);
+  if (!cached?.data) return;
+  queryClient.setQueryData(queryKey, patch(cached.data), { updatedAt: cached.dataUpdatedAt });
+}
 
 export const orderQueries = {
   all: () => ["orders"] as const,

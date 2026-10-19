@@ -1,6 +1,8 @@
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
+import type { HoldDetailsDto } from "@/contract/dto";
 import { ApiError, NetworkError } from "./api-client";
-import { retryDelay, retryPolicy, shouldShowQueryError } from "./queries";
+import { holdQueries, patchHoldDetails, retryDelay, retryPolicy, shouldShowQueryError } from "./queries";
 
 const problem = (status: number) =>
   new ApiError({ type: "https://admit-one.test/problems/not-found", title: "", status, detail: "", code: "not_found" });
@@ -52,5 +54,25 @@ describe("retrying", () => {
     expect(retryDelay(0, new NetworkError("offline"))).toBe(1_000);
     expect(retryDelay(1, rateLimited(null))).toBe(2_000);
     expect(retryDelay(10, new NetworkError("offline"))).toBe(30_000);
+  });
+});
+
+describe("patchHoldDetails", () => {
+  const details = { serverTime: "2026-10-19T10:00:00.000Z", order: { id: "ord_1" } } as unknown as HoldDetailsDto;
+
+  it("keeps the time the details were fetched, so a countdown's clock correction stays true", () => {
+    const queryClient = new QueryClient();
+    const { queryKey } = holdQueries.detail("hold_1");
+    queryClient.setQueryData(queryKey, details, { updatedAt: 1_000 });
+    patchHoldDetails(queryClient, "hold_1", (cached) => ({ ...cached, order: null }));
+    const state = queryClient.getQueryState(queryKey);
+    expect(state?.data).toMatchObject({ serverTime: details.serverTime, order: null });
+    expect(state?.dataUpdatedAt).toBe(1_000);
+  });
+
+  it("leaves details that were never fetched alone", () => {
+    const queryClient = new QueryClient();
+    patchHoldDetails(queryClient, "hold_1", (cached) => cached);
+    expect(queryClient.getQueryData(holdQueries.detail("hold_1").queryKey)).toBeUndefined();
   });
 });
