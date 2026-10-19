@@ -138,6 +138,7 @@ function CheckoutStep({
             }}
             goBack={previous ? () => router.push(stepHref(holdId, previous.id)) : null}
             onExpired={onExpire}
+            clockOffsetMs={state.clockOffsetMs}
           />
         </section>
         <div className="lg:sticky lg:top-8 lg:self-start">

@@ -2,6 +2,7 @@ import type { SeatDto } from "@/contract/dto";
 import type { CurrencyCode } from "@/core/money";
 import { PRICING_RULES, type TaxLine } from "@/core/pricing";
 import { formatSeatList, seatLabel } from "@/core/seating";
+import type { PaymentMethod } from "@/core/statuses";
 import type { LineItem } from "@/core/ticketing";
 
 /** The visitor-facing locale: the venues are in India, and so is the audience. */
@@ -83,4 +84,10 @@ export function describeTaxLine(line: Pick<TaxLine, "kind" | "rateBasisPoints">,
     case "add-ons":
       return `GST on extras (${percent(line.rateBasisPoints)})`;
   }
+}
+
+/** "with a card ending 4242", "by UPI" — how an order was paid, for its confirmation. */
+export function describePayment({ method, last4 }: { method: PaymentMethod; last4: string | null }) {
+  if (method === "upi") return "by UPI";
+  return last4 ? `with a card ending ${last4}` : "by card";
 }

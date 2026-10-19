@@ -9,4 +9,6 @@ export interface StepProps {
   goBack: (() => void) | null;
   /** The server said the hold is gone: re-read it so the flow shows the expired state. */
   onExpired: () => void;
+  /** How far the server's clock is ahead of this one, for anything that counts down. */
+  clockOffsetMs: number;
 }

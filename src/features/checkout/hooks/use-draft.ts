@@ -4,6 +4,7 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import { z } from "@/core/zod";
+import { PAYMENT_METHODS } from "@/core/statuses";
 import { readSession, writeSession } from "@/lib/storage";
 
 /** Unvalidated: the draft holds whatever was typed, including half-finished input. */
@@ -11,6 +12,8 @@ const draftSchema = z.object({
   attendees: z.array(z.object({ name: z.string(), email: z.string() })),
   addOns: z.record(z.string(), z.number().int().min(0)),
   hasConfirmedAddOns: z.boolean(),
+  /** How the buyer chose to pay. Optional, so drafts saved before there was a choice still read. */
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export type Draft = z.infer<typeof draftSchema>;

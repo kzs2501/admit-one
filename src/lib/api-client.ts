@@ -17,7 +17,12 @@ import {
   seatAvailabilityDtoSchema,
 } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
-import type { ConfirmChallengeRequest, CreateHoldRequest, UpsertOrderRequest } from "@/contract/requests";
+import type {
+  ConfirmChallengeRequest,
+  CreateHoldRequest,
+  CreatePaymentRequest,
+  UpsertOrderRequest,
+} from "@/contract/requests";
 import {
   API_ROUTES,
   buildApiPath,
@@ -25,7 +30,6 @@ import {
   QUEUE_TOKEN_HEADER,
   RETRY_AFTER_HEADER,
 } from "@/contract/routes";
-import type { CardInput } from "@/core/schemas";
 
 /** The server answered with an RFC 9457 problem. Branch on `problem.code`. */
 export class ApiError extends Error {
@@ -127,12 +131,14 @@ export const apiClient = {
   getHold: (holdId: string) => request(buildApiPath(API_ROUTES.getHold, { holdId }), holdDetailsDtoSchema),
   upsertOrder: (body: UpsertOrderRequest) => post(buildApiPath(API_ROUTES.upsertOrder, {}), orderDtoSchema, body),
   getOrder: (orderId: string) => request(buildApiPath(API_ROUTES.getOrder, { orderId }), orderDtoSchema),
-  createPayment: (orderId: string, card: CardInput, idempotencyKey: string) =>
-    post(buildApiPath(API_ROUTES.createPayment, { orderId }), paymentResultDtoSchema, card, {
+  createPayment: (orderId: string, body: CreatePaymentRequest, idempotencyKey: string) =>
+    post(buildApiPath(API_ROUTES.createPayment, { orderId }), paymentResultDtoSchema, body, {
       [IDEMPOTENCY_KEY_HEADER]: idempotencyKey,
     }),
   confirmChallenge: (paymentId: string, body: ConfirmChallengeRequest) =>
     post(buildApiPath(API_ROUTES.confirmChallenge, { paymentId }), paymentResultDtoSchema, body),
+  cancelPayment: (paymentId: string) =>
+    post(buildApiPath(API_ROUTES.cancelPayment, { paymentId }), paymentResultDtoSchema, {}),
 };
 
 /** The problem behind an error, if the server sent one. */

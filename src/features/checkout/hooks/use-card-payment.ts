@@ -11,12 +11,11 @@ import { attemptFor, type Attempt } from "@/features/checkout/domain/payment-att
 const mintIdempotencyKey = () => crypto.randomUUID();
 
 /**
- * The payment step's view-model: one payment attempt at a time, each with its own
- * idempotency key; the bank's 3-D Secure challenge; and what each answer means for
- * the buyer. The response to "pay" is never treated as proof of payment — on success
+ * Paying by card: one payment attempt at a time, each with its own idempotency key;
+ * the bank's 3-D Secure challenge; and what each answer means for the buyer. The response to "pay" is never treated as proof of payment — on success
  * the buyer goes to the order page, which waits for the provider's webhook.
  */
-export function usePayment({
+export function useCardPayment({
   order,
   onExpired,
   onDeclined,
@@ -32,7 +31,7 @@ export function usePayment({
   const attempt = useRef<Attempt | null>(null);
   // A refresh in the middle of 3-D Secure brings the challenge straight back.
   const [challengePaymentId, setChallengePaymentId] = useState<string | null>(() =>
-    order.payment?.status === "requires_action" ? order.payment.id : null,
+    order.payment?.nextAction?.type === "card_challenge" ? order.payment.id : null,
   );
 
   const goToOrder = () => {
@@ -45,14 +44,14 @@ export function usePayment({
   };
 
   const handleResult = (result: PaymentResultDto) => {
-    if (result.payment.status === "requires_action") setChallengePaymentId(result.payment.id);
+    if (result.payment.nextAction?.type === "card_challenge") setChallengePaymentId(result.payment.id);
     else goToOrder();
   };
 
   const pay = useMutation({
     mutationFn: (card: CardInput) => {
       attempt.current = attemptFor(attempt.current, card.number, mintIdempotencyKey);
-      return apiClient.createPayment(order.id, card, attempt.current.key);
+      return apiClient.createPayment(order.id, { method: "card", ...card }, attempt.current.key);
     },
     onSuccess: handleResult,
     onError: (error) => {

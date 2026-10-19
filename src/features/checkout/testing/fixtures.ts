@@ -1,9 +1,9 @@
 /** Test fixtures for the checkout: DTOs and step contexts, as the API would send them. */
-import type { EventDto, HoldDto, OrderDto } from "@/contract/dto";
+import type { EventDto, HoldDto, OrderDto, PaymentDto } from "@/contract/dto";
 import { getEvent } from "@/core/catalog";
 import type { OrderStatus } from "@/core/statuses";
 import type { StepContext } from "@/features/checkout/domain/step-registry";
-import type { Draft } from "@/features/checkout/hooks/use-draft";
+import { createEmptyDraft, type Draft } from "@/features/checkout/hooks/use-draft";
 
 const EPOCH = new Date(0).toISOString();
 
@@ -64,4 +64,24 @@ export const studioContext = (draft: Draft): StepContext => ({
   hold: holdDtoFor("open-studio-ceramics", "osc-session", 1),
   draft,
   order: null,
+});
+
+export const UPI_INTENT = "upi://pay?pa=admit-one@example&pn=admit-one&mc=7922&tr=pay_1&tn=x&am=303.73&cu=INR";
+
+/** A UPI payment as the API sends it: waiting for the buyer, unless it says otherwise. */
+export const upiPaymentDto = (overrides: Partial<PaymentDto> = {}): PaymentDto => ({
+  id: "pay_1",
+  method: "upi",
+  status: "requires_action",
+  last4: null,
+  failureCode: null,
+  nextAction: { type: "upi", intentUri: UPI_INTENT, expiresAt: new Date(5 * 60_000).toISOString() },
+  ...overrides,
+});
+
+/** An order with a total to pay, and the given payment. */
+export const orderWithPayment = (payment: PaymentDto | null, status: OrderStatus = "pending"): OrderDto => ({
+  ...orderDtoFor(createEmptyDraft(), status),
+  amounts: { ...orderDtoFor(createEmptyDraft()).amounts, totalMinor: 30_373 },
+  payment,
 });

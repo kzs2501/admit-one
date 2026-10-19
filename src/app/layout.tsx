@@ -5,6 +5,7 @@ import { Providers } from "./providers";
 import { WebVitals } from "./web-vitals";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
+import { SimulatedPhone } from "@/features/sandbox/components/simulated-phone";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
@@ -58,6 +59,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main id="main" tabIndex={-1} className="flex-1 outline-none">
             {children}
           </main>
+          {/* Outside main: it stands for the buyer's own phone, not part of the shop's page. */}
+          <ErrorBoundary fallback={null}>
+            <SimulatedPhone />
+          </ErrorBoundary>
           <footer className="border-t border-line">
             <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-ink-3 sm:px-8">
               <p>All events, venues and people are fictional. The backend runs in your browser.</p>

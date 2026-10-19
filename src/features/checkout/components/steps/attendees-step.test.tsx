@@ -39,6 +39,7 @@ describe("AttendeesStep", () => {
         goNext={goNext}
         goBack={null}
         onExpired={vi.fn()}
+        clockOffsetMs={0}
       />,
     );
     return { updateDraft, goNext, user: userEvent.setup() };
@@ -66,6 +67,7 @@ describe("AttendeesStep", () => {
         goNext={vi.fn()}
         goBack={null}
         onExpired={vi.fn()}
+        clockOffsetMs={0}
       />,
     );
     expect(screen.getByRole("group", { name: "Ticket 1 · Stalls, row F, seat 12 · General" })).toBeInTheDocument();

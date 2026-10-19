@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getEvent } from "@/core/catalog";
 import {
   describeItems,
+  describePayment,
   formatCount,
   formatEventDate,
   formatEventTime,
@@ -59,5 +60,11 @@ describe("formatting", () => {
     expect(formatWait(3 * 60_000)).toBe("about 3 minutes");
     expect(formatWait(58 * 60_000)).toBe("about an hour");
     expect(formatWait(150 * 60_000)).toBe("about 3 hours");
+  });
+
+  it("says how an order was paid", () => {
+    expect(describePayment({ method: "card", last4: "4242" })).toBe("with a card ending 4242");
+    expect(describePayment({ method: "card", last4: null })).toBe("by card");
+    expect(describePayment({ method: "upi", last4: null })).toBe("by UPI");
   });
 });

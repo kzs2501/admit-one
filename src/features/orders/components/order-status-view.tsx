@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import Link from "next/link";
 import { getEvent } from "@/core/catalog";
-import { formatEventDate, formatEventTime, formatMoney, formatSeat } from "@/lib/format";
+import { describePayment, formatEventDate, formatEventTime, formatMoney, formatSeat } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
@@ -98,8 +98,8 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
             ))}
           </ul>
           <p className="mt-6 text-sm text-ink-3">
-            Paid {formatMoney(order.amounts.totalMinor, order.amounts.currency)} with a card ending{" "}
-            {order.payment?.last4}. Order {order.id}.
+            Paid {formatMoney(order.amounts.totalMinor, order.amounts.currency)}
+            {order.payment && ` ${describePayment(order.payment)}`}. Order {order.id}.
           </p>
         </Shell>
       );

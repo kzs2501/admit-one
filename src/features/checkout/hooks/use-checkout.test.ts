@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { HoldDetailsDto } from "@/contract/dto";
 import { ApiError, NetworkError } from "@/lib/api-client";
-import { eventDtoFor, holdDtoFor, orderDtoFor, testPeople } from "@/features/checkout/testing/fixtures";
+import {
+  eventDtoFor,
+  holdDtoFor,
+  orderDtoFor,
+  orderWithPayment,
+  testPeople,
+  upiPaymentDto,
+} from "@/features/checkout/testing/fixtures";
 import { createEmptyDraft } from "./use-draft";
-import { deriveCheckout, type CheckoutInputs } from "./use-checkout";
+import { deriveCheckout, pollWhileApprovingUpi, UPI_POLL_MS, type CheckoutInputs } from "./use-checkout";
 
 const details = (overrides: Partial<HoldDetailsDto> = {}): HoldDetailsDto => ({
   hold: holdDtoFor("frontend-systems-summit", "fss-general", 2),
@@ -107,5 +114,17 @@ describe("deriveCheckout", () => {
     );
     expect(state).toMatchObject({ kind: "ready", step: { id: "payment" } });
     expect(orderPageId).toBeNull();
+  });
+});
+
+describe("pollWhileApprovingUpi", () => {
+  const withOrder = (order: HoldDetailsDto["order"]) => ({ order }) as HoldDetailsDto;
+
+  it("re-reads the order every couple of seconds while a UPI request waits — and only then", () => {
+    expect(pollWhileApprovingUpi(withOrder(orderWithPayment(upiPaymentDto())))).toBe(UPI_POLL_MS);
+    const approved = upiPaymentDto({ status: "processing", nextAction: null });
+    expect(pollWhileApprovingUpi(withOrder(orderWithPayment(approved)))).toBe(false);
+    expect(pollWhileApprovingUpi(withOrder(null))).toBe(false);
+    expect(pollWhileApprovingUpi(undefined)).toBe(false);
   });
 });
