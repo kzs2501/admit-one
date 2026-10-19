@@ -3,7 +3,7 @@
  * order state machine, and fulfilled with tickets once paid.
  */
 import { getEvent } from "@/core/catalog";
-import { priceOrder } from "@/core/money";
+import { priceOrder } from "@/core/pricing";
 import type { Attendee } from "@/core/schemas";
 import type { OrderStatus } from "@/core/statuses";
 import { ticketCount } from "@/core/ticketing";

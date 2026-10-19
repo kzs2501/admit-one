@@ -6,7 +6,7 @@
  */
 import { getEvent, type AddOnInfo, type EventInfo } from "@/core/catalog";
 import type { Seat } from "@/core/seating";
-import type { Amounts } from "@/core/money";
+import type { Amounts } from "@/core/pricing";
 import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";

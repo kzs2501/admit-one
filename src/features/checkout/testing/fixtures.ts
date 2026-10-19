@@ -41,7 +41,7 @@ export const orderDtoFor = (draft: Draft, status: OrderStatus = "pending"): Orde
   seats: [],
   attendees: draft.attendees,
   addOns: Object.fromEntries(Object.entries(draft.addOns).filter(([, quantity]) => quantity > 0)),
-  amounts: { currency: "INR", ticketsMinor: 0, addOnsMinor: 0, feesMinor: 0, totalMinor: 0 },
+  amounts: { currency: "INR", ticketsMinor: 0, addOnsMinor: 0, feesMinor: 0, taxMinor: 0, totalMinor: 0, taxLines: [] },
   status,
   statusReason: null,
   tickets: [],

@@ -243,5 +243,3 @@ export const findTier = (tierId: string) => {
   }
   return undefined;
 };
-
-export const lowestPriceMinor = (event: EventInfo) => Math.min(...event.tiers.map((tier) => tier.priceMinor));

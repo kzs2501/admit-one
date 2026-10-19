@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { getEvent } from "@/core/catalog";
+import { priceOrder } from "@/core/pricing";
 import { DEFAULT_CHAOS } from "@/backend/chaos/presets";
 import { createTestBackend, testAttendees, testCard, valueOf } from "@/backend/testing/fixtures";
 import type { UpsertOrderCommand } from "./orders";
@@ -19,13 +21,12 @@ describe("orders", () => {
     expect(first.isCreated).toBe(true);
     expect(second.isCreated).toBe(false);
     expect(second.order.id).toBe(first.order.id);
-    expect(second.order.amounts).toEqual({
-      currency: "INR",
-      ticketsMinor: 999800,
-      addOnsMinor: 90000,
-      feesMinor: 32694,
-      totalMinor: 1122494,
-    });
+    // Repriced on update, by the one pricing engine, with the extras and their GST.
+    expect(second.order.amounts).toEqual(
+      priceOrder(getEvent("frontend-systems-summit"), hold.items, { "fss-lunch": 2 }),
+    );
+    expect(second.order.amounts.addOnsMinor).toBe(90_000);
+    expect(second.order.amounts.totalMinor).toBeGreaterThan(first.order.amounts.totalMinor);
   });
 
   it("requires one attendee per ticket, and known add-ons", () => {

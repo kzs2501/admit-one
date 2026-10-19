@@ -1,5 +1,6 @@
 "use client";
 
+import { allInAddOnPriceMinor } from "@/core/pricing";
 import { ticketCount } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,9 @@ export function AddOnsStep({ context, updateDraft, goNext, goBack }: StepProps) 
             <div>
               <p className="font-medium">{addOn.name}</p>
               <p className="text-sm text-ink-2">{addOn.description}</p>
-              <p className="tabular mt-1 text-sm">{formatMoney(addOn.priceMinor, context.event.currency)} each</p>
+              <p className="tabular mt-1 text-sm">
+                {formatMoney(allInAddOnPriceMinor(context.event, addOn.id), context.event.currency)} each, incl. GST
+              </p>
             </div>
             <Stepper
               label={addOn.name}

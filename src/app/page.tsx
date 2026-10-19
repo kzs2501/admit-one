@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CATALOG, lowestPriceMinor } from "@/core/catalog";
+import { CATALOG } from "@/core/catalog";
+import { lowestAllInPriceMinor } from "@/core/pricing";
 import { formatEventDate, formatEventTime, formatMoney } from "@/lib/format";
 import { AvailabilityBadge } from "@/features/events/components/availability-badge";
 import { routes } from "@/lib/routes";
@@ -38,7 +39,9 @@ export default function Home() {
                 {event.venue}, {event.city}
               </p>
               <p className="mt-1 text-sm">
-                From <span className="tabular font-medium">{formatMoney(lowestPriceMinor(event), event.currency)}</span>
+                From{" "}
+                <span className="tabular font-medium">{formatMoney(lowestAllInPriceMinor(event), event.currency)}</span>{" "}
+                <span className="text-ink-3">all in</span>
               </p>
             </Link>
           </li>

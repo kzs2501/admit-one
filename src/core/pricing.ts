@@ -37,7 +37,8 @@ export interface PricedEvent {
   addOns: readonly { id: string; priceMinor: number; gstRateBasisPoints: number }[];
 }
 
-export type TaxLineKind = "tickets" | "tickets-exempt" | "booking-fee" | "add-ons";
+export const TAX_LINE_KINDS = ["tickets", "tickets-exempt", "booking-fee", "add-ons"] as const;
+export type TaxLineKind = (typeof TAX_LINE_KINDS)[number];
 
 export interface TaxLine {
   kind: TaxLineKind;
@@ -102,6 +103,16 @@ function findPrice<T extends { id: string }>(event: PricedEvent, list: readonly 
   return found;
 }
 
+/** One extra, with its GST: extras carry no booking fee. */
+export const allInAddOnPriceMinor = (event: PricedEvent, addOnId: string) => {
+  const addOn = findPrice(event, event.addOns, addOnId, "add-on");
+  return addOn.priceMinor + gstOn(addOn.priceMinor, addOn.gstRateBasisPoints);
+};
+
+/** "From ₹…": the cheapest all-in ticket an event sells. */
+export const lowestAllInPriceMinor = (event: PricedEvent) =>
+  Math.min(...event.tiers.map((tier) => ticketPrice(tier.priceMinor).allInMinor));
+
 /** The all-in price of one ticket in a tier: the number every price label shows. */
 export const allInTicketPriceMinor = (event: PricedEvent, tierId: string) =>
   ticketPrice(findPrice(event, event.tiers, tierId, "tier").priceMinor).allInMinor;
@@ -123,12 +134,12 @@ function collectTaxLines(lines: TaxLine[]): TaxLine[] {
         : line,
     );
   }
-  const order: TaxLineKind[] = ["tickets", "tickets-exempt", "booking-fee", "add-ons"];
   return [...merged.values()]
     .filter((line) => line.taxableMinor > 0)
     .sort(
       (left, right) =>
-        order.indexOf(left.kind) - order.indexOf(right.kind) || right.rateBasisPoints - left.rateBasisPoints,
+        TAX_LINE_KINDS.indexOf(left.kind) - TAX_LINE_KINDS.indexOf(right.kind) ||
+        right.rateBasisPoints - left.rateBasisPoints,
     );
 }
 

@@ -9,10 +9,11 @@
 import { z } from "@/core/zod";
 import { PRESET_IDS } from "@/backend/chaos/presets";
 import { CURRENCIES } from "@/core/money";
+import { TAX_LINE_KINDS } from "@/core/pricing";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 6;
+const STATE_VERSION = 7;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -46,7 +47,16 @@ const orderRecordSchema = z.object({
     ticketsMinor: z.number().int(),
     addOnsMinor: z.number().int(),
     feesMinor: z.number().int(),
+    taxMinor: z.number().int(),
     totalMinor: z.number().int(),
+    taxLines: z.array(
+      z.object({
+        kind: z.enum(TAX_LINE_KINDS),
+        rateBasisPoints: z.number().int(),
+        taxableMinor: z.number().int(),
+        amountMinor: z.number().int(),
+      }),
+    ),
   }),
   status: z.enum(ORDER_STATUSES),
   statusReason: z.string().nullable(),

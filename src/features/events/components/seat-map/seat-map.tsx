@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getEvent, getSeatPlan } from "@/core/catalog";
+import { allInTicketPriceMinor, priceOrder } from "@/core/pricing";
 import { formatSeatList, type Seat } from "@/core/seating";
 import { MAX_TICKETS_PER_ORDER } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
@@ -62,7 +63,10 @@ export function SeatMap({ slug }: { slug: string }) {
   const tiers: TierLabels = useMemo(
     () =>
       new Map(
-        event.tiers.map((tier) => [tier.id, { name: tier.name, price: formatMoney(tier.priceMinor, event.currency) }]),
+        event.tiers.map((tier) => [
+          tier.id,
+          { name: tier.name, price: formatMoney(allInTicketPriceMinor(event, tier.id), event.currency) },
+        ]),
       ),
     [event],
   );
@@ -74,7 +78,7 @@ export function SeatMap({ slug }: { slug: string }) {
   const tierKeys: TierKey[] = event.tiers.map((tier) => ({
     id: tier.id,
     name: tier.name,
-    price: formatMoney(tier.priceMinor, event.currency),
+    price: formatMoney(allInTicketPriceMinor(event, tier.id), event.currency),
     description: tier.description,
     isFeatured: tier.id === featuredTierId,
   }));
@@ -87,10 +91,15 @@ export function SeatMap({ slug }: { slug: string }) {
     if (conflict) conflictNotice.current?.focus();
   }, [conflict]);
 
-  const totalMinor = selection.seats.reduce(
-    (sum, seat) => sum + (event.tiers.find((tier) => tier.id === seat.tierId)?.priceMinor ?? 0),
-    0,
-  );
+  // All in, from the same engine the order is charged with.
+  const totalMinor = priceOrder(
+    event,
+    event.tiers.flatMap((tier) => {
+      const quantity = selection.seats.filter((seat) => seat.tierId === tier.id).length;
+      return quantity > 0 ? [{ tierId: tier.id, quantity }] : [];
+    }),
+    {},
+  ).totalMinor;
   const chosenCount = selection.seats.length;
   const announcement =
     chosenCount === 0

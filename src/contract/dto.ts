@@ -8,6 +8,7 @@
  */
 import { z } from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
+import { TAX_LINE_KINDS } from "@/core/pricing";
 import { SEAT_ID_PATTERN } from "@/core/seating";
 import {
   HOLD_STATUSES,
@@ -54,7 +55,10 @@ export const addOnDtoSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
+  /** Before tax. */
   priceMinor: minorUnitsSchema,
+  /** GST on this extra, in basis points (500 = 5%). */
+  gstRateBasisPoints: z.number().int().nonnegative(),
 });
 
 export const eventDtoSchema = z.object({
@@ -94,12 +98,24 @@ export const attendeeDtoSchema = z.object({ name: z.string(), email: z.string() 
 
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 
+/** GST on one kind of thing in the order: tickets (or exempt tickets), the booking fee, or extras at one rate. */
+export const taxLineDtoSchema = z.object({
+  kind: z.enum(TAX_LINE_KINDS),
+  rateBasisPoints: z.number().int().nonnegative(),
+  taxableMinor: minorUnitsSchema,
+  amountMinor: minorUnitsSchema,
+});
+
+/** What an order costs. Tickets and extras are before tax; `totalMinor` is what's charged, all in. */
 export const amountsDtoSchema = z.object({
   currency: currencySchema,
   ticketsMinor: minorUnitsSchema,
   addOnsMinor: minorUnitsSchema,
+  /** Booking fees. */
   feesMinor: minorUnitsSchema,
+  taxMinor: minorUnitsSchema,
   totalMinor: minorUnitsSchema,
+  taxLines: z.array(taxLineDtoSchema),
 });
 
 export const ticketDtoSchema = z.object({
@@ -182,6 +198,7 @@ export type EventDto = z.infer<typeof eventDtoSchema>;
 export type HoldDto = z.infer<typeof holdDtoSchema>;
 export type AttendeeDto = z.infer<typeof attendeeDtoSchema>;
 export type AmountsDto = z.infer<typeof amountsDtoSchema>;
+export type TaxLineDto = z.infer<typeof taxLineDtoSchema>;
 export type TicketDto = z.infer<typeof ticketDtoSchema>;
 export type PaymentDto = z.infer<typeof paymentDtoSchema>;
 export type OrderDto = z.infer<typeof orderDtoSchema>;

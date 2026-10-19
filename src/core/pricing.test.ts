@@ -1,7 +1,16 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { getEvent } from "./catalog";
-import { allInTicketPriceMinor, BOOKING_FEE_LABEL, gstOn, priceOrder, ticketPrice, type PricedEvent } from "./pricing";
+import {
+  allInAddOnPriceMinor,
+  allInTicketPriceMinor,
+  BOOKING_FEE_LABEL,
+  gstOn,
+  lowestAllInPriceMinor,
+  priceOrder,
+  ticketPrice,
+  type PricedEvent,
+} from "./pricing";
 
 /** An event with one tier at the given price, and one extra at 5%. */
 const eventPricedAt = (priceMinor: number): PricedEvent => ({
@@ -98,6 +107,18 @@ describe("price labels", () => {
     expect(allInTicketPriceMinor(monsoon, "ms-premium")).toBe(
       priceOrder(monsoon, [{ tierId: "ms-premium", quantity: 1 }], {}).totalMinor,
     );
+  });
+
+  it("label an extra with its GST and no booking fee — what it adds to the order", () => {
+    const event = eventPricedAt(100_000);
+    expect(allInAddOnPriceMinor(event, "a")).toBe(47_250); // ₹450 + 5%
+    expect(allInAddOnPriceMinor(event, "a")).toBe(priceOrder(event, [], { a: 1 }).totalMinor);
+  });
+
+  it("start an event's prices from its cheapest all-in ticket", () => {
+    const jazz = getEvent("night-market-jazz");
+    expect(lowestAllInPriceMinor(jazz)).toBe(46_594); // ₹450 student standing, no GST on the ticket
+    expect(lowestAllInPriceMinor(jazz)).toBe(allInTicketPriceMinor(jazz, "nmj-student"));
   });
 
   it("label the fee from the same rule it charges", () => {

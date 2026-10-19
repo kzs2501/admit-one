@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getEvent } from "@/core/catalog";
+import { priceOrder, ticketPrice } from "@/core/pricing";
 import { MAX_TICKETS_PER_ORDER, stockLevel, type StockLevel } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { eventQueries, shouldShowQueryError } from "@/lib/queries";
@@ -43,7 +44,12 @@ export function TierPicker({ slug }: { slug: string }) {
   }
 
   const total = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);
-  const subtotalMinor = event.tiers.reduce((sum, tier) => sum + tier.priceMinor * (quantities[tier.id] ?? 0), 0);
+  const chosenItems = event.tiers.flatMap((tier) => {
+    const quantity = quantities[tier.id] ?? 0;
+    return quantity > 0 ? [{ tierId: tier.id, quantity }] : [];
+  });
+  // All in: the same total the order will charge, fees and GST included.
+  const totalMinor = priceOrder(event, chosenItems, {}).totalMinor;
   const isSoldOut = live !== undefined && event.tiers.every((tier) => availableFor(tier.id) === 0);
 
   return (
@@ -61,16 +67,24 @@ export function TierPicker({ slug }: { slug: string }) {
           const available = availableFor(tier.id);
           const max = Math.min(available ?? 0, MAX_TICKETS_PER_ORDER - (total - chosen));
           const level = available === undefined ? null : stockLevel(available);
+          const price = ticketPrice(tier.priceMinor);
           return (
             <li key={tier.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
               <div className="min-w-0">
                 <p className="font-medium">{tier.name}</p>
                 <p className="text-sm text-ink-2">{tier.description}</p>
                 <p className="mt-1 text-sm">
-                  <span className="tabular font-medium">{formatMoney(tier.priceMinor, event.currency)}</span>
+                  <span className="tabular font-medium">{formatMoney(price.allInMinor, event.currency)}</span>
                   <span className={`tabular ml-2 text-xs ${level ? STOCK_TONES[level] : "text-ink-3"}`}>
                     {available === undefined ? "Checking…" : level === "sold-out" ? "Sold out" : `${available} left`}
                   </span>
+                </p>
+                <p className="tabular mt-0.5 text-xs text-ink-3">
+                  Ticket {formatMoney(price.baseMinor, event.currency)} + booking fee{" "}
+                  {formatMoney(price.feeMinor, event.currency)}
+                  {price.isGstExempt
+                    ? ` + GST on the fee ${formatMoney(price.gstOnFeeMinor, event.currency)} (no GST on the ticket)`
+                    : ` + GST ${formatMoney(price.gstOnTicketMinor + price.gstOnFeeMinor, event.currency)}`}
                 </p>
               </div>
               <Stepper
@@ -110,7 +124,7 @@ export function TierPicker({ slug }: { slug: string }) {
             ) : (
               <>
                 {total} ticket{total === 1 ? "" : "s"} ·{" "}
-                <span className="tabular font-medium text-ink">{formatMoney(subtotalMinor, event.currency)}</span>
+                <span className="tabular font-medium text-ink">{formatMoney(totalMinor, event.currency)}</span> all in
               </>
             )}
           </p>

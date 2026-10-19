@@ -1,5 +1,6 @@
 import type { SeatDto } from "@/contract/dto";
 import type { CurrencyCode } from "@/core/money";
+import { PRICING_RULES, type TaxLine } from "@/core/pricing";
 import { formatSeatList, seatLabel } from "@/core/seating";
 import type { LineItem } from "@/core/ticketing";
 
@@ -66,4 +67,20 @@ export function formatWait(waitMs: number): string {
   if (minutes < 55) return `about ${minutes} minutes`;
   const hours = Math.round(minutes / 60);
   return hours === 1 ? "about an hour" : `about ${hours} hours`;
+}
+
+const percent = (basisPoints: number) => `${basisPoints / 100}%`;
+
+/** "GST on tickets (18%)" — or, for tickets under the threshold, why there isn't any. */
+export function describeTaxLine(line: Pick<TaxLine, "kind" | "rateBasisPoints">, currency: CurrencyCode): string {
+  switch (line.kind) {
+    case "tickets":
+      return `GST on tickets (${percent(line.rateBasisPoints)})`;
+    case "tickets-exempt":
+      return `No GST on tickets of ${formatMoney(PRICING_RULES.admissionGst.exemptUpToMinor, currency)} or less`;
+    case "booking-fee":
+      return `GST on the booking fee (${percent(line.rateBasisPoints)})`;
+    case "add-ons":
+      return `GST on extras (${percent(line.rateBasisPoints)})`;
+  }
 }

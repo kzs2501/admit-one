@@ -44,7 +44,7 @@ export function SelectedSeats({
         <div className="flex items-center gap-3">
           {seats.length > 0 && (
             <p className="tabular text-sm whitespace-nowrap">
-              <span className="font-medium">{totalLabel}</span> <span className="text-ink-3">+ fees</span>
+              <span className="font-medium">{totalLabel}</span> <span className="text-ink-3">all in</span>
             </p>
           )}
           <Button

@@ -1,11 +1,12 @@
 import type { EventDto, SeatDto } from "@/contract/dto";
-import { priceOrder, SERVICE_FEE_LABEL } from "@/core/money";
+import { BOOKING_FEE_LABEL, priceOrder } from "@/core/pricing";
 import type { LineItem } from "@/core/ticketing";
-import { formatEventDate, formatEventTime, formatMoney, formatSeats } from "@/lib/format";
+import { describeTaxLine, formatEventDate, formatEventTime, formatMoney, formatSeats } from "@/lib/format";
 
 /**
- * The running order summary. It's priced with the same function the server uses
- * (`priceOrder`), so the total shown here is the total that gets charged.
+ * The running order summary. It's priced with the same engine the server uses
+ * (`core/pricing.ts`), so the total shown here is the total that gets charged — and
+ * every part of it is listed: the tickets, the booking fee, and GST on each.
  */
 export function OrderSummary({
   event,
@@ -63,9 +64,15 @@ export function OrderSummary({
           </div>
         ))}
         <div className="flex justify-between gap-4">
-          <dt className="text-ink-2">Service fee ({SERVICE_FEE_LABEL})</dt>
+          <dt className="text-ink-2">Booking fee ({BOOKING_FEE_LABEL} per ticket)</dt>
           <dd className="tabular">{formatMoney(amounts.feesMinor, amounts.currency)}</dd>
         </div>
+        {amounts.taxLines.map((line) => (
+          <div key={`${line.kind}-${String(line.rateBasisPoints)}`} className="flex justify-between gap-4">
+            <dt className="text-ink-2">{describeTaxLine(line, amounts.currency)}</dt>
+            <dd className="tabular">{formatMoney(line.amountMinor, amounts.currency)}</dd>
+          </div>
+        ))}
         <div className="flex justify-between gap-4 border-t border-line pt-3 font-medium">
           <dt>Total</dt>
           <dd className="tabular">{formatMoney(amounts.totalMinor, amounts.currency)}</dd>
