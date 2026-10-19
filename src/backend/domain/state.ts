@@ -10,10 +10,16 @@ import { z } from "@/core/zod";
 import { PRESET_IDS } from "@/backend/chaos/presets";
 import { CURRENCIES } from "@/core/money";
 import { TAX_LINE_KINDS } from "@/core/pricing";
-import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
+import {
+  ORDER_STATUSES,
+  PAYMENT_FAILURE_CODES,
+  PAYMENT_STATUSES,
+  REFUND_REASONS,
+  REFUND_STATUSES,
+} from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 11;
+const STATE_VERSION = 12;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -115,20 +121,36 @@ const queueEntryRecordSchema = z.object({
 const outboxItemBaseSchema = z.object({
   deliveryId: z.string(),
   eventId: z.string(),
-  paymentId: z.string(),
   /** When the provider sent it: the start of its lag. */
   enqueuedAtMs: epochMsSchema,
   deliverAtMs: epochMsSchema,
 });
 
-/** A webhook waiting to be delivered: the outbox pattern. A payment either happened or it didn't. */
+/** A webhook waiting to be delivered: the outbox pattern. A payment happened or didn't; a refund went through. */
 const outboxItemSchema = z.discriminatedUnion("type", [
-  outboxItemBaseSchema.extend({ type: z.literal("payment.succeeded") }),
+  outboxItemBaseSchema.extend({ type: z.literal("payment.succeeded"), paymentId: z.string() }),
   outboxItemBaseSchema.extend({
     type: z.literal("payment.failed"),
+    paymentId: z.string(),
     failureCode: z.enum(["upi_declined"]),
   }),
+  outboxItemBaseSchema.extend({ type: z.literal("refund.succeeded"), refundId: z.string() }),
 ]);
+
+/** A refund an organiser asked for: pending until the provider's webhook settles it. */
+const refundRecordSchema = z.object({
+  id: z.string(),
+  orderId: z.string(),
+  eventSlug: z.string(),
+  amountMinor: z.number().int().nonnegative(),
+  currency: z.enum(CURRENCIES),
+  reason: z.enum(REFUND_REASONS),
+  status: z.enum(REFUND_STATUSES),
+  /** The account that asked for it. */
+  requestedBy: z.string(),
+  createdAtMs: epochMsSchema,
+  settledAtMs: epochMsSchema.nullable(),
+});
 
 const LOG_KINDS = ["request", "auth", "queue", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
 
@@ -151,6 +173,10 @@ const serverStateSchema = z.object({
   sold: z.record(z.string(), z.number().int().nonnegative()),
   /** Reserved seats sold in this sandbox (on top of each hall's baseline). */
   soldSeatIds: z.array(z.string()),
+  /** Tickets sold before the sandbox that a refund has put back on sale, per tier. */
+  returnedTickets: z.record(z.string(), z.number().int().nonnegative()),
+  /** Seats sold before the sandbox that a refund has put back on sale. */
+  releasedSeatIds: z.array(z.string()),
   /** The "seat snatched" preset takes a requested seat once, so the retry can succeed. */
   hasSnatchedSeat: z.boolean(),
   holds: z.record(z.string(), holdRecordSchema),
@@ -159,6 +185,7 @@ const serverStateSchema = z.object({
   orders: z.record(z.string(), orderRecordSchema),
   payments: z.record(z.string(), paymentRecordSchema),
   idempotency: z.record(z.string(), idempotencyRecordSchema),
+  refunds: z.record(z.string(), refundRecordSchema),
   /** Organisers' sessions, by token. */
   sessions: z.record(z.string(), sessionRecordSchema),
   /** Webhook event ids already processed — the dedupe set. */
@@ -174,6 +201,7 @@ export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
 export type QueueEntryRecord = z.infer<typeof queueEntryRecordSchema>;
 export type IdempotencyRecord = z.infer<typeof idempotencyRecordSchema>;
 export type OutboxItem = z.infer<typeof outboxItemSchema>;
+export type RefundRecord = z.infer<typeof refundRecordSchema>;
 export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;
@@ -184,12 +212,15 @@ export const createInitialState = (presetId: ServerState["presetId"], createdAtM
   presetId,
   sold: {},
   soldSeatIds: [],
+  returnedTickets: {},
+  releasedSeatIds: [],
   hasSnatchedSeat: false,
   holds: {},
   queueEntries: {},
   orders: {},
   payments: {},
   idempotency: {},
+  refunds: {},
   sessions: {},
   processedEventIds: [],
   outbox: [],

@@ -13,7 +13,7 @@ import type { OrderBy, OrderSortField } from "@/contract/queries";
 import { findEvent, getEvent } from "@/core/catalog";
 import { can, getOrganisation, type Account, type Permission } from "@/core/organisations";
 import type { Amounts } from "@/core/pricing";
-import type { OrderStatus, PaymentMethod } from "@/core/statuses";
+import type { OrderStatus, PaymentMethod, RefundStatus } from "@/core/statuses";
 import { nextDate, zonedDayStart } from "@/core/time";
 import { ticketCount } from "@/core/ticketing";
 import { eventFor } from "./access";
@@ -21,7 +21,7 @@ import type { BackendContext } from "./context";
 import { fail, ok, type Result } from "./errors";
 import { findHistoricalOrder, getHistory, type HistoricalOrder } from "./history";
 import { resolveOrderStatus } from "./orders";
-import type { OrderRecord } from "./state";
+import type { OrderRecord, RefundRecord } from "./state";
 
 /** One order, as a row in the organiser's table. */
 export interface OrderRow {
@@ -36,6 +36,8 @@ export interface OrderRow {
   method: PaymentMethod | null;
   /** For orders that were paid: how long the provider's webhook took. */
   webhookLagMs: number | null;
+  /** A refund asked for: on its way, or done. */
+  refundStatus: RefundStatus | null;
 }
 
 export interface OrderQuery {
@@ -56,7 +58,12 @@ export interface OrderPage {
   totalSize: number;
 }
 
-const fromHistory = (order: HistoricalOrder, createdAtMs: number): OrderRow => ({
+/** Refunds by order: what an organiser has done to an order since it was placed. */
+const refundsOf = (context: BackendContext) =>
+  new Map(Object.values(context.state.refunds).map((refund) => [refund.orderId, refund]));
+
+/** History is generated, so a refund since is laid over it: once it's gone through, the order is refunded. */
+const fromHistory = (order: HistoricalOrder, createdAtMs: number, refund: RefundRecord | undefined): OrderRow => ({
   id: order.id,
   eventSlug: order.eventSlug,
   createdAtMs: createdAtMs - order.agoMs,
@@ -64,12 +71,13 @@ const fromHistory = (order: HistoricalOrder, createdAtMs: number): OrderRow => (
   buyerEmail: order.buyer.email,
   ticketCount: order.quantity,
   amounts: order.amounts,
-  status: order.status,
+  status: refund?.status === "succeeded" ? "refunded" : order.status,
   method: order.method,
   webhookLagMs: order.webhookLagMs,
+  refundStatus: refund?.status ?? null,
 });
 
-function fromSandbox(context: BackendContext, order: OrderRecord): OrderRow {
+function fromSandbox(context: BackendContext, order: OrderRecord, refund: RefundRecord | undefined): OrderRow {
   const buyer = order.attendees[0];
   const payment = order.paymentId ? context.state.payments[order.paymentId] : undefined;
   return {
@@ -83,19 +91,21 @@ function fromSandbox(context: BackendContext, order: OrderRecord): OrderRow {
     status: resolveOrderStatus(context, order).status,
     method: payment?.method ?? null,
     webhookLagMs: payment?.webhookLagMs ?? null,
+    refundStatus: refund?.status ?? null,
   };
 }
 
 /** Every order this account may see for this permission: the history, then this sandbox's. */
 export function visibleRows(context: BackendContext, account: Account, permission: Permission): OrderRow[] {
   const isVisible = (row: { eventSlug: string }) => can(account, permission, getEvent(row.eventSlug));
+  const refunds = refundsOf(context);
   return [
     ...getHistory()
       .orders.filter(isVisible)
-      .map((order) => fromHistory(order, context.state.createdAtMs)),
+      .map((order) => fromHistory(order, context.state.createdAtMs, refunds.get(order.id))),
     ...Object.values(context.state.orders)
       .filter(isVisible)
-      .map((order) => fromSandbox(context, order)),
+      .map((order) => fromSandbox(context, order, refunds.get(order.id))),
   ];
 }
 
@@ -238,6 +248,7 @@ export interface OrganiserOrder extends OrderRow {
   addOns: Readonly<Record<string, number>>;
   attendees: { name: string; email: string }[];
   last4: string | null;
+  refunds: RefundRecord[];
 }
 
 export function findOrganiserOrder(context: BackendContext, account: Account, orderId: string): Result<OrganiserOrder> {
@@ -247,25 +258,29 @@ export function findOrganiserOrder(context: BackendContext, account: Account, or
   const eventSlug = historical?.eventSlug ?? sandboxOrder?.eventSlug;
   const event = eventSlug === undefined ? undefined : findEvent(eventSlug);
   if (!event || !can(account, "orders:read", event)) return notFound;
+  const refund = refundsOf(context).get(orderId);
+  const refunds = refund ? [refund] : [];
 
   if (historical) {
     return ok({
-      ...fromHistory(historical, context.state.createdAtMs),
+      ...fromHistory(historical, context.state.createdAtMs, refund),
       items: [{ tierId: historical.tierId, quantity: historical.quantity }],
       seatIds: historical.seatIds,
       addOns: historical.addOns,
       attendees: [historical.buyer],
       last4: historical.last4,
+      refunds,
     });
   }
   if (!sandboxOrder) return notFound;
   const payment = sandboxOrder.paymentId ? context.state.payments[sandboxOrder.paymentId] : undefined;
   return ok({
-    ...fromSandbox(context, sandboxOrder),
+    ...fromSandbox(context, sandboxOrder, refund),
     items: sandboxOrder.items,
     seatIds: context.state.holds[sandboxOrder.holdId]?.seatIds ?? [],
     addOns: sandboxOrder.addOns,
     attendees: sandboxOrder.attendees,
     last4: payment?.method === "card" ? payment.last4 : null,
+    refunds,
   });
 }

@@ -9,6 +9,8 @@ import type { Backend } from "@/backend/backend";
 import type { DomainError, Result } from "@/backend/domain/errors";
 import type { JsonValue } from "@/backend/domain/state";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
+import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
+import { fingerprintRequest } from "./idempotency";
 import { toProblem } from "./problems";
 
 export interface HandlerOptions {
@@ -90,7 +92,46 @@ export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptio
     return { ok: false, reply: problemReply({ code: "invalid_request", detail }, request) };
   }
 
-  return { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody };
+  /**
+   * Do something that mustn't happen twice — a charge, a refund — at most once per
+   * Idempotency-Key, as Stripe describes in "Designing robust and predictable APIs with
+   * idempotency". The same key and request always get the first answer back; the same
+   * key with a different request is refused. Only attempted work is stored, so a request
+   * turned away before anything happened can be retried with the same key once it's
+   * fixed. Keys are kept for 24 hours, and an organiser's are theirs alone (`scope`).
+   */
+  async function withIdempotencyKey(
+    request: Request,
+    { what, scope = "" }: { what: string; scope?: string },
+    attempt: (body: unknown) => { reply: Reply; isAttempted: boolean },
+  ): Promise<Reply> {
+    const key = request.headers.get(IDEMPOTENCY_KEY_HEADER);
+    if (!key) {
+      return problemReply(
+        { code: "missing_idempotency_key", detail: `${what} need an Idempotency-Key header.` },
+        request,
+      );
+    }
+    const body = await readJson(request);
+    const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
+    const storedKey = scope ? `${scope}:${key}` : key;
+    const stored = backend.idempotency.find(storedKey);
+    if (stored) {
+      if (stored.fingerprint !== fingerprint) {
+        return problemReply(
+          { code: "idempotency_key_reused", detail: "That Idempotency-Key was used for a different request." },
+          request,
+        );
+      }
+      backend.log("payment", "Idempotency-Key replayed — returning the original response, nothing done twice.");
+      return { status: stored.status, body: stored.body };
+    }
+    const { reply, isAttempted } = attempt(body);
+    if (isAttempted) backend.idempotency.save(storedKey, { fingerprint, ...reply });
+    return reply;
+  }
+
+  return { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody, withIdempotencyKey };
 }
 
 export type Kit = ReturnType<typeof createKit>;

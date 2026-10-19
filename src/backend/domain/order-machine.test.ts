@@ -12,6 +12,7 @@ describe("order state machine", () => {
     "failed>expired",
     "paid>fulfilled",
     "paid>refunded",
+    "fulfilled>refunded",
   ]);
 
   it("allows exactly the documented ORDER_TRANSITIONS", () => {
@@ -22,8 +23,8 @@ describe("order state machine", () => {
     }
   });
 
-  it("treats fulfilled, refunded and expired as terminal", () => {
-    expect(ORDER_STATUSES.filter(isTerminal).sort()).toEqual(["expired", "fulfilled", "refunded"]);
+  it("treats refunded and expired as terminal — a fulfilled order can still be refunded", () => {
+    expect(ORDER_STATUSES.filter(isTerminal).sort()).toEqual(["expired", "refunded"]);
     expect(Object.keys(ORDER_TRANSITIONS).sort()).toEqual([...ORDER_STATUSES].sort());
   });
 });

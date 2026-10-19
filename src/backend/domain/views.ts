@@ -17,14 +17,22 @@ import {
 } from "@/core/organisations";
 import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/pricing";
-import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentMethod, PaymentStatus } from "@/core/statuses";
+import type {
+  HoldStatus,
+  OrderStatus,
+  PaymentFailureCode,
+  PaymentMethod,
+  PaymentStatus,
+  RefundReason,
+  RefundStatus,
+} from "@/core/statuses";
 import type { OrderRow, OrganiserOrder } from "./reporting";
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus, resolvePayment } from "./orders";
 import { placeAt, type QueuePlace } from "./queue";
-import type { HoldRecord, OrderRecord, PaymentRecord, QueueEntryRecord } from "./state";
+import type { HoldRecord, OrderRecord, PaymentRecord, QueueEntryRecord, RefundRecord } from "./state";
 import { buildUpiIntent, UPI_PAYEE } from "./upi";
 
 export interface TierView {
@@ -174,7 +182,31 @@ export interface OrderRowView {
   currency: EventInfo["currency"];
   status: OrderStatus;
   paymentMethod: PaymentMethod | null;
+  refundStatus: RefundStatus | null;
 }
+
+export interface RefundView {
+  id: string;
+  orderId: string;
+  amountMinor: number;
+  currency: EventInfo["currency"];
+  reason: RefundReason;
+  status: RefundStatus;
+  createdAtMs: number;
+  settledAtMs: number | null;
+}
+
+/** What a refund shows: not who asked for it, which stays in the server log. */
+export const toRefundView = (refund: RefundRecord): RefundView => ({
+  id: refund.id,
+  orderId: refund.orderId,
+  amountMinor: refund.amountMinor,
+  currency: refund.currency,
+  reason: refund.reason,
+  status: refund.status,
+  createdAtMs: refund.createdAtMs,
+  settledAtMs: refund.settledAtMs,
+});
 
 export interface OrganiserOrderView extends OrderRowView {
   items: { tierId: string; tierName: string; quantity: number }[];
@@ -183,6 +215,7 @@ export interface OrganiserOrderView extends OrderRowView {
   amounts: Amounts;
   attendees: { name: string; email: string }[];
   last4: string | null;
+  refunds: RefundView[];
 }
 
 export const toOrderRowView = (row: OrderRow): OrderRowView => ({
@@ -197,6 +230,7 @@ export const toOrderRowView = (row: OrderRow): OrderRowView => ({
   currency: row.amounts.currency,
   status: row.status,
   paymentMethod: row.method,
+  refundStatus: row.refundStatus,
 });
 
 export function toOrganiserOrderView(order: OrganiserOrder): OrganiserOrderView {
@@ -211,6 +245,7 @@ export function toOrganiserOrderView(order: OrganiserOrder): OrganiserOrderView 
     amounts: order.amounts,
     attendees: order.attendees,
     last4: order.last4,
+    refunds: order.refunds.map(toRefundView),
   };
 }
 

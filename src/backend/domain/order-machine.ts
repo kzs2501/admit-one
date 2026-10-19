@@ -3,10 +3,10 @@
  * `canTransition`, so an impossible jump (say, refunded → fulfilled) is a bug that
  * throws rather than a state the UI has to make sense of.
  *
- *   pending ──► paid ──► fulfilled
- *     │  ▲        └────► refunded     (payment landed after the hold expired)
+ *   pending ──► paid ──► fulfilled ──► refunded   (the organiser refunded it)
+ *     │  ▲        └────► refunded                (payment landed after the hold expired)
  *     ▼  │
- *   failed         pending/failed ──► expired   (hold ran out before payment)
+ *   failed         pending/failed ──► expired    (hold ran out before payment)
  */
 import type { OrderStatus } from "@/core/statuses";
 
@@ -14,7 +14,7 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["paid", "failed", "expired"],
   failed: ["pending", "expired"],
   paid: ["fulfilled", "refunded"],
-  fulfilled: [],
+  fulfilled: ["refunded"],
   refunded: [],
   expired: [],
 };

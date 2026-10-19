@@ -25,6 +25,14 @@ export const PAYMENT_FAILURE_CODES = [
 ] as const;
 export type PaymentFailureCode = (typeof PAYMENT_FAILURE_CODES)[number];
 
+/** A refund is asked for, then settled by the payment provider's webhook. */
+export const REFUND_STATUSES = ["pending", "succeeded"] as const;
+export type RefundStatus = (typeof REFUND_STATUSES)[number];
+
+/** Why an organiser refunded an order, as payment providers record it. */
+export const REFUND_REASONS = ["requested_by_customer", "event_changed", "duplicate", "other"] as const;
+export type RefundReason = (typeof REFUND_REASONS)[number];
+
 export const HOLD_STATUSES = ["active", "expired", "converted"] as const;
 
 /** A place in a sale's waiting room: in line, let in (for a while), or past its turn. */

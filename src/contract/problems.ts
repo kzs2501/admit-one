@@ -31,6 +31,7 @@ const plainProblemCodeSchema = z.enum([
   "invalid_state",
   "unauthenticated",
   "forbidden",
+  "refund_failed",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -162,6 +163,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "Sign in first",
     description:
       "The organisers’ API needs `Authorization: Bearer <token>` from signing in. The `WWW-Authenticate` header says whether a token was missing or is no longer valid (RFC 6750).",
+  },
+  refund_failed: {
+    status: 502,
+    title: "The refund couldn’t start",
+    description:
+      "The payment provider refused to start the refund, so nothing was refunded and the order is unchanged. It’s safe to try again later.",
   },
   forbidden: {
     status: 403,

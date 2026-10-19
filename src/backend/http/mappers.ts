@@ -3,6 +3,8 @@
  * and the place to look when the contract and the domain need to differ.
  */
 import type {
+  RefundDto,
+  RefundResultDto,
   SalesMetricsDto,
   OrderPageDto,
   OrderRowDto,
@@ -20,6 +22,7 @@ import type {
   SeatAvailabilityDto,
 } from "@/contract/dto";
 import type {
+  RefundView,
   OrderRowView,
   OrganiserOrderView,
   AccountView,
@@ -65,9 +68,27 @@ export const toOrderPageDto = ({
   totalSize: number;
 }): OrderPageDto => ({ ...page, orders: orders.map(toOrderRowDto) });
 
-export const toOrganiserOrderDto = ({ createdAtMs, ...order }: OrganiserOrderView): OrganiserOrderDto => ({
-  ...order,
+export const toRefundDto = ({ createdAtMs, settledAtMs, ...refund }: RefundView): RefundDto => ({
+  ...refund,
   createdAt: toIso(createdAtMs),
+  settledAt: settledAtMs === null ? null : toIso(settledAtMs),
+});
+
+export const toOrganiserOrderDto = ({ createdAtMs, refunds, ...order }: OrganiserOrderView): OrganiserOrderDto => ({
+  ...order,
+  refunds: refunds.map(toRefundDto),
+  createdAt: toIso(createdAtMs),
+});
+
+export const toRefundResultDto = ({
+  refund,
+  order,
+}: {
+  refund: RefundView;
+  order: OrganiserOrderView;
+}): RefundResultDto => ({
+  refund: toRefundDto(refund),
+  order: toOrganiserOrderDto(order),
 });
 
 function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {

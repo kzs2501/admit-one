@@ -1,12 +1,14 @@
 /**
- * Webhooks: the payment provider's word on whether a payment happened. They wait in
- * an outbox (persisted, so a reload doesn't lose them) and are processed idempotently
- * by event id — providers deliver at least once, so duplicates are normal, not errors.
+ * Webhooks: the payment provider's word on whether a payment happened, and whether a
+ * refund went through. They wait in an outbox (persisted, so a reload doesn't lose
+ * them) and are processed idempotently by event id — providers deliver at least once,
+ * so duplicates are normal, not errors.
  */
 import type { BackendContext } from "./context";
-import { isHoldLive } from "./inventory";
+import { findHistoricalOrder } from "./history";
+import { isHoldLive, returnToSale } from "./inventory";
 import { isOrderOpen, issueTickets, setOrderStatus } from "./orders";
-import type { OrderRecord, OutboxItem, PaymentRecord } from "./state";
+import type { OrderRecord, OutboxItem, PaymentRecord, RefundRecord } from "./state";
 
 /** Gap between the two deliveries in the "webhook arrives twice" preset. */
 export const DUPLICATE_GAP_MS = 700;
@@ -18,7 +20,11 @@ interface PaymentFailedEvent {
 }
 type PaymentEvent = { type: "payment.succeeded" } | PaymentFailedEvent;
 
-export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRecord, event: PaymentEvent) {
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+/** An event as the provider sends it, before the outbox schedules its delivery. */
+type ProviderEvent = DistributiveOmit<OutboxItem, "deliveryId" | "eventId" | "enqueuedAtMs" | "deliverAtMs">;
+
+function enqueue(context: BackendContext, event: ProviderEvent) {
   const eventId = context.deps.newId("evt");
   const enqueuedAtMs = context.deps.now();
   const deliverAtMs = enqueuedAtMs + context.chaos().webhookDelayMs;
@@ -29,7 +35,6 @@ export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRec
     context.state.outbox.push({
       deliveryId: context.deps.newId("dlv"),
       eventId,
-      paymentId: payment.id,
       enqueuedAtMs,
       deliverAtMs: at,
       ...event,
@@ -37,23 +42,36 @@ export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRec
   }
 }
 
+export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRecord, event: PaymentEvent) {
+  enqueue(context, { ...event, paymentId: payment.id });
+}
+
+export function enqueueRefundSucceeded(context: BackendContext, refund: RefundRecord) {
+  enqueue(context, { type: "refund.succeeded", refundId: refund.id });
+}
+
 export const enqueuePaymentSucceeded = (context: BackendContext, payment: PaymentRecord) => {
   enqueuePaymentEvent(context, payment, { type: "payment.succeeded" });
 };
 
-/**
- * Take an event for processing, once: providers deliver at least once, so a duplicate
- * is normal. Returns the payment and its order if there's anything left to do.
- */
-function claim(context: BackendContext, { eventId, type, paymentId, enqueuedAtMs }: OutboxItem) {
+/** Take an event for processing, once: providers deliver at least once, so a duplicate is normal. */
+function isFirstDelivery(context: BackendContext, { eventId, type }: OutboxItem) {
   const { state } = context;
   if (state.processedEventIds.includes(eventId)) {
     context.log("webhook", `${type} ${eventId} arrived again — already processed, ignored.`);
-    return null;
+    return false;
   }
   state.processedEventIds.push(eventId);
+  return true;
+}
 
-  const payment = state.payments[paymentId];
+/** The payment an event is about, and its order, if there's anything left to do. */
+function claimPayment(
+  context: BackendContext,
+  { eventId, type, enqueuedAtMs, ...event }: OutboxItem & { paymentId: string },
+) {
+  const { state } = context;
+  const payment = state.payments[event.paymentId];
   const order = payment ? state.orders[payment.orderId] : undefined;
   if (!payment || !order) {
     context.log("warn", `Webhook ${eventId} refers to an unknown payment; ignored.`);
@@ -113,6 +131,41 @@ function processPaymentFailed(
   setOrderStatus(context, order, "failed", "The UPI payment was declined. No money was taken.");
 }
 
+/**
+ * The provider has returned the money. The order is refunded and its tickets void,
+ * and they go back on sale — whether the order is from this sandbox or from before it.
+ */
+function processRefundSucceeded(context: BackendContext, { eventId, refundId }: { eventId: string; refundId: string }) {
+  const { state } = context;
+  const refund = state.refunds[refundId];
+  if (refund?.status !== "pending") {
+    context.log("warn", `refund.succeeded ${eventId} for a refund that isn't pending; ignored.`);
+    return;
+  }
+  context.log("webhook", `refund.succeeded ${eventId} received for ${refund.id}.`);
+  refund.status = "succeeded";
+  refund.settledAtMs = context.deps.now();
+
+  const order = state.orders[refund.orderId];
+  if (order) {
+    setOrderStatus(context, order, "refunded", "The organiser refunded this order in full.");
+    order.tickets = [];
+    const payment = order.paymentId ? state.payments[order.paymentId] : undefined;
+    if (payment) payment.status = "refunded";
+    const hold = state.holds[order.holdId];
+    returnToSale(context, { items: order.items, seatIds: hold?.seatIds ?? [], isFromHistory: false });
+    return;
+  }
+  const historical = findHistoricalOrder(refund.orderId);
+  if (historical) {
+    returnToSale(context, {
+      items: [{ tierId: historical.tierId, quantity: historical.quantity }],
+      seatIds: historical.seatIds,
+      isFromHistory: true,
+    });
+  }
+}
+
 /** When the next webhook is due, so the runtime can sleep until then. */
 export function nextDeliveryAtMs(context: BackendContext): number | null {
   const { outbox } = context.state;
@@ -128,7 +181,12 @@ export function deliverDue(context: BackendContext): number {
   if (!due.length) return 0;
   context.state.outbox = context.state.outbox.filter((delivery) => delivery.deliverAtMs > nowMs);
   for (const delivery of due) {
-    const claimed = claim(context, delivery);
+    if (!isFirstDelivery(context, delivery)) continue;
+    if (delivery.type === "refund.succeeded") {
+      processRefundSucceeded(context, delivery);
+      continue;
+    }
+    const claimed = claimPayment(context, delivery);
     if (!claimed) continue;
     if (delivery.type === "payment.succeeded") processPaymentSucceeded(context, claimed.payment, claimed.order);
     else processPaymentFailed(context, claimed.payment, claimed.order, delivery);

@@ -17,7 +17,7 @@ import { getOrganisation, type Account } from "@/core/organisations";
 import { zonedDate, zonedDateTime } from "@/core/time";
 import type { OrderRowView } from "@/backend/domain/views";
 import { orderFiltersSchema, orderListParamsSchema, readOrderSearchParams } from "@/contract/queries";
-import { createSessionRequestSchema } from "@/contract/requests";
+import { createRefundRequestSchema, createSessionRequestSchema } from "@/contract/requests";
 import { API_ROUTES, AUTHORIZATION_HEADER } from "@/contract/routes";
 import { anyOrigin, type Kit, type Reply } from "./kit";
 import { toCsv, type CsvCell } from "./csv";
@@ -26,6 +26,7 @@ import {
   toOrderPageDto,
   toOrganiserEventDto,
   toOrganiserOrderDto,
+  toRefundResultDto,
   toSalesMetricsDto,
   toSessionDto,
 } from "./mappers";
@@ -66,7 +67,7 @@ const csvRecord = (row: OrderRowView, timeZone: string): CsvCell[] => [
 
 export function createOrganiserHandlers(
   backend: Backend,
-  { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody }: Kit,
+  { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody, withIdempotencyKey }: Kit,
 ) {
   const sendPrivate = (request: Request, reply: Reply) =>
     send(request, { ...reply, headers: { ...reply.headers, ...PRIVATE } });
@@ -169,6 +170,35 @@ export function createOrganiserHandlers(
         request,
         resultReply(backend.salesMetrics(auth.account, eventSlug), request, toSalesMetricsDto),
       );
+    }),
+
+    /**
+     * Refund an order in full: 202 while the provider works on it, settled by its
+     * webhook. Like a payment, it needs an Idempotency-Key, so a retry can't refund
+     * twice; the key is the account's own.
+     */
+    http.post<{ orderId: string }>(anyOrigin(API_ROUTES.organiserRefunds), async ({ params, request }) => {
+      const auth = signedIn(request);
+      if (!auth.ok) {
+        await latency();
+        return sendPrivate(request, auth.reply);
+      }
+      const { account } = auth;
+      const reply = await withIdempotencyKey(request, { what: "Refunds", scope: account.id }, (body) => {
+        const input = createRefundRequestSchema.safeParse(body);
+        if (!input.success) {
+          const detail = input.error.issues[0]?.message ?? "Say why the order is being refunded.";
+          return { reply: problemReply({ code: "invalid_request", detail }, request), isAttempted: false };
+        }
+        const result = backend.requestRefund(account, params.orderId, input.data.reason);
+        return {
+          reply: resultReply(result, request, toRefundResultDto, 202),
+          // Turned away before anything happened — not theirs, not refundable — isn't stored.
+          isAttempted: result.ok,
+        };
+      });
+      await latency();
+      return sendPrivate(request, reply);
     }),
 
     /** One order. Another organiser's is a 404: it isn't confirmed to exist. */

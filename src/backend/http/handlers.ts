@@ -14,8 +14,7 @@ import {
   upiPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
-import { API_ROUTES, IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
-import { fingerprintRequest } from "./idempotency";
+import { API_ROUTES, QUEUE_TOKEN_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
 import {
   toEventDto,
   toHoldDetailsDto,
@@ -24,7 +23,7 @@ import {
   toQueueEntryDto,
   toSeatAvailabilityDto,
 } from "./mappers";
-import { anyOrigin, createKit, pathOf, readJson, type HandlerOptions, type Reply } from "./kit";
+import { anyOrigin, createKit, pathOf, type HandlerOptions, type Reply } from "./kit";
 import { createOrganiserHandlers } from "./organiser-handlers";
 import { createSlidingWindow } from "./rate-limit";
 
@@ -40,7 +39,7 @@ const isCardFailure = (code: string | null): code is keyof typeof CARD_FAILURE_D
 export function createHandlers(backend: Backend, { sleep, random, now }: HandlerOptions) {
   const holdAttempts = createSlidingWindow(now);
   const kit = createKit(backend, { sleep, random });
-  const { latency, problemReply, resultReply, send, parseBody } = kit;
+  const { latency, problemReply, resultReply, send, parseBody, withIdempotencyKey } = kit;
 
   // What the "connection drops" preset loses. The work has already happened; only the
   // answer goes missing — the case that makes retrying a payment dangerous without a key.
@@ -164,49 +163,23 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
     }),
 
     /**
-     * Start a payment. The Idempotency-Key makes retries safe: the same key always gets
-     * the same response, so a double-click or a retried request can never charge twice
-     * (the approach Stripe describes in "Designing robust and predictable APIs with
-     * idempotency"). Only attempted charges are stored, so a request rejected before
-     * charging — an expired hold, an invalid card — can be retried with the same key.
-     * Keys are kept for 24 hours, as Stripe keeps them.
+     * Start a payment. The Idempotency-Key makes retries safe: a double-click or a retried
+     * request can never charge twice (see `withIdempotencyKey`). Only attempted charges
+     * are stored, so a request rejected before charging — an expired hold, an invalid
+     * card — can be retried with the same key.
      */
     http.post<{ orderId: string }>(anyOrigin(API_ROUTES.createPayment), async ({ params, request }) => {
-      const reply = await (async (): Promise<Reply> => {
-        const key = request.headers.get(IDEMPOTENCY_KEY_HEADER);
-        if (!key) {
-          return problemReply(
-            { code: "missing_idempotency_key", detail: "Payments need an Idempotency-Key header." },
-            request,
-          );
-        }
-        const body = await readJson(request);
+      const reply = await withIdempotencyKey(request, { what: "Payments" }, (body) => {
         const schema = createPaymentRequestSchemaFor(body);
         const input = schema.safeParse(body);
-        const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
-
-        const stored = backend.idempotency.find(key);
-        if (stored) {
-          if (stored.fingerprint !== fingerprint) {
-            return problemReply(
-              { code: "idempotency_key_reused", detail: "That Idempotency-Key was used for a different request." },
-              request,
-            );
-          }
-          backend.log("payment", "Idempotency-Key replayed — returning the original response, no new charge.");
-          return { status: stored.status, body: stored.body };
-        }
-
         if (!input.success) {
           const detail = input.error.issues[0]?.message ?? "Check the payment details.";
           const code = schema === upiPaymentRequestSchema ? "invalid_request" : "invalid_card";
-          return problemReply({ code, detail }, request);
+          return { reply: problemReply({ code, detail }, request), isAttempted: false };
         }
         const result = backend.createPayment(params.orderId, input.data);
-        const attempted = paymentReply(result, request);
-        if (result.ok) backend.idempotency.save(key, { fingerprint, ...attempted });
-        return attempted;
-      })();
+        return { reply: paymentReply(result, request), isAttempted: result.ok };
+      });
       // The work happens *before* the response is delayed: that's what lets a webhook
       // beat the browser in the "webhook before redirect" preset.
       await latency(backend.chaos().extraPaymentLatencyMs);

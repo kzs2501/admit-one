@@ -44,6 +44,8 @@ export interface ChaosConfig {
   upiRequestMs: number;
   /** The buyer's bank declines a UPI payment even when they approve it. */
   shouldDeclineUpi: boolean;
+  /** The payment provider refuses to start refunds. */
+  shouldFailRefunds: boolean;
 }
 
 export const PRESET_IDS = [
@@ -62,6 +64,7 @@ export const PRESET_IDS = [
   "flash-sale",
   "upi-declined",
   "upi-expires",
+  "refunds-fail",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -93,6 +96,7 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   waitingRoom: null,
   upiRequestMs: 5 * 60_000,
   shouldDeclineUpi: false,
+  shouldFailRefunds: false,
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -200,6 +204,13 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     expectation:
       "When the request runs out, the page says so and offers another try or a card. No money moves, and your seats stay held.",
     config: { upiRequestMs: 15_000 },
+  },
+  "refunds-fail": {
+    label: "Refunds fail",
+    description: "The payment provider refuses to start a refund, so the organiser’s request fails.",
+    expectation:
+      "The dashboard shows “Refund pending” at once, then rolls the order back to fulfilled and says why, with focus on the message.",
+    config: { shouldFailRefunds: true },
   },
 };
 

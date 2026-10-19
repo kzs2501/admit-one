@@ -12,7 +12,9 @@ import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { Account } from "@/core/organisations";
 import type { OrderFilters, OrderListParams } from "@/contract/queries";
 import { authenticate, eventFor, eventsFor, signIn, signOut } from "./domain/access";
+import type { RefundReason } from "@/core/statuses";
 import { salesMetrics, type SalesMetrics } from "./domain/metrics";
+import { requestRefund } from "./domain/refunds";
 import { findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
@@ -51,6 +53,8 @@ import {
   toOrderRowView,
   toOrganiserEventView,
   toOrganiserOrderView,
+  toRefundView,
+  type RefundView,
   type OrderRowView,
   type OrganiserOrderView,
   type AccountView,
@@ -219,6 +223,18 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     /** Every matching order, for a CSV export. Needs `orders:export`. */
     exportOrders: (account: Account, filters: OrderFilters): Result<OrderRowView[]> =>
       map(queryOrders(context, account, filters, "orders:export"), (rows) => rows.map(toOrderRowView)),
+    /** Refund an order in full: pending until the provider's webhook settles it. */
+    requestRefund: (
+      account: Account,
+      orderId: string,
+      reason: RefundReason,
+    ): Result<{ refund: RefundView; order: OrganiserOrderView }> =>
+      command(() =>
+        map(requestRefund(context, account, orderId, reason), ({ refund, order }) => ({
+          refund: toRefundView(refund),
+          order: toOrganiserOrderView(order),
+        })),
+      ),
     /** Sales across the account's events, or for one. */
     salesMetrics: (account: Account, eventSlug?: string): Result<SalesMetrics> =>
       salesMetrics(context, account, eventSlug),

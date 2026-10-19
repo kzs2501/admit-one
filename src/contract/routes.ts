@@ -23,6 +23,7 @@ export const API_ROUTES = {
   /** Registered before `organiserOrder`, whose `:orderId` would otherwise match "export". */
   organiserOrdersExport: "/api/organiser/orders/export",
   organiserOrder: "/api/organiser/orders/:orderId",
+  organiserRefunds: "/api/organiser/orders/:orderId/refunds",
   organiserMetrics: "/api/organiser/metrics",
 } as const;
 
@@ -43,7 +44,7 @@ export function buildApiPath<Path extends ApiRoute>(route: Path, params: RoutePa
   return route.replace(/:(\w+)/g, (_, name: string) => encodeURIComponent(values[name] ?? ""));
 }
 
-/** Payments must carry one; see the `missing_idempotency_key` problem. */
+/** Payments and refunds must carry one; see the `missing_idempotency_key` problem. */
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
 /** A place in a sale's waiting room; reserving needs one whose turn has come. See `queue_required`. */

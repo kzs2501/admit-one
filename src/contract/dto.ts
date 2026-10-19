@@ -17,6 +17,8 @@ import {
   PAYMENT_FAILURE_CODES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
+  REFUND_REASONS,
+  REFUND_STATUSES,
   QUEUE_STATUSES,
 } from "@/core/statuses";
 
@@ -245,6 +247,20 @@ export const orderRowDtoSchema = z.object({
   currency: currencySchema,
   status: orderStatusSchema,
   paymentMethod: z.enum(PAYMENT_METHODS).nullable(),
+  /** A refund asked for: on its way, or done. */
+  refundStatus: z.enum(REFUND_STATUSES).nullable(),
+});
+
+/** A refund: pending until the payment provider's webhook says the money has gone back. */
+export const refundDtoSchema = z.object({
+  id: z.string(),
+  orderId: z.string(),
+  amountMinor: minorUnitsSchema,
+  currency: currencySchema,
+  reason: z.enum(REFUND_REASONS),
+  status: z.enum(REFUND_STATUSES),
+  createdAt: isoDateTimeSchema,
+  settledAt: isoDateTimeSchema.nullable(),
 });
 
 /** A page of orders (AIP-158). `nextPageToken` is null on the last page; `totalSize` counts every match. */
@@ -263,7 +279,10 @@ export const organiserOrderDtoSchema = orderRowDtoSchema.extend({
   attendees: z.array(attendeeDtoSchema),
   /** The card's last four digits; null for UPI, or before any payment. */
   last4: z.string().nullable(),
+  refunds: z.array(refundDtoSchema),
 });
+
+export const refundResultDtoSchema = z.object({ refund: refundDtoSchema, order: organiserOrderDtoSchema });
 
 /** Sales across an organiser's events, or for one (`?event=`). Days are in the organisation's time zone. */
 export const salesMetricsDtoSchema = z.object({
@@ -325,3 +344,5 @@ export type OrderRowDto = z.infer<typeof orderRowDtoSchema>;
 export type OrderPageDto = z.infer<typeof orderPageDtoSchema>;
 export type OrganiserOrderDto = z.infer<typeof organiserOrderDtoSchema>;
 export type SalesMetricsDto = z.infer<typeof salesMetricsDtoSchema>;
+export type RefundDto = z.infer<typeof refundDtoSchema>;
+export type RefundResultDto = z.infer<typeof refundResultDtoSchema>;

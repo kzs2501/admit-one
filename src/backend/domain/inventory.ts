@@ -30,10 +30,16 @@ export type CreateHoldCommand = (
 
 export const isHoldLive = (hold: HoldRecord, nowMs: number) => !hold.isConverted && nowMs < hold.expiresAtMs;
 
-/** A hall's seats that are gone: sold before the sandbox, sold here, or in a live hold. */
+/** Seats sold before the sandbox that are still sold: refunds put some back on sale. */
+function stillSoldBaseline(context: BackendContext, baselineSoldSeatIds: ReadonlySet<string>) {
+  const released = new Set(context.state.releasedSeatIds);
+  return [...baselineSoldSeatIds].filter((seatId) => !released.has(seatId));
+}
+
+/** A hall's seats that are gone: sold before the sandbox (and not refunded), sold here, or in a live hold. */
 export function unavailableSeatIds(context: BackendContext, event: ReservedEvent): Set<string> {
   const { plan, baselineSoldSeatIds } = event.seating;
-  const unavailable = new Set(baselineSoldSeatIds);
+  const unavailable = new Set(stillSoldBaseline(context, baselineSoldSeatIds));
   for (const seatId of context.state.soldSeatIds) if (plan.seatsById.has(seatId)) unavailable.add(seatId);
   const nowMs = context.deps.now();
   for (const hold of Object.values(context.state.holds)) {
@@ -57,7 +63,9 @@ export function availableQuantity(context: BackendContext, tierId: string): numb
     if (!isHoldLive(hold, nowMs)) continue;
     for (const item of hold.items) if (item.tierId === tierId) heldQuantity += item.quantity;
   }
-  return Math.max(0, tier.capacity - tier.baselineSold - (context.state.sold[tierId] ?? 0) - heldQuantity);
+  const { sold, returnedTickets } = context.state;
+  const soldBefore = tier.baselineSold - (returnedTickets[tierId] ?? 0);
+  return Math.max(0, tier.capacity - soldBefore - (sold[tierId] ?? 0) - heldQuantity);
 }
 
 /** Tickets sold in a tier: before the sandbox, and in it — by buyers, and by the crowd. */
@@ -67,10 +75,30 @@ export function soldQuantity(context: BackendContext, tierId: string): number {
   const { event, tier } = found;
   if (isReservedEvent(event)) {
     const { plan, baselineSoldSeatIds } = event.seating;
-    const sold = new Set([...baselineSoldSeatIds, ...context.state.soldSeatIds]);
+    const sold = new Set([...stillSoldBaseline(context, baselineSoldSeatIds), ...context.state.soldSeatIds]);
     return plan.seats.filter((seat) => seat.tierId === tierId && sold.has(seat.id)).length;
   }
-  return tier.baselineSold + (context.state.sold[tierId] ?? 0);
+  return tier.baselineSold - (context.state.returnedTickets[tierId] ?? 0) + (context.state.sold[tierId] ?? 0);
+}
+
+/**
+ * Put a refunded order's tickets back on sale: its seats, or its quantities. Tickets
+ * from before the sandbox are recorded as returned; the sandbox's own come off its sales.
+ */
+export function returnToSale(
+  context: BackendContext,
+  { items, seatIds, isFromHistory }: { items: readonly LineItem[]; seatIds: readonly string[]; isFromHistory: boolean },
+) {
+  const { state } = context;
+  if (seatIds.length) {
+    if (isFromHistory) state.releasedSeatIds.push(...seatIds);
+    else state.soldSeatIds = state.soldSeatIds.filter((seatId) => !seatIds.includes(seatId));
+    return;
+  }
+  for (const { tierId, quantity } of items) {
+    if (isFromHistory) state.returnedTickets[tierId] = (state.returnedTickets[tierId] ?? 0) + quantity;
+    else state.sold[tierId] = Math.max(0, (state.sold[tierId] ?? 0) - quantity);
+  }
 }
 
 /** "Stalls, row F, seat 12", or "Stalls F12–F13" for more than one. */

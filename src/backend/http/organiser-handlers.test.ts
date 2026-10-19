@@ -5,17 +5,19 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SESSION_TTL_MS } from "@/backend/domain/access";
+import { getHistory } from "@/backend/domain/history";
 import { BASE_URL, createHttpHarness, expectProblem } from "@/backend/testing/http";
 import {
   accountDtoSchema,
   orderPageDtoSchema,
   organiserEventDtoSchema,
   organiserOrderDtoSchema,
+  refundResultDtoSchema,
   salesMetricsDtoSchema,
   sessionDtoSchema,
 } from "@/contract/dto";
 
-const { server, clock, call, post, bearer } = createHttpHarness();
+const { server, clock, call, post, bearer, backend } = createHttpHarness();
 
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
@@ -157,6 +159,67 @@ describe("organisers' API", () => {
         404,
         "not_found",
       );
+    });
+  });
+
+  describe("refunds", () => {
+    const fulfilled = (eventSlug: string, nth = 0) =>
+      getHistory().orders.filter((order) => order.eventSlug === eventSlug && order.status === "fulfilled")[nth]?.id ??
+      "";
+    const refund = (orderId: string, token: string, key: string, body: unknown = { reason: "requested_by_customer" }) =>
+      post(`/api/organiser/orders/${orderId}/refunds`, body, { ...bearer(token), "Idempotency-Key": key });
+
+    it("accepts a refund with 202, replays it for the same key, and refuses the key for another request", async () => {
+      const { token } = await signIn("acc-lakeside-owner");
+      const orderId = fulfilled("lakeside-lights", 0);
+      const first = await refund(orderId, token, "refund-key-1");
+      expect(first.status).toBe(202);
+      const accepted = refundResultDtoSchema.parse(await first.json());
+      expect(accepted).toMatchObject({ refund: { status: "pending", orderId }, order: { refundStatus: "pending" } });
+
+      const replay = refundResultDtoSchema.parse(await (await refund(orderId, token, "refund-key-1")).json());
+      expect(replay.refund.id).toBe(accepted.refund.id);
+      expect(Object.keys(backend.getState().refunds)).toHaveLength(1);
+      await expectProblem(
+        await refund(orderId, token, "refund-key-1", { reason: "duplicate" }),
+        422,
+        "idempotency_key_reused",
+      );
+    });
+
+    it("needs a key, a reason and the permission, and keeps each account's keys apart", async () => {
+      const { token } = await signIn("acc-lakeside-owner");
+      const orderId = fulfilled("lakeside-lights", 1);
+      await expectProblem(
+        await post(`/api/organiser/orders/${orderId}/refunds`, { reason: "other" }, bearer(token)),
+        400,
+        "missing_idempotency_key",
+      );
+      // A bad body isn't stored, so the same key works once it's fixed.
+      await expectProblem(
+        await refund(orderId, token, "refund-key-2", { reason: "felt like it" }),
+        422,
+        "invalid_request",
+      );
+      expect((await refund(orderId, token, "refund-key-2")).status).toBe(202);
+
+      const { token: boxOffice } = await signIn("acc-lakeside-box-office");
+      await expectProblem(await refund(fulfilled("lakeside-lights", 2), boxOffice, "refund-key-3"), 403, "forbidden");
+
+      const { token: rangmanch } = await signIn("acc-rangmanch-owner");
+      await expectProblem(await refund(fulfilled("lakeside-lights", 2), rangmanch, "refund-key-2"), 404, "not_found");
+      // The same key value from another account is that account's own key.
+      expect((await refund(fulfilled("monsoon-strings", 0), rangmanch, "refund-key-2")).status).toBe(202);
+    });
+
+    it("answers 502 when the provider won't start the refund, and stores nothing", async () => {
+      backend.setPreset("refunds-fail");
+      const { token } = await signIn("acc-lakeside-owner");
+      const before = Object.keys(backend.getState().refunds).length;
+      await expectProblem(await refund(fulfilled("lakeside-lights", 3), token, "refund-key-4"), 502, "refund_failed");
+      expect(Object.keys(backend.getState().refunds)).toHaveLength(before);
+      backend.setPreset("happy");
+      expect((await refund(fulfilled("lakeside-lights", 3), token, "refund-key-4")).status).toBe(202);
     });
   });
 });
