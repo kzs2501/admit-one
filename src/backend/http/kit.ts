@@ -61,6 +61,12 @@ export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptio
       : HttpResponse.json(body, { status, headers });
   };
 
+  /** A text answer, such as a CSV file. */
+  const sendText = (request: Request, text: string, headers: Record<string, string>) => {
+    backend.log("request", `${request.method} ${pathOf(request)} → 200`);
+    return new HttpResponse(text, { status: 200, headers });
+  };
+
   /** An answer with no body, such as a 204. */
   const sendEmpty = (request: Request, status: number) => {
     backend.log("request", `${request.method} ${pathOf(request)} → ${String(status)}`);
@@ -84,7 +90,7 @@ export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptio
     return { ok: false, reply: problemReply({ code: "invalid_request", detail }, request) };
   }
 
-  return { latency, problemReply, resultReply, send, sendEmpty, parseBody };
+  return { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody };
 }
 
 export type Kit = ReturnType<typeof createKit>;

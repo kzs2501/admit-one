@@ -29,7 +29,7 @@ export function createTestBackend(presetId: PresetId = "happy") {
       newToken: () => `token_${++idCount}`,
       random: () => 0.42,
     },
-    createInitialState(presetId),
+    createInitialState(presetId, START_MS),
   );
   return { backend, clock };
 }

@@ -30,7 +30,7 @@ const backend = createBackend(
     newToken: () => `token_${++idCount}`,
     random: () => 0.5,
   },
-  createInitialState(),
+  createInitialState("happy", backendNowMs),
 );
 // The rate limiter's clock: a whole window passes between tests, so each starts fresh.
 let limiterNowMs = 0;

@@ -19,6 +19,10 @@ export const API_ROUTES = {
   organiserAccount: "/api/organiser/account",
   organiserEvents: "/api/organiser/events",
   organiserEvent: "/api/organiser/events/:slug",
+  organiserOrders: "/api/organiser/orders",
+  /** Registered before `organiserOrder`, whose `:orderId` would otherwise match "export". */
+  organiserOrdersExport: "/api/organiser/orders/export",
+  organiserOrder: "/api/organiser/orders/:orderId",
 } as const;
 
 export type ApiRoute = (typeof API_ROUTES)[keyof typeof API_ROUTES];

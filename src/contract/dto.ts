@@ -232,6 +232,39 @@ export const organiserEventDtoSchema = z.object({
   permissions: z.array(permissionSchema),
 });
 
+/** One order, as a row of the organiser's orders table. */
+export const orderRowDtoSchema = z.object({
+  id: z.string(),
+  eventSlug: z.string(),
+  eventName: z.string(),
+  createdAt: isoDateTimeSchema,
+  buyerName: z.string(),
+  buyerEmail: z.string(),
+  ticketCount: z.number().int().nonnegative(),
+  totalMinor: minorUnitsSchema,
+  currency: currencySchema,
+  status: orderStatusSchema,
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable(),
+});
+
+/** A page of orders (AIP-158). `nextPageToken` is null on the last page; `totalSize` counts every match. */
+export const orderPageDtoSchema = z.object({
+  orders: z.array(orderRowDtoSchema),
+  nextPageToken: z.string().nullable(),
+  totalSize: z.number().int().nonnegative(),
+});
+
+/** One order in full, as its organiser sees it. */
+export const organiserOrderDtoSchema = orderRowDtoSchema.extend({
+  items: z.array(z.object({ tierId: z.string(), tierName: z.string(), quantity: z.number().int().positive() })),
+  seats: z.array(seatDtoSchema),
+  addOns: z.array(z.object({ id: z.string(), name: z.string(), quantity: z.number().int().positive() })),
+  amounts: amountsDtoSchema,
+  attendees: z.array(attendeeDtoSchema),
+  /** The card's last four digits; null for UPI, or before any payment. */
+  last4: z.string().nullable(),
+});
+
 export type LineItemDto = z.infer<typeof lineItemDtoSchema>;
 export type TierDto = z.infer<typeof tierDtoSchema>;
 export type SeatDto = z.infer<typeof seatDtoSchema>;
@@ -253,3 +286,6 @@ export type PaymentResultDto = z.infer<typeof paymentResultDtoSchema>;
 export type AccountDto = z.infer<typeof accountDtoSchema>;
 export type SessionDto = z.infer<typeof sessionDtoSchema>;
 export type OrganiserEventDto = z.infer<typeof organiserEventDtoSchema>;
+export type OrderRowDto = z.infer<typeof orderRowDtoSchema>;
+export type OrderPageDto = z.infer<typeof orderPageDtoSchema>;
+export type OrganiserOrderDto = z.infer<typeof organiserOrderDtoSchema>;

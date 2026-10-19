@@ -4,6 +4,7 @@
  * 28 February 2026. The buyer pays by intent instead: a `upi://pay` link that opens
  * their UPI app on a phone, or the same link as a QR code to scan from a computer.
  */
+import { toDecimalString } from "@/core/money";
 import type { PaymentRecord } from "./state";
 
 /**
@@ -18,11 +19,7 @@ export const UPI_PAYEE = {
 } as const;
 
 /** `303729` paise → `"3037.29"`: always two decimal places, worked out without floats. */
-export function formatUpiAmount(amountMinor: number) {
-  const rupees = Math.floor(amountMinor / 100);
-  const paise = amountMinor % 100;
-  return `${String(rupees)}.${String(paise).padStart(2, "0")}`;
-}
+export const formatUpiAmount = toDecimalString;
 
 // Percent-encoded, spaces as %20 (never "+"); `@` stays readable in an address, as in
 // the linking specification's own examples.

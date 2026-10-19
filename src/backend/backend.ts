@@ -10,7 +10,9 @@
 import { CATALOG, findEvent } from "@/core/catalog";
 import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { Account } from "@/core/organisations";
+import type { OrderFilters, OrderListParams } from "@/contract/queries";
 import { authenticate, eventFor, eventsFor, signIn, signOut } from "./domain/access";
+import { findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
 import {
@@ -45,7 +47,11 @@ import {
   type PaymentResultView,
   type SeatAvailabilityView,
   toAccountView,
+  toOrderRowView,
   toOrganiserEventView,
+  toOrganiserOrderView,
+  type OrderRowView,
+  type OrganiserOrderView,
   type AccountView,
   type OrganiserEventView,
   toQueueEntryView,
@@ -61,7 +67,7 @@ const LOG_LIMIT = 120;
 /** How long an Idempotency-Key is remembered — Stripe's 24 hours. */
 export const IDEMPOTENCY_KEY_TTL_MS = 24 * 60 * 60_000;
 
-export function createBackend(deps: Deps, initialState: ServerState = createInitialState()) {
+export function createBackend(deps: Deps, initialState: ServerState = createInitialState("happy", deps.now())) {
   const listeners = new Set<() => void>();
   // State is mutated in place, so subscribers (React's useSyncExternalStore) need a
   // value that changes on every update to know something happened.
@@ -102,6 +108,8 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
 
   return {
     getState: () => context.state,
+    /** The backend's clock. */
+    now: () => deps.now(),
     getVersion: () => version,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -117,7 +125,7 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     /** Start a fresh sandbox, keeping the chosen preset. */
     reset: () => {
       command(() => {
-        context.state = createInitialState(context.state.presetId);
+        context.state = createInitialState(context.state.presetId, deps.now());
         context.log("request", "Sandbox reset.");
       });
     },
@@ -197,6 +205,21 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
       eventsFor(account).map((event) => toOrganiserEventView(account, event)),
     getOrganiserEvent: (account: Account, slug: string): Result<OrganiserEventView> =>
       map(eventFor(account, slug), (event) => toOrganiserEventView(account, event)),
+
+    /** A page of the orders this account may see, filtered and sorted on the server. */
+    listOrders: (
+      account: Account,
+      { pageSize, pageToken, ...filters }: OrderListParams,
+    ): Result<{ orders: OrderRowView[]; nextPageToken: string | null; totalSize: number }> =>
+      map(listOrders(context, account, filters, { pageSize, pageToken }), ({ rows, ...page }) => ({
+        ...page,
+        orders: rows.map(toOrderRowView),
+      })),
+    /** Every matching order, for a CSV export. Needs `orders:export`. */
+    exportOrders: (account: Account, filters: OrderFilters): Result<OrderRowView[]> =>
+      map(queryOrders(context, account, filters, "orders:export"), (rows) => rows.map(toOrderRowView)),
+    getOrganiserOrder: (account: Account, orderId: string): Result<OrganiserOrderView> =>
+      map(findOrganiserOrder(context, account, orderId), toOrganiserOrderView),
 
     /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A key past its TTL is new again. */
     idempotency: {

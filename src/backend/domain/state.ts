@@ -13,7 +13,7 @@ import { TAX_LINE_KINDS } from "@/core/pricing";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 9;
+const STATE_VERSION = 10;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -140,6 +140,8 @@ const logEntrySchema = z.object({
 
 const serverStateSchema = z.object({
   version: z.literal(STATE_VERSION),
+  /** When this sandbox started. The generated order history ends here, so it stays put across reloads. */
+  createdAtMs: epochMsSchema,
   presetId: z.enum(PRESET_IDS),
   /** Tickets sold in this sandbox, per tier (on top of each tier's baseline). */
   sold: z.record(z.string(), z.number().int().nonnegative()),
@@ -172,8 +174,9 @@ export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;
 
-export const createInitialState = (presetId: ServerState["presetId"] = "happy"): ServerState => ({
+export const createInitialState = (presetId: ServerState["presetId"], createdAtMs: number): ServerState => ({
   version: STATE_VERSION,
+  createdAtMs,
   presetId,
   sold: {},
   soldSeatIds: [],

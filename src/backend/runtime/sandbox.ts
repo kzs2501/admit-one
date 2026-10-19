@@ -76,7 +76,7 @@ export function getSandbox(): Backend {
   if (!sandboxInstance) {
     sandboxInstance = createBackend(
       { now: Date.now, newId, newToken, random: Math.random },
-      load() ?? createInitialState(),
+      load() ?? createInitialState("happy", Date.now()),
     );
     startRuntime(sandboxInstance);
   }

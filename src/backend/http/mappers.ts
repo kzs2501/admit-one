@@ -3,6 +3,9 @@
  * and the place to look when the contract and the domain need to differ.
  */
 import type {
+  OrderPageDto,
+  OrderRowDto,
+  OrganiserOrderDto,
   AccountDto,
   OrganiserEventDto,
   SessionDto,
@@ -16,6 +19,8 @@ import type {
   SeatAvailabilityDto,
 } from "@/contract/dto";
 import type {
+  OrderRowView,
+  OrganiserOrderView,
   AccountView,
   OrganiserEventView,
   EventView,
@@ -40,6 +45,25 @@ export const toSessionDto = ({ token, account }: { token: string; account: Accou
 });
 
 export const toOrganiserEventDto = (event: OrganiserEventView): OrganiserEventDto => event;
+
+export const toOrderRowDto = ({ createdAtMs, ...row }: OrderRowView): OrderRowDto => ({
+  ...row,
+  createdAt: toIso(createdAtMs),
+});
+
+export const toOrderPageDto = ({
+  orders,
+  ...page
+}: {
+  orders: OrderRowView[];
+  nextPageToken: string | null;
+  totalSize: number;
+}): OrderPageDto => ({ ...page, orders: orders.map(toOrderRowDto) });
+
+export const toOrganiserOrderDto = ({ createdAtMs, ...order }: OrganiserOrderView): OrganiserOrderDto => ({
+  ...order,
+  createdAt: toIso(createdAtMs),
+});
 
 function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
   return { ...hold, createdAt: toIso(createdAtMs), expiresAt: toIso(expiresAtMs) };

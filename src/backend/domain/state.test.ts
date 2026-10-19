@@ -14,7 +14,7 @@ describe("persisted state", () => {
 
     const restored = createBackend(
       { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
-      restoredState ?? createInitialState(),
+      restoredState ?? createInitialState("happy", clock.now()),
     );
     expect(restored.nextDeliveryAtMs()).not.toBeNull();
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
@@ -35,7 +35,7 @@ describe("persisted state", () => {
     expect(restoredState?.payments[payment.id]).toMatchObject({ method: "upi", status: "processing" });
     const restored = createBackend(
       { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
-      restoredState ?? createInitialState(),
+      restoredState ?? createInitialState("happy", clock.now()),
     );
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
     restored.deliverDue();
@@ -46,8 +46,8 @@ describe("persisted state", () => {
     expect(deserializeState(null)).toBeNull();
     expect(deserializeState("{not json")).toBeNull();
     expect(deserializeState(JSON.stringify({ version: 9 }))).toBeNull();
-    expect(deserializeState(JSON.stringify({ ...createInitialState(), version: 1 }))).toBeNull();
-    expect(deserializeState(JSON.stringify({ ...createInitialState(), holds: { h: { id: 1 } } }))).toBeNull();
+    expect(deserializeState(JSON.stringify({ ...createInitialState("happy", 0), version: 1 }))).toBeNull();
+    expect(deserializeState(JSON.stringify({ ...createInitialState("happy", 0), holds: { h: { id: 1 } } }))).toBeNull();
   });
 
   it("resets to an empty sandbox, keeping the chosen preset", () => {

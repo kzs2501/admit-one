@@ -7,3 +7,10 @@
 /** ISO 4217 codes the catalogue uses. */
 export const CURRENCIES = ["INR", "USD"] as const;
 export type CurrencyCode = (typeof CURRENCIES)[number];
+
+/** `303729` → `"3037.29"`: an amount as a plain decimal, for machines (a UPI link, a spreadsheet), without floats. */
+export function toDecimalString(amountMinor: number) {
+  const major = Math.floor(amountMinor / 100);
+  const minor = amountMinor % 100;
+  return `${String(major)}.${String(minor).padStart(2, "0")}`;
+}

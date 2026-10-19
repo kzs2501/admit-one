@@ -6,7 +6,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SESSION_TTL_MS } from "@/backend/domain/access";
 import { BASE_URL, createHttpHarness, expectProblem } from "@/backend/testing/http";
-import { accountDtoSchema, organiserEventDtoSchema, sessionDtoSchema } from "@/contract/dto";
+import {
+  accountDtoSchema,
+  orderPageDtoSchema,
+  organiserEventDtoSchema,
+  organiserOrderDtoSchema,
+  sessionDtoSchema,
+} from "@/contract/dto";
 
 const { server, clock, call, post, bearer } = createHttpHarness();
 
@@ -63,5 +69,76 @@ describe("organisers' API", () => {
     await expectProblem(await call("/api/organiser/events/nope", { headers: bearer(token) }), 404, "not_found");
     const own = await call("/api/organiser/events/monsoon-strings", { headers: bearer(token) });
     expect(organiserEventDtoSchema.parse(await own.json()).permissions).toContain("orders:refund");
+  });
+
+  describe("orders", () => {
+    const ownerToken = async () => (await signIn("acc-lakeside-owner")).token;
+
+    it("pages through orders by token, filtered and sorted on the server", async () => {
+      const token = await ownerToken();
+      const query = "event=night-market-jazz&orderBy=totalMinor+desc&pageSize=10";
+      const first = orderPageDtoSchema.parse(
+        await (await call(`/api/organiser/orders?${query}`, { headers: bearer(token) })).json(),
+      );
+      expect(first.orders).toHaveLength(10);
+      expect(first.totalSize).toBeGreaterThan(10);
+      const totals = first.orders.map((row) => row.totalMinor);
+      expect(totals).toEqual([...totals].sort((left, right) => right - left));
+
+      const next = await call(`/api/organiser/orders?${query}&pageToken=${first.nextPageToken ?? ""}`, {
+        headers: bearer(token),
+      });
+      const second = orderPageDtoSchema.parse(await next.json());
+      expect(second.orders.some((row) => first.orders.some((seen) => seen.id === row.id))).toBe(false);
+      expect(next.headers.get("Cache-Control")).toBe("no-store");
+    });
+
+    it("answers a query it can't honour with 422, and another organiser's event with 403", async () => {
+      const token = await ownerToken();
+      const sort = await call("/api/organiser/orders?orderBy=price", { headers: bearer(token) });
+      expect((await expectProblem(sort, 422, "invalid_request")).detail).toMatch(/^Sort by createdAt/);
+      await expectProblem(
+        await call("/api/organiser/orders?event=monsoon-strings", { headers: bearer(token) }),
+        403,
+        "forbidden",
+      );
+      await expectProblem(await call("/api/organiser/orders"), 401, "unauthenticated");
+    });
+
+    it("exports the matching orders as a CSV attachment, guarded against formulas", async () => {
+      const token = await ownerToken();
+      const response = await call("/api/organiser/orders/export?event=night-market-jazz&status=fulfilled", {
+        headers: bearer(token),
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+      expect(response.headers.get("Content-Disposition")).toMatch(
+        /^attachment; filename="lakeside-live-orders-\d{4}-\d{2}-\d{2}\.csv"$/,
+      );
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // the BOM (Response.text() would strip it)
+      const [header, ...records] = new TextDecoder().decode(bytes).trimEnd().split("\r\n");
+      expect(header).toBe(
+        "order_id,event,created_at_local,buyer_name,buyer_email,tickets,status,payment_method,total,currency",
+      );
+      expect(records.length).toBeGreaterThan(0);
+      expect(records.every((record) => record.includes(",fulfilled,"))).toBe(true);
+      expect(records[0]).toMatch(/,\d+\.\d{2},INR$/);
+    });
+
+    it("shows one order to its organiser, and answers 404 to anyone else", async () => {
+      const token = await ownerToken();
+      const response = await call("/api/organiser/orders/ord_h00001", { headers: bearer(token) });
+      const order = organiserOrderDtoSchema.parse(await response.json());
+      expect(order).toMatchObject({ id: "ord_h00001", eventSlug: "lakeside-lights" });
+      expect(order.amounts.totalMinor).toBe(order.totalMinor);
+
+      const { token: rangmanch } = await signIn("acc-rangmanch-owner");
+      await expectProblem(
+        await call("/api/organiser/orders/ord_h00001", { headers: bearer(rangmanch) }),
+        404,
+        "not_found",
+      );
+    });
   });
 });

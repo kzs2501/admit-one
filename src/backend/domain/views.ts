@@ -18,6 +18,7 @@ import {
 import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/pricing";
 import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentMethod, PaymentStatus } from "@/core/statuses";
+import type { OrderRow, OrganiserOrder } from "./reporting";
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
@@ -159,6 +160,59 @@ export const toOrganiserEventView = (account: Account, event: EventInfo): Organi
   city: event.city,
   permissions: PERMISSIONS.filter((permission) => can(account, permission, event)),
 });
+
+/** An order as a row of the organiser's table. */
+export interface OrderRowView {
+  id: string;
+  eventSlug: string;
+  eventName: string;
+  createdAtMs: number;
+  buyerName: string;
+  buyerEmail: string;
+  ticketCount: number;
+  totalMinor: number;
+  currency: EventInfo["currency"];
+  status: OrderStatus;
+  paymentMethod: PaymentMethod | null;
+}
+
+export interface OrganiserOrderView extends OrderRowView {
+  items: { tierId: string; tierName: string; quantity: number }[];
+  seats: SeatView[];
+  addOns: { id: string; name: string; quantity: number }[];
+  amounts: Amounts;
+  attendees: { name: string; email: string }[];
+  last4: string | null;
+}
+
+export const toOrderRowView = (row: OrderRow): OrderRowView => ({
+  id: row.id,
+  eventSlug: row.eventSlug,
+  eventName: getEvent(row.eventSlug).name,
+  createdAtMs: row.createdAtMs,
+  buyerName: row.buyerName,
+  buyerEmail: row.buyerEmail,
+  ticketCount: row.ticketCount,
+  totalMinor: row.amounts.totalMinor,
+  currency: row.amounts.currency,
+  status: row.status,
+  paymentMethod: row.method,
+});
+
+export function toOrganiserOrderView(order: OrganiserOrder): OrganiserOrderView {
+  const event = getEvent(order.eventSlug);
+  const nameOf = (list: readonly { id: string; name: string }[], id: string) =>
+    list.find((entry) => entry.id === id)?.name ?? id;
+  return {
+    ...toOrderRowView(order),
+    items: order.items.map(({ tierId, quantity }) => ({ tierId, tierName: nameOf(event.tiers, tierId), quantity })),
+    seats: seatsOf(order.eventSlug, order.seatIds),
+    addOns: Object.entries(order.addOns).map(([id, quantity]) => ({ id, name: nameOf(event.addOns, id), quantity })),
+    amounts: order.amounts,
+    attendees: order.attendees,
+    last4: order.last4,
+  };
+}
 
 export const toQueueEntryView = (context: BackendContext, entry: QueueEntryRecord): QueueEntryView => {
   const nowMs = context.deps.now();
