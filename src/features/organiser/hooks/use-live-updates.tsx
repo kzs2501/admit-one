@@ -62,6 +62,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Exclude<LiveStatus, "paused">>("connecting");
   const [changes, setChanges] = useState<LiveUpdates["changes"]>({ latest: 0, byEvent: {} });
   const lastRefreshAt = useRef(0);
+  // Whether the stream has been open before: any later opening — after a drop, or after
+  // a pause — may have missed changes, so it catches up on everything.
+  const hasConnectedBefore = useRef(false);
 
   useEffect(() => {
     if (isPaused) return;
@@ -91,15 +94,15 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
     };
 
     const connect = async () => {
-      const isReconnect = attempt > 0;
       try {
         await readEventStream(buildApiPath(API_ROUTES.organiserStream, {}), {
           headers: authorization(),
           signal: controller.signal,
           onOpen: () => {
             setConnection("live");
-            // Events may have been missed while it was down: catch up on everything.
-            if (isReconnect) void queryClient.invalidateQueries({ queryKey: organiserQueries.all() });
+            // Changes may have been missed while it was down or paused: catch up on everything.
+            if (hasConnectedBefore.current) void queryClient.invalidateQueries({ queryKey: organiserQueries.all() });
+            hasConnectedBefore.current = true;
             attempt = 0;
           },
           onEvent: (event) => {
