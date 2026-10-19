@@ -81,6 +81,50 @@ export class Buyer {
   }
 }
 
+/** An organiser, signed in to the dashboard through its own sign-in page. */
+export class Organiser {
+  constructor(readonly page: Page) {}
+
+  /** Live, Connecting…, Reconnecting… or Paused. */
+  get liveStatus() {
+    return this.page.getByRole("status").filter({ hasText: /^(Live|Connecting|Reconnecting|Paused)/ });
+  }
+
+  async signInAs(name: RegExp) {
+    await this.page.goto("/organiser/sign-in");
+    await this.page.getByRole("button", { name }).click();
+    await expect(this.page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await expect(this.liveStatus).toHaveText("Live");
+  }
+
+  /** A headline number on the overview, by its label. */
+  kpi(label: string) {
+    return this.page
+      .locator("dl > div")
+      .filter({ has: this.page.getByRole("term").filter({ hasText: label }) })
+      .getByRole("definition")
+      .first();
+  }
+
+  async openOrders() {
+    await this.page.getByRole("navigation", { name: "Organisers" }).getByRole("link", { name: "Orders" }).click();
+    await expect(this.page.getByRole("heading", { name: "Orders", level: 1 })).toBeVisible();
+  }
+
+  /** "8,958 orders" — once the table has settled on its filters. */
+  get orderCount() {
+    return this.page.getByRole("status").filter({ hasText: /^[\d,]+ orders?$/ });
+  }
+
+  /** The order's status, on its own page. */
+  get orderStatus() {
+    return this.page
+      .getByRole("main")
+      .getByRole("status")
+      .filter({ hasText: /^(Fulfilled|Refund pending|Refunded|Paid|Pending|Payment failed|Expired)/ });
+  }
+}
+
 export class Sandbox {
   constructor(readonly page: Page) {}
 
@@ -131,12 +175,15 @@ export class Sandbox {
 
 // Playwright's fixture callback is usually called `use`; `provide` avoids reading as
 // React's use() hook.
-export const test = base.extend<{ buyer: Buyer; sandbox: Sandbox }>({
+export const test = base.extend<{ buyer: Buyer; sandbox: Sandbox; organiser: Organiser }>({
   buyer: async ({ page }, provide) => {
     await provide(new Buyer(page));
   },
   sandbox: async ({ page }, provide) => {
     await provide(new Sandbox(page));
+  },
+  organiser: async ({ page }, provide) => {
+    await provide(new Organiser(page));
   },
 });
 
