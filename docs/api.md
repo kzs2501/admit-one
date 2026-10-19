@@ -125,6 +125,60 @@ catalogue (`src/core/venues.ts`); only what changes comes from the API.
   general admission). These fields are additions: clients that don't know them ignore
   them.
 
+## The organisers' API
+
+For organisers' dashboards ([ADR 014](decisions/014-organiser-access.md),
+[015](decisions/015-reporting-at-scale.md), [016](decisions/016-refunds.md)).
+
+**Signing in.** `POST /api/session` with `{ "accountId": "acc-lakeside-owner" }` (a
+demo account) answers `201 { token, account }`. Send the token as
+`Authorization: Bearer <token>`. It lasts 8 hours; `DELETE /api/session` ends it
+early.
+
+**Statuses.** Every answer is `Cache-Control: no-store`.
+
+- **`401 unauthenticated`** means no token, or one that's no longer valid.
+  `WWW-Authenticate` adds `error="invalid_token"` for the second.
+- **`403 forbidden`** covers an event that belongs to another organiser, or a
+  permission the account's role lacks.
+- **`404 not_found`** is what another organiser's order looks like: it isn't confirmed
+  to exist.
+
+| Method and path                               | Success                                                                                        | Notes                                                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/organiser/account`                  | `200` `{ id, name, role, organisation, permissions }`                                          |                                                                                                                           |
+| `GET /api/organiser/events`                   | `200` the account's events, each with its `permissions`                                        |                                                                                                                           |
+| `GET /api/organiser/metrics?event=`           | `200` revenue, tickets by tier, sales by day, the funnel, the payment mix, webhook lag p50/p95 | All the account's events, or one                                                                                          |
+| `GET /api/organiser/orders`                   | `200` `{ orders, nextPageToken, totalSize }`                                                   | See below                                                                                                                 |
+| `GET /api/organiser/orders/export`            | `200` `text/csv`, as an attachment                                                             | The same filters, every match, no paging                                                                                  |
+| `GET /api/organiser/orders/:orderId`          | `200` the order in full, with its refunds                                                      | `404` for another organiser's                                                                                             |
+| `POST /api/organiser/orders/:orderId/refunds` | `202` `{ refund, order }`, the refund `pending`                                                | `{ reason }` + `Idempotency-Key`; `409` if refunded already or not fulfilled; `502 refund_failed` if the provider refuses |
+| `GET /api/organiser/stream`                   | `200` `text/event-stream`                                                                      | Send `Accept: text/event-stream`                                                                                          |
+
+**Listing orders.** The parameters, all optional:
+
+- **Filters:** `event`, `status` (repeat it for more than one), `method` (`upi` or
+  `card`), `from` and `to` (calendar days in the organisation's time zone, inclusive),
+  and `q` (an order id, or part of a name or email).
+- **Sorting:** `orderBy` is `createdAt`, `totalMinor`, `buyerName` or `ticketCount`,
+  then `asc` or `desc` (AIP-132; the default is `createdAt desc`).
+- **Paging:** `pageSize` (1–200, default 50) and `pageToken`.
+
+Pass the `nextPageToken` back as `pageToken` with otherwise the same query (AIP-158).
+It's `null` on the last page, and a token used with other filters is a `422`. A query
+that can't be honoured, such as an unknown sort, is a `422` too.
+
+**The stream.**
+
+- An `ordersChanged` event names the account's events whose orders, sales or refunds
+  changed: `data: {"eventSlugs":["lakeside-lights"]}`. Re-read what you're showing;
+  the event carries no data.
+- A `: heartbeat` comment comes every 15 seconds.
+- Read it with `fetch`, since `EventSource` can't send the `Authorization` header.
+
+**Refunds.** A refund is settled by the provider's `refund.succeeded` webhook. Then
+the order is `refunded`, its tickets stop working, and they go back on sale.
+
 ## Order lifecycle
 
 ```mermaid
@@ -132,6 +186,7 @@ stateDiagram-v2
   [*] --> pending
   pending --> paid: webhook payment.succeeded
   pending --> failed: declined, authentication failed, UPI request declined, expired or cancelled
+  fulfilled --> refunded: the organiser refunded it
   failed --> pending: new payment attempt
   pending --> expired: hold ran out, nothing in flight
   failed --> expired

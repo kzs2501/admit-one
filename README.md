@@ -5,7 +5,8 @@
 Timed ticket holds that can't oversell, a seat map you can use with a keyboard, prices
 that are all in from the first screen, card or UPI, a typed step registry driven by the
 URL, idempotent payments, deduplicated webhooks, and an order page that waits for the
-truth instead of trusting a redirect. Pick a failure from the chaos panel — a declined
+truth instead of trusting a redirect. Organisers get their own dashboard: live sales, a
+9,000-order table that stays fast and accessible, and refunds. Pick a failure from the chaos panel — a declined
 card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buying the
 last ticket — and watch the checkout handle it while the server log explains why.
 
@@ -36,6 +37,8 @@ is also an end-to-end test that checks both what you see and what the server rec
 | Flash sale                 | 40,000 people (simulated) arrive at once               | A waiting room: your place, an honest wait, your turn announced                  |
 | UPI declined               | You approve on your phone; your bank says no           | The webhook says so; a focused notice, nothing taken, pay by card instead        |
 | UPI request expires        | A 15-second request nobody approves                    | The request runs out, the page says so, and a new one can be asked for           |
+| Busy on-sale               | Other buyers take a ticket every 1.5 s                 | The organisers' dashboard updates live, and the orders table doesn't jump        |
+| Refunds fail               | The provider refuses to start a refund                 | "Refund pending" rolls back, and a focused alert says why                        |
 
 Test cards work too: `4242…` succeeds, `4000 0000 0000 0002` is declined,
 `4000 0025 0000 3155` asks for 3-D Secure. Or pay by UPI, and approve or decline on the
@@ -118,6 +121,38 @@ browser: it re-reads the order, and the webhook decides. A request runs out afte
 minutes (lazily, like a hold), never outlasts the hold, and can be cancelled to pay by
 card. ([decision](docs/decisions/013-upi-by-intent-and-qr.md))
 
+### 9. An organisers' dashboard, with access checked twice
+
+Sign in as one of three demo accounts across two organisations. Each sees only its own
+events' orders and only what its role allows. The same `can()` rule hides the Refund
+button from the box office and makes the server refuse it anyway. Statuses are exact:
+401 for no session, 403 for an event that isn't yours, and 404 for an order that
+isn't, so its existence isn't confirmed. ([decision](docs/decisions/014-organiser-access.md))
+
+### 10. Nine thousand orders in a table that stays a table
+
+The history is generated from a seed, not stored, and it agrees with the catalogue to
+the ticket. The server filters, sorts (AIP-132) and pages by keyset (AIP-158), so new
+orders between pages can't repeat or skip a row.
+
+- **The table:** TanStack Virtual draws about 30 rows, but it's still a real
+  `<table>`, with spacer rows instead of absolute positioning. `aria-rowcount` and
+  `aria-rowindex` tell screen readers the whole story, and a focused row stays drawn.
+- **The filters:** they live in the URL, and they're optimistic, so they respond at
+  once.
+- **Live updates:** server-sent events read with `fetch` (so they can carry a token)
+  refresh what's on screen, and can be paused. The table offers new rows rather than
+  moving under you.
+
+([decision](docs/decisions/015-reporting-at-scale.md))
+
+### 11. Refunds, optimistic and honest
+
+A refund is an idempotent request settled by webhook, like a payment. The dashboard
+shows "Refund pending" at once, on the order and in every cached table page. If the
+provider refuses, everything rolls back and a focused alert says why. Refunded tickets
+go back on sale. ([decision](docs/decisions/016-refunds.md))
+
 ## How it works
 
 ```mermaid
@@ -173,13 +208,13 @@ nothing else depends on it.
 
 ## Quality
 
-| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                                                                                                                  |
-| `npm test`                   | 268 unit, component and HTTP-contract tests: pricing and GST, UPI intents, expiry and cancelling, inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                                                      |
-| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `npm run test:e2e`           | 50 browser tests: one per chaos preset, plus paying by UPI (approved, declined, expired, cancelled, after a refresh), all-in prices, a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
-| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `npm test`                   | 372 unit, component and HTTP-contract tests: permissions and tenant isolation, keyset paging, CSV escaping, metrics in the organiser's time zone, refunds, the live stream, the virtualised table's ARIA, optimistic rollback, pricing and GST, UPI intents, expiry and cancelling, inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                            |
+| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `npm run test:e2e`           | 63 browser tests: one per chaos preset, plus the organisers' dashboard (filters in the URL, a 9,000-row table, CSV, refunds and their rollback, access, live updates, axe, a responsiveness budget), paying by UPI (approved, declined, expired, cancelled, after a refresh), all-in prices, a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
@@ -207,7 +242,7 @@ No environment variables, keys or accounts needed.
 ```
 src/
   app/              routes, error boundaries, providers; /problems documents every error type
-  features/         events · checkout · orders · queue · sandbox — view-model hooks and their components
+  features/         events · checkout · orders · queue · organiser · sandbox — view-model hooks and their components
   components/ui/    design-system primitives (Button, TextField, Notice, ErrorState, …)
   lib/              API client, query factories, routes, safe storage, formatting
   contract/         the HTTP contract: routes, DTO and request schemas, problem types
@@ -223,7 +258,7 @@ checklist.
 
 ## Not in v0.1
 
-Accounts, emails, an organiser dashboard, and a real payment provider.
+Buyer accounts, emails, real authentication, and a real payment provider.
 Next up is a Razorpay test-mode adapter behind the same provider interface.
 
 ---

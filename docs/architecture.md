@@ -45,7 +45,7 @@ flowchart LR
 ```mermaid
 flowchart TB
   app["app/ — routes, composition"]
-  features["features/ — events · checkout · orders · queue · sandbox\n(hooks own the rules, components render)"]
+  features["features/ — events · checkout · orders · queue · organiser · sandbox\n(hooks own the rules, components render)"]
   shared["lib/ + components/ui/ — API client, queries, routes, formatting, UI primitives"]
   contract["contract/ — routes, DTO & request schemas, problem types"]
   core["core/ — catalogue, money, statuses, validation"]
@@ -62,17 +62,17 @@ flowchart TB
   shared -. "HTTP" .-> backend
 ```
 
-| Layer             | Responsibility                                                                                                                                                                         | May import                              |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `core/`           | The shared kernel: the event catalogue and its halls, seat geometry and the single-seat-gap rule, money and pricing, lifecycle vocabularies, validation rules, order-status predicates | nothing else                            |
-| `contract/`       | The HTTP contract: route table, DTO and request schemas, RFC 9457 problem types                                                                                                        | `core`                                  |
-| `backend/domain`  | Inventory, orders, payments, webhooks, the order state machine — plain functions over plain state, with time, ids and randomness injected                                              | `core`, `contract`                      |
-| `backend/http`    | The adapter: request parsing, status codes, problem details, idempotency keys, ISO timestamps                                                                                          | the domain                              |
-| `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                     | the domain, the adapter                 |
-| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                          | `core`, `contract`                      |
-| `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                             | `lib`, `core`                           |
-| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `useCardPayment`, `useUpiPayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`) and the components that render them          | everything above; never another feature |
-| `app/`            | Routes and error boundaries; composes features                                                                                                                                         | everything except backend internals     |
+| Layer             | Responsibility                                                                                                                                                                                             | May import                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `core/`           | The shared kernel: the event catalogue and its halls, seat geometry and the single-seat-gap rule, money and pricing, lifecycle vocabularies, validation rules, order-status predicates                     | nothing else                            |
+| `contract/`       | The HTTP contract: route table, DTO and request schemas, RFC 9457 problem types                                                                                                                            | `core`                                  |
+| `backend/domain`  | Inventory, orders, payments, webhooks, the order state machine — plain functions over plain state, with time, ids and randomness injected                                                                  | `core`, `contract`                      |
+| `backend/http`    | The adapter: request parsing, status codes, problem details, idempotency keys, ISO timestamps                                                                                                              | the domain                              |
+| `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                                         | the domain, the adapter                 |
+| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                                              | `core`, `contract`                      |
+| `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                                                 | `lib`, `core`                           |
+| `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `useCardPayment`, `useUpiPayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`, `useOrderList`, `useRefund`) and the components that render them | everything above; never another feature |
+| `app/`            | Routes and error boundaries; composes features                                                                                                                                                             | everything except backend internals     |
 
 **The rule is enforced, not just described.** `eslint.config.mjs` declares these as
 `import/no-restricted-paths` zones (plus `import/no-cycle`), so a forbidden import fails
@@ -110,6 +110,14 @@ sequenceDiagram
 - **Money and time zones are data** ([008](decisions/008-money-and-time-zones.md)).
 - **Prices are all in** — fees and GST included from the first screen, worked out by one
   engine with the tax rules as data ([012](decisions/012-gst-and-all-in-pricing.md)).
+- **Organiser access** — demo sign-in with bearer tokens; one `can()` rule in `core`
+  for the UI and the server; 401, 403 and 404 each where they belong
+  ([014](decisions/014-organiser-access.md)).
+- **Reporting at scale** — generated history, keyset pages, server-sent events read
+  with `fetch` as invalidations, and a virtualised table that stays a `<table>`
+  ([015](decisions/015-reporting-at-scale.md)).
+- **Refunds** — idempotent, settled by webhook, shown optimistically with an honest
+  rollback ([016](decisions/016-refunds.md)).
 - **UPI is a request, settled by webhook** — an intent link or QR code, approved in
   another app, expiring lazily and cancellable; payment methods are a registry
   ([013](decisions/013-upi-by-intent-and-qr.md)).
@@ -150,6 +158,9 @@ way it's used:
   conditional `UPDATE … WHERE available >= quantity`), and webhook dedupe a unique insert.
 - A real provider adapter behind the same payment port, with webhook signature
   verification (HMAC over the raw body, with a timestamp check against replay).
+- Organisers signing in through an identity provider, with an HttpOnly session cookie
+  rather than a token a script can read.
+- Reporting from a database with indexes on the sort keys, not rows in memory.
 - For UPI, intents and QR codes signed by the provider, and a status check with the
   provider when a webhook is late.
 - Authentication, email delivery, and observability on webhook lag. None of these are
