@@ -30,12 +30,28 @@ export const upsertOrderRequestSchema = z.object({
   addOns: addOnSelectionSchema,
 });
 
-export const createPaymentRequestSchema = cardSchema;
+/** Pay by card. `method` may be left out: card bodies predate it, and old clients keep working. */
+export const cardPaymentRequestSchema = cardSchema.extend({ method: z.literal("card").default("card") });
+
+/**
+ * Pay by UPI. The server answers with a payment request to approve in a UPI app — by
+ * opening its link on a phone, or scanning its QR code — so the body carries nothing else.
+ */
+export const upiPaymentRequestSchema = z.strictObject({ method: z.literal("upi") });
+
+/**
+ * `POST /api/orders/:orderId/payments` takes either method, told apart by `method`, so
+ * a bad body gets the error for the method it was meant for.
+ */
+export const createPaymentRequestSchemaFor = (body: unknown) =>
+  typeof body === "object" && body !== null && "method" in body && body.method === "upi"
+    ? upiPaymentRequestSchema
+    : cardPaymentRequestSchema;
 
 /** The buyer's answer to the bank's 3-D Secure challenge. */
 export const confirmChallengeRequestSchema = z.object({ decision: z.enum(["approve", "reject"]) });
 
 export type CreateHoldRequest = z.input<typeof holdByTiersRequestSchema> | z.input<typeof holdBySeatsRequestSchema>;
 export type UpsertOrderRequest = z.input<typeof upsertOrderRequestSchema>;
-export type CreatePaymentRequest = z.input<typeof createPaymentRequestSchema>;
+export type CreatePaymentRequest = z.input<typeof cardPaymentRequestSchema> | z.input<typeof upiPaymentRequestSchema>;
 export type ConfirmChallengeRequest = z.input<typeof confirmChallengeRequestSchema>;

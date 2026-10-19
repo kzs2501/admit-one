@@ -7,6 +7,7 @@ import type {
   HoldDetailsDto,
   HoldDto,
   OrderDto,
+  PaymentDto,
   PaymentResultDto,
   QueueEntryDto,
   SeatAvailabilityDto,
@@ -17,6 +18,7 @@ import type {
   HoldView,
   OrderView,
   PaymentResultView,
+  PaymentView,
   QueueEntryView,
   SeatAvailabilityView,
 } from "@/backend/domain/views";
@@ -29,8 +31,21 @@ function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
   return { ...hold, createdAt: toIso(createdAtMs), expiresAt: toIso(expiresAtMs) };
 }
 
-export function toOrderDto({ createdAtMs, updatedAtMs, ...order }: OrderView): OrderDto {
-  return { ...order, createdAt: toIso(createdAtMs), updatedAt: toIso(updatedAtMs) };
+export const toPaymentDto = ({ nextAction, ...payment }: PaymentView): PaymentDto => ({
+  ...payment,
+  nextAction:
+    nextAction?.type === "upi"
+      ? { type: "upi", intentUri: nextAction.intentUri, expiresAt: toIso(nextAction.expiresAtMs) }
+      : nextAction,
+});
+
+export function toOrderDto({ createdAtMs, updatedAtMs, payment, ...order }: OrderView): OrderDto {
+  return {
+    ...order,
+    payment: payment ? toPaymentDto(payment) : null,
+    createdAt: toIso(createdAtMs),
+    updatedAt: toIso(updatedAtMs),
+  };
 }
 
 export const toHoldDetailsDto = ({ hold, event, order, serverTimeMs }: HoldDetailsView): HoldDetailsDto => ({
@@ -41,7 +56,7 @@ export const toHoldDetailsDto = ({ hold, event, order, serverTimeMs }: HoldDetai
 });
 
 export const toPaymentResultDto = ({ payment, order }: PaymentResultView): PaymentResultDto => ({
-  payment,
+  payment: toPaymentDto(payment),
   order: toOrderDto(order),
 });
 

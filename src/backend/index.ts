@@ -12,7 +12,19 @@ import type { LogEntry } from "./domain/state";
 export { PRESETS, type Preset, type PresetId } from "./chaos/presets";
 export type { LogEntry, LogKind } from "./domain/state";
 
-/** What the chaos panel may do to the sandbox: watch it, pick a scenario, read the log, reset it. */
+/** A UPI request as the buyer's phone shows it. */
+export interface PendingUpiRequest {
+  paymentId: string;
+  payeeName: string;
+  amountMinor: number;
+  expiresAtMs: number;
+}
+
+/**
+ * What the sandbox's own controls may do to it: watch it, pick a scenario, read the log,
+ * reset it — and play the buyer's phone, answering a UPI request the way the buyer's
+ * own UPI app would, outside the merchant's API.
+ */
 export interface SandboxControl {
   subscribe: (listener: () => void) => () => void;
   /** Changes on every update — the sandbox mutates in place, so watch this. */
@@ -21,6 +33,8 @@ export interface SandboxControl {
   setPreset: (id: PresetId) => void;
   getLog: () => readonly LogEntry[];
   reset: () => void;
+  getPendingUpiRequest: () => PendingUpiRequest | null;
+  respondInUpiApp: (paymentId: string, decision: "approve" | "decline") => void;
 }
 
 /** Start the in-browser backend. Resolves once the service worker can answer requests. */
@@ -47,6 +61,10 @@ export async function getSandboxControl(): Promise<SandboxControl> {
     getLog: () => sandbox.getState().log,
     reset: () => {
       sandbox.reset();
+    },
+    getPendingUpiRequest: () => sandbox.getPendingUpiRequest(),
+    respondInUpiApp: (paymentId, decision) => {
+      sandbox.respondInUpiApp(paymentId, decision);
     },
   };
 }

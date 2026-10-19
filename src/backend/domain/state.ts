@@ -13,7 +13,7 @@ import { TAX_LINE_KINDS } from "@/core/pricing";
 import { ORDER_STATUSES, PAYMENT_FAILURE_CODES, PAYMENT_STATUSES } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 7;
+const STATE_VERSION = 8;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -68,15 +68,24 @@ const orderRecordSchema = z.object({
   updatedAtMs: epochMsSchema,
 });
 
-const paymentRecordSchema = z.object({
+const paymentRecordBaseSchema = z.object({
   id: z.string(),
   orderId: z.string(),
   amountMinor: z.number().int(),
   status: z.enum(PAYMENT_STATUSES),
-  last4: z.string(),
   failureCode: z.enum(PAYMENT_FAILURE_CODES).nullable(),
   createdAtMs: epochMsSchema,
 });
+
+/** A payment by card or by UPI: each has only the fields its method has. */
+const paymentRecordSchema = z.discriminatedUnion("method", [
+  paymentRecordBaseSchema.extend({ method: z.literal("card"), last4: z.string() }),
+  paymentRecordBaseSchema.extend({
+    method: z.literal("upi"),
+    /** When the request stops being payable, if nobody has approved it. */
+    expiresAtMs: epochMsSchema,
+  }),
+]);
 
 const jsonValueSchema = z.json();
 export type JsonValue = z.infer<typeof jsonValueSchema>;
@@ -101,14 +110,21 @@ const queueEntryRecordSchema = z.object({
   admissionWindowMs: z.number().int().positive(),
 });
 
-/** A webhook waiting to be delivered: the outbox pattern. */
-const outboxItemSchema = z.object({
+const outboxItemBaseSchema = z.object({
   deliveryId: z.string(),
   eventId: z.string(),
-  type: z.literal("payment.succeeded"),
   paymentId: z.string(),
   deliverAtMs: epochMsSchema,
 });
+
+/** A webhook waiting to be delivered: the outbox pattern. A payment either happened or it didn't. */
+const outboxItemSchema = z.discriminatedUnion("type", [
+  outboxItemBaseSchema.extend({ type: z.literal("payment.succeeded") }),
+  outboxItemBaseSchema.extend({
+    type: z.literal("payment.failed"),
+    failureCode: z.enum(["upi_declined"]),
+  }),
+]);
 
 const LOG_KINDS = ["request", "queue", "hold", "order", "payment", "webhook", "crowd", "warn"] as const;
 
@@ -146,6 +162,7 @@ export type OrderRecord = z.infer<typeof orderRecordSchema>;
 export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
 export type QueueEntryRecord = z.infer<typeof queueEntryRecordSchema>;
 export type IdempotencyRecord = z.infer<typeof idempotencyRecordSchema>;
+export type OutboxItem = z.infer<typeof outboxItemSchema>;
 export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;

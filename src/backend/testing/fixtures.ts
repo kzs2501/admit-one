@@ -5,10 +5,9 @@
 import { createBackend, type Backend } from "@/backend/backend";
 import type { PresetId } from "@/backend/chaos/presets";
 import type { Result } from "@/backend/domain/errors";
-import { TEST_CARDS } from "@/backend/domain/payments";
+import { TEST_CARDS, type PaymentInput } from "@/backend/domain/payments";
 import { createInitialState } from "@/backend/domain/state";
 import { getEvent } from "@/core/catalog";
-import type { CardDetails } from "@/core/schemas";
 import { findSingleSeatGaps, type Seat, type SeatPlan } from "@/core/seating";
 
 export const START_MS = Date.UTC(2026, 9, 12, 10, 0, 0);
@@ -36,7 +35,8 @@ export function valueOf<T>(result: Result<T>): T {
   return result.value;
 }
 
-export const testCard = (number: string = TEST_CARDS.success): CardDetails => ({
+export const testCard = (number: string = TEST_CARDS.success): PaymentInput => ({
+  method: "card",
   number,
   expiry: "12 / 30",
   cvc: "123",

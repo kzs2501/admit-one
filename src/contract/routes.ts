@@ -14,6 +14,7 @@ export const API_ROUTES = {
   getOrder: "/api/orders/:orderId",
   createPayment: "/api/orders/:orderId/payments",
   confirmChallenge: "/api/payments/:paymentId/challenge",
+  cancelPayment: "/api/payments/:paymentId/cancel",
 } as const;
 
 export type ApiRoute = (typeof API_ROUTES)[keyof typeof API_ROUTES];

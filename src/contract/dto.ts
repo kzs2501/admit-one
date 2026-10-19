@@ -14,6 +14,7 @@ import {
   HOLD_STATUSES,
   ORDER_STATUSES,
   PAYMENT_FAILURE_CODES,
+  PAYMENT_METHODS,
   PAYMENT_STATUSES,
   QUEUE_STATUSES,
 } from "@/core/statuses";
@@ -129,11 +130,27 @@ export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 
 export const paymentFailureCodeSchema = z.enum(PAYMENT_FAILURE_CODES);
 
+/** What the buyer has to do before a payment can go on: answer their bank's 3-D Secure check, or approve in a UPI app. */
+export const nextActionDtoSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("card_challenge") }),
+  z.object({
+    type: z.literal("upi"),
+    /** A `upi://pay` link: open it on a phone, or show it as a QR code to scan. */
+    intentUri: z.string().startsWith("upi://pay?"),
+    /** When the request stops being payable. */
+    expiresAt: isoDateTimeSchema,
+  }),
+]);
+
 export const paymentDtoSchema = z.object({
   id: z.string(),
+  method: z.enum(PAYMENT_METHODS),
   status: paymentStatusSchema,
-  last4: z.string(),
+  /** The card's last four digits; null for UPI. */
+  last4: z.string().nullable(),
   failureCode: paymentFailureCodeSchema.nullable(),
+  /** Set while the status is `requires_action`. */
+  nextAction: nextActionDtoSchema.nullable(),
 });
 
 export const orderDtoSchema = z.object({
@@ -201,6 +218,7 @@ export type AmountsDto = z.infer<typeof amountsDtoSchema>;
 export type TaxLineDto = z.infer<typeof taxLineDtoSchema>;
 export type TicketDto = z.infer<typeof ticketDtoSchema>;
 export type PaymentDto = z.infer<typeof paymentDtoSchema>;
+export type NextActionDto = z.infer<typeof nextActionDtoSchema>;
 export type OrderDto = z.infer<typeof orderDtoSchema>;
 export type HoldDetailsDto = z.infer<typeof holdDetailsDtoSchema>;
 export type PaymentResultDto = z.infer<typeof paymentResultDtoSchema>;

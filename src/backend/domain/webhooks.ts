@@ -6,31 +6,48 @@
 import type { BackendContext } from "./context";
 import { isHoldLive } from "./inventory";
 import { isOrderOpen, issueTickets, setOrderStatus } from "./orders";
-import type { PaymentRecord } from "./state";
+import type { OrderRecord, OutboxItem, PaymentRecord } from "./state";
 
 /** Gap between the two deliveries in the "webhook arrives twice" preset. */
 export const DUPLICATE_GAP_MS = 700;
 
-export function enqueuePaymentSucceeded(context: BackendContext, payment: PaymentRecord) {
+/** What the provider tells us about a payment: it happened, or it didn't and why. */
+interface PaymentFailedEvent {
+  type: "payment.failed";
+  failureCode: "upi_declined";
+}
+type PaymentEvent = { type: "payment.succeeded" } | PaymentFailedEvent;
+
+export function enqueuePaymentEvent(context: BackendContext, payment: PaymentRecord, event: PaymentEvent) {
   const eventId = context.deps.newId("evt");
   const deliverAtMs = context.deps.now() + context.chaos().webhookDelayMs;
-  const delivery = { eventId, type: "payment.succeeded" as const, paymentId: payment.id };
-  context.state.outbox.push({ deliveryId: context.deps.newId("dlv"), ...delivery, deliverAtMs });
-  if (context.chaos().shouldDuplicateWebhook) {
+  const deliveries = context.chaos().shouldDuplicateWebhook
+    ? [deliverAtMs, deliverAtMs + DUPLICATE_GAP_MS]
+    : [deliverAtMs];
+  for (const at of deliveries) {
     context.state.outbox.push({
       deliveryId: context.deps.newId("dlv"),
-      ...delivery,
-      deliverAtMs: deliverAtMs + DUPLICATE_GAP_MS,
+      eventId,
+      paymentId: payment.id,
+      deliverAtMs: at,
+      ...event,
     });
   }
 }
 
-/** The webhook, not the browser's redirect, is the source of truth for whether a payment happened. */
-function processPaymentSucceeded(context: BackendContext, eventId: string, paymentId: string) {
+export const enqueuePaymentSucceeded = (context: BackendContext, payment: PaymentRecord) => {
+  enqueuePaymentEvent(context, payment, { type: "payment.succeeded" });
+};
+
+/**
+ * Take an event for processing, once: providers deliver at least once, so a duplicate
+ * is normal. Returns the payment and its order if there's anything left to do.
+ */
+function claim(context: BackendContext, { eventId, type, paymentId }: OutboxItem) {
   const { state } = context;
   if (state.processedEventIds.includes(eventId)) {
-    context.log("webhook", `payment.succeeded ${eventId} arrived again — already processed, ignored.`);
-    return;
+    context.log("webhook", `${type} ${eventId} arrived again — already processed, ignored.`);
+    return null;
   }
   state.processedEventIds.push(eventId);
 
@@ -38,13 +55,19 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
   const order = payment ? state.orders[payment.orderId] : undefined;
   if (!payment || !order) {
     context.log("warn", `Webhook ${eventId} refers to an unknown payment; ignored.`);
-    return;
+    return null;
   }
   if (!isOrderOpen(order)) {
     context.log("warn", `Webhook ${eventId} for ${order.id}, which is already ${order.status}; ignored.`);
-    return;
+    return null;
   }
-  context.log("webhook", `payment.succeeded ${eventId} received for ${payment.id}.`);
+  context.log("webhook", `${type} ${eventId} received for ${payment.id}.`);
+  return { payment, order };
+}
+
+/** The webhook, not the browser's redirect, is the source of truth for whether a payment happened. */
+function processPaymentSucceeded(context: BackendContext, payment: PaymentRecord, order: OrderRecord) {
+  const { state } = context;
   payment.status = "succeeded";
 
   if (order.status === "failed") setOrderStatus(context, order, "pending");
@@ -71,6 +94,22 @@ function processPaymentSucceeded(context: BackendContext, eventId: string, payme
   }
 }
 
+/** A payment the buyer approved, and their bank then refused — or that they declined in their UPI app. */
+function processPaymentFailed(
+  context: BackendContext,
+  payment: PaymentRecord,
+  order: OrderRecord,
+  { failureCode }: PaymentFailedEvent,
+) {
+  if (payment.status !== "processing") {
+    context.log("warn", `payment.failed for ${payment.id}, which is already ${payment.status}; ignored.`);
+    return;
+  }
+  payment.status = "failed";
+  payment.failureCode = failureCode;
+  setOrderStatus(context, order, "failed", "The UPI payment was declined. No money was taken.");
+}
+
 /** When the next webhook is due, so the runtime can sleep until then. */
 export function nextDeliveryAtMs(context: BackendContext): number | null {
   const { outbox } = context.state;
@@ -85,6 +124,11 @@ export function deliverDue(context: BackendContext): number {
     .sort((earlier, later) => earlier.deliverAtMs - later.deliverAtMs);
   if (!due.length) return 0;
   context.state.outbox = context.state.outbox.filter((delivery) => delivery.deliverAtMs > nowMs);
-  for (const delivery of due) processPaymentSucceeded(context, delivery.eventId, delivery.paymentId);
+  for (const delivery of due) {
+    const claimed = claim(context, delivery);
+    if (!claimed) continue;
+    if (delivery.type === "payment.succeeded") processPaymentSucceeded(context, claimed.payment, claimed.order);
+    else processPaymentFailed(context, claimed.payment, claimed.order, delivery);
+  }
   return due.length;
 }

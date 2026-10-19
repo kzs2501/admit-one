@@ -8,7 +8,6 @@
  * and returns read models (`domain/views`) or domain errors.
  */
 import { CATALOG, findEvent } from "@/core/catalog";
-import type { CardDetails } from "@/core/schemas";
 import { getPreset, type PresetId } from "@/backend/chaos/presets";
 import type { BackendContext, Deps } from "./domain/context";
 import { fail, map, ok, type Result } from "./domain/errors";
@@ -21,7 +20,17 @@ import {
   type CreateHoldCommand,
 } from "./domain/inventory";
 import { findOrder, upsertOrder, type UpsertOrderCommand } from "./domain/orders";
-import { confirmChallenge, createPayment, type ChallengeDecision, type PaymentAttempt } from "./domain/payments";
+import {
+  cancelPayment,
+  confirmChallenge,
+  createPayment,
+  findPendingUpiRequest,
+  respondInUpiApp,
+  type ChallengeDecision,
+  type PaymentAttempt,
+  type PaymentInput,
+  type UpiAppDecision,
+} from "./domain/payments";
 import { createInitialState, type IdempotencyRecord, type LogKind, type ServerState } from "./domain/state";
 import {
   toEventView,
@@ -34,7 +43,9 @@ import {
   type PaymentResultView,
   type SeatAvailabilityView,
   toQueueEntryView,
+  toUpiRequestView,
   type QueueEntryView,
+  type UpiRequestView,
 } from "./domain/views";
 import { findQueueEntry, joinQueue } from "./domain/queue";
 import { deliverDue, nextDeliveryAtMs } from "./domain/webhooks";
@@ -79,7 +90,7 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
   };
 
   const toPaymentResultView = ({ payment, order }: PaymentAttempt): PaymentResultView => ({
-    payment: toPaymentView(payment),
+    payment: toPaymentView(context, payment),
     order: toOrderView(context, order),
   });
 
@@ -144,12 +155,24 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     getOrder: (orderId: string): Result<OrderView> =>
       map(findOrder(context, orderId), (order) => toOrderView(context, order)),
 
-    /** Attempt a charge. Every attempted charge returns its payment, whatever the bank said. */
-    createPayment: (orderId: string, card: CardDetails): Result<PaymentResultView> =>
-      command(() => map(createPayment(context, orderId, card), toPaymentResultView)),
+    /** Attempt a payment. Every attempted payment returns its payment, whatever the bank said. */
+    createPayment: (orderId: string, input: PaymentInput): Result<PaymentResultView> =>
+      command(() => map(createPayment(context, orderId, input), toPaymentResultView)),
     /** The buyer's answer to the bank's authentication challenge. */
     confirmChallenge: (paymentId: string, decision: ChallengeDecision): Result<PaymentResultView> =>
       command(() => map(confirmChallenge(context, paymentId, decision), toPaymentResultView)),
+    /** Give up on a payment the buyer hasn't approved yet, to pay another way. */
+    cancelPayment: (paymentId: string): Result<PaymentResultView> =>
+      command(() => map(cancelPayment(context, paymentId), toPaymentResultView)),
+
+    /** The buyer's phone (simulated): the UPI request waiting for them, if any. Not part of the merchant's API. */
+    getPendingUpiRequest: (): UpiRequestView | null => {
+      const payment = findPendingUpiRequest(context);
+      return payment ? toUpiRequestView(payment) : null;
+    },
+    /** The buyer's answer in their UPI app. The merchant hears it from the webhook. */
+    respondInUpiApp: (paymentId: string, decision: UpiAppDecision): Result<PaymentResultView> =>
+      command(() => map(respondInUpiApp(context, paymentId, decision), toPaymentResultView)),
 
     /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A key past its TTL is new again. */
     idempotency: {

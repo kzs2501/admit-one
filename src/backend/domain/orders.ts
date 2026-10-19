@@ -5,13 +5,14 @@
 import { getEvent } from "@/core/catalog";
 import { priceOrder } from "@/core/pricing";
 import type { Attendee } from "@/core/schemas";
-import type { OrderStatus } from "@/core/statuses";
+import type { OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
 import { ticketCount } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { fail, ok, type Result } from "./errors";
 import { isHoldLive } from "./inventory";
 import { assertTransition } from "./order-machine";
-import type { OrderRecord } from "./state";
+import type { OrderRecord, PaymentRecord } from "./state";
+import { isUpiRequestExpired } from "./upi";
 
 const TICKET_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no look-alikes: 0/O, 1/I/L
 const TICKET_CODE_LENGTH = 8;
@@ -22,27 +23,50 @@ export interface UpsertOrderCommand {
   addOns: Record<string, number>;
 }
 
+const UPI_EXPIRED_REASON = "Nobody approved the UPI request before it ran out.";
+
+/** A payment as it stands now: a UPI request nobody approved in time has failed, though nothing has written that down yet. */
+export function resolvePayment(
+  context: BackendContext,
+  payment: PaymentRecord,
+): { status: PaymentStatus; failureCode: PaymentFailureCode | null } {
+  return isUpiRequestExpired(payment, context.deps.now())
+    ? { status: "failed", failureCode: "upi_expired" }
+    : { status: payment.status, failureCode: payment.failureCode };
+}
+
+const paymentOf = (context: BackendContext, order: OrderRecord) =>
+  order.paymentId ? context.state.payments[order.paymentId] : undefined;
+
 /** A payment is underway: its webhook, not the hold's clock, decides what happens next. */
 export function isPaymentInFlight(context: BackendContext, order: OrderRecord): boolean {
-  const payment = order.paymentId ? context.state.payments[order.paymentId] : undefined;
-  return payment?.status === "processing" || payment?.status === "requires_action";
+  const payment = paymentOf(context, order);
+  if (!payment) return false;
+  const { status } = resolvePayment(context, payment);
+  return status === "processing" || status === "requires_action";
 }
 
 /** Unpaid orders can still be edited or paid; everything else is past that point. */
 export const isOrderOpen = (order: OrderRecord) => order.status === "pending" || order.status === "failed";
 
 /**
- * An unpaid order whose hold has run out is expired — derived, not stored, so a read
- * never has to write. A payment in flight protects the order.
+ * An unpaid order whose hold has run out is expired, and one whose UPI request ran out
+ * has failed — derived, not stored, so a read never has to write. A payment in flight
+ * protects the order.
  */
 export function resolveOrderStatus(
   context: BackendContext,
   order: OrderRecord,
 ): { status: OrderStatus; reason: string | null } {
   if (isOrderOpen(order) && !isPaymentInFlight(context, order)) {
+    const nowMs = context.deps.now();
     const hold = context.state.holds[order.holdId];
-    if (hold && !isHoldLive(hold, context.deps.now())) {
+    if (hold && !isHoldLive(hold, nowMs)) {
       return { status: "expired", reason: "Your reservation expired before payment was completed." };
+    }
+    const payment = paymentOf(context, order);
+    if (order.status === "pending" && payment && isUpiRequestExpired(payment, nowMs)) {
+      return { status: "failed", reason: UPI_EXPIRED_REASON };
     }
   }
   return { status: order.status, reason: order.statusReason };
@@ -61,10 +85,16 @@ export function setOrderStatus(
   order.updatedAtMs = context.deps.now();
 }
 
-/** Persist a derived expiry when a write path runs into it. */
+/** Persist a derived expiry — the hold's, or a UPI request's — when a write path runs into it. */
 export function settleExpiry(context: BackendContext, order: OrderRecord) {
   const { status, reason } = resolveOrderStatus(context, order);
-  if (status === "expired" && order.status !== "expired") setOrderStatus(context, order, "expired", reason);
+  const payment = paymentOf(context, order);
+  if (payment && isUpiRequestExpired(payment, context.deps.now())) {
+    payment.status = "failed";
+    payment.failureCode = "upi_expired";
+    context.log("payment", `UPI request ${payment.id} ran out unapproved.`);
+  }
+  if (status !== order.status) setOrderStatus(context, order, status, reason);
 }
 
 function createTicketCode(context: BackendContext) {

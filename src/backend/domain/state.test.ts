@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createBackend } from "@/backend/backend";
 import { DEFAULT_CHAOS } from "@/backend/chaos/presets";
-import { createTestBackend, purchase, valueOf } from "@/backend/testing/fixtures";
+import { createTestBackend, purchase, testAttendees, valueOf } from "@/backend/testing/fixtures";
 import { createInitialState, deserializeState, serializeState } from "./state";
 
 describe("persisted state", () => {
@@ -20,6 +20,26 @@ describe("persisted state", () => {
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);
     restored.deliverDue();
     expect(valueOf(restored.getOrder(order.id)).status).toBe("fulfilled");
+  });
+
+  it("survives a reload with a UPI payment declined, and its webhook still in the outbox", () => {
+    const { backend, clock } = createTestBackend();
+    const { hold } = valueOf(
+      backend.createHold({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] }),
+    );
+    const { order } = valueOf(backend.upsertOrder({ holdId: hold.id, attendees: testAttendees(1), addOns: {} }));
+    const { payment } = valueOf(backend.createPayment(order.id, { method: "upi" }));
+    valueOf(backend.respondInUpiApp(payment.id, "decline"));
+
+    const restoredState = deserializeState(serializeState(backend.getState()));
+    expect(restoredState?.payments[payment.id]).toMatchObject({ method: "upi", status: "processing" });
+    const restored = createBackend(
+      { now: clock.now, newId: (prefix) => `${prefix}_restored`, random: () => 0.1 },
+      restoredState ?? createInitialState(),
+    );
+    clock.advance(DEFAULT_CHAOS.webhookDelayMs);
+    restored.deliverDue();
+    expect(valueOf(restored.getOrder(order.id)).payment?.failureCode).toBe("upi_declined");
   });
 
   it("starts fresh from unreadable, foreign or older storage", () => {

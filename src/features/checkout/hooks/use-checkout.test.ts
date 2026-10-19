@@ -73,7 +73,14 @@ describe("deriveCheckout", () => {
     const draft = { ...createEmptyDraft(), attendees: testPeople(2), hasConfirmedAddOns: true };
     const order = {
       ...orderDtoFor(draft),
-      payment: { id: "pay_1", status: "processing" as const, last4: "4242", failureCode: null },
+      payment: {
+        id: "pay_1",
+        method: "card" as const,
+        status: "processing" as const,
+        last4: "4242",
+        failureCode: null,
+        nextAction: null,
+      },
     };
     const { state, orderPageId } = deriveCheckout(
       inputs({ requestedStep: "payment", draft, details: details({ order }) }),
@@ -86,7 +93,14 @@ describe("deriveCheckout", () => {
     const draft = { ...createEmptyDraft(), attendees: testPeople(2), hasConfirmedAddOns: true };
     const order = {
       ...orderDtoFor(draft),
-      payment: { id: "pay_1", status: "requires_action" as const, last4: "3155", failureCode: null },
+      payment: {
+        id: "pay_1",
+        method: "card" as const,
+        status: "requires_action" as const,
+        last4: "3155",
+        failureCode: null,
+        nextAction: { type: "card_challenge" as const },
+      },
     };
     const { state, orderPageId } = deriveCheckout(
       inputs({ requestedStep: "payment", draft, details: details({ order }) }),

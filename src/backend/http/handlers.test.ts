@@ -17,7 +17,7 @@ import {
 } from "@/contract/dto";
 import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER } from "@/contract/routes";
-import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan } from "@/backend/testing/fixtures";
+import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan, valueOf } from "@/backend/testing/fixtures";
 import { createHandlers } from "./handlers";
 
 let idCount = 0;
@@ -208,6 +208,86 @@ describe("HTTP contract", () => {
     expect((await check()).status).toBe(200);
     for (let i = 0; i < 3; i++) await expect(check()).rejects.toThrow(TypeError);
     expect((await check()).status).toBe(200);
+  });
+
+  it("prices an order all in: tax lines that add up to the tax, and parts that add up to the total", async () => {
+    const { order } = await reserveAndOrder();
+    const { ticketsMinor, addOnsMinor, feesMinor, taxMinor, totalMinor, taxLines } = order.amounts;
+    expect(taxLines.length).toBeGreaterThan(0);
+    expect(taxLines.reduce((sum, line) => sum + line.amountMinor, 0)).toBe(taxMinor);
+    expect(ticketsMinor + addOnsMinor + feesMinor + taxMinor).toBe(totalMinor);
+  });
+
+  it("takes a card body with or without `method` — card bodies predate UPI", async () => {
+    const { order } = await reserveAndOrder();
+    const withMethod = await post(
+      `/api/orders/${order.id}/payments`,
+      { method: "card", ...card },
+      { [IDEMPOTENCY_KEY_HEADER]: "key-card-1" },
+    );
+    expect(withMethod.status).toBe(202);
+    expect(paymentResultDtoSchema.parse(await withMethod.json()).payment).toMatchObject({
+      method: "card",
+      last4: "4242",
+      nextAction: null,
+    });
+  });
+
+  describe("UPI", () => {
+    const payByUpi = (orderId: string, key: string, body: unknown = { method: "upi" }) =>
+      post(`/api/orders/${orderId}/payments`, body, { [IDEMPOTENCY_KEY_HEADER]: key });
+
+    it("answers with 202 and a request to approve in a UPI app; a retry with the same key replays it", async () => {
+      const { order } = await reserveAndOrder();
+      const response = await payByUpi(order.id, "key-upi-1");
+      expect(response.status).toBe(202);
+      const { payment } = paymentResultDtoSchema.parse(await response.json());
+      expect(payment).toMatchObject({ method: "upi", status: "requires_action", last4: null });
+      expect(payment.nextAction).toMatchObject({
+        type: "upi",
+        expiresAt: new Date(backendNowMs + 5 * 60_000).toISOString(),
+      });
+      const intentUri = payment.nextAction?.type === "upi" ? payment.nextAction.intentUri : "";
+      expect(new URL(intentUri).searchParams.get("tr")).toBe(payment.id);
+
+      const replay = paymentResultDtoSchema.parse(await (await payByUpi(order.id, "key-upi-1")).json());
+      expect(replay.payment.id).toBe(payment.id);
+      expect(Object.keys(backend.getState().payments)).toHaveLength(1);
+    });
+
+    it("rejects a collect-style body naming the buyer's UPI ID — merchants can't collect", async () => {
+      const { order } = await reserveAndOrder();
+      const collect = await payByUpi(order.id, "key-upi-2", { method: "upi", vpa: "asha@okbank" });
+      await expectProblem(collect, 422, "invalid_request");
+    });
+
+    it("cancels with 200, the same again, and 409 once the buyer has approved", async () => {
+      const cancel = (paymentId: string) => post(`/api/payments/${paymentId}/cancel`, {});
+      const first = await reserveAndOrder();
+      const { payment } = paymentResultDtoSchema.parse(await (await payByUpi(first.order.id, "key-upi-3")).json());
+      const cancelled = await cancel(payment.id);
+      expect(cancelled.status).toBe(200);
+      const result = paymentResultDtoSchema.parse(await cancelled.json());
+      expect(result.payment).toMatchObject({ status: "failed", failureCode: "cancelled", nextAction: null });
+      expect(result.order.status).toBe("failed");
+      expect((await cancel(payment.id)).status).toBe(200);
+      await expectProblem(await cancel("pay_missing"), 404, "not_found");
+
+      const second = await reserveAndOrder();
+      const approved = paymentResultDtoSchema.parse(await (await payByUpi(second.order.id, "key-upi-4")).json());
+      valueOf(backend.respondInUpiApp(approved.payment.id, "approve"));
+      await expectProblem(await cancel(approved.payment.id), 409, "invalid_state");
+    });
+
+    it("reads a request nobody approved in time as failed, and takes a new one", async () => {
+      backend.setPreset("upi-expires"); // 15 seconds
+      const { order } = await reserveAndOrder();
+      await payByUpi(order.id, "key-upi-5");
+      backendNowMs += 15_000;
+      const read = orderDtoSchema.parse(await (await fetch(`${BASE_URL}/api/orders/${order.id}`)).json());
+      expect(read).toMatchObject({ status: "failed", payment: { status: "failed", failureCode: "upi_expired" } });
+      expect((await payByUpi(order.id, "key-upi-6")).status).toBe(202);
+    });
   });
 
   describe("reserved seating", () => {

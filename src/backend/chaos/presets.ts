@@ -40,6 +40,10 @@ export interface ChaosConfig {
   holdRateLimit: { limit: number; windowMs: number };
   /** A high-demand sale: everyone queues before they can reserve. */
   waitingRoom: WaitingRoomConfig | null;
+  /** How long a UPI payment request stays payable, unless the hold runs out first. */
+  upiRequestMs: number;
+  /** The buyer's bank declines a UPI payment even when they approve it. */
+  shouldDeclineUpi: boolean;
 }
 
 export const PRESET_IDS = [
@@ -56,6 +60,8 @@ export const PRESET_IDS = [
   "seat-snatched",
   "too-many-attempts",
   "flash-sale",
+  "upi-declined",
+  "upi-expires",
 ] as const;
 
 export type PresetId = (typeof PRESET_IDS)[number];
@@ -85,6 +91,8 @@ export const DEFAULT_CHAOS: ChaosConfig = {
   // Generous: a buyer never meets it; a script hammering the endpoint does.
   holdRateLimit: { limit: 20, windowMs: 60_000 },
   waitingRoom: null,
+  upiRequestMs: 5 * 60_000,
+  shouldDeclineUpi: false,
 };
 
 type PresetDefinition = Omit<Preset, "id" | "config"> & { config?: Partial<ChaosConfig> };
@@ -178,6 +186,20 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
         admissionWindowMs: 10 * 60_000,
       },
     },
+  },
+  "upi-declined": {
+    label: "UPI declined",
+    description: "You approve the UPI payment on your phone, and your bank declines it.",
+    expectation:
+      "The webhook says the payment failed; the page says so, keeps your order, and lets you pay another way.",
+    config: { shouldDeclineUpi: true },
+  },
+  "upi-expires": {
+    label: "UPI request expires",
+    description: "A UPI payment request lasts 15 seconds instead of 5 minutes, and runs out before anyone approves it.",
+    expectation:
+      "When the request runs out, the page says so and offers another try or a card. No money moves, and your seats stay held.",
+    config: { upiRequestMs: 15_000 },
   },
 };
 

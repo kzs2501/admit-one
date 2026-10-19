@@ -7,13 +7,14 @@
 import { getEvent, type AddOnInfo, type EventInfo } from "@/core/catalog";
 import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/pricing";
-import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
+import type { HoldStatus, OrderStatus, PaymentFailureCode, PaymentMethod, PaymentStatus } from "@/core/statuses";
 import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
-import { resolveOrderStatus } from "./orders";
+import { resolveOrderStatus, resolvePayment } from "./orders";
 import { placeAt, type QueuePlace } from "./queue";
 import type { HoldRecord, OrderRecord, PaymentRecord, QueueEntryRecord } from "./state";
+import { buildUpiIntent, UPI_PAYEE } from "./upi";
 
 export interface TierView {
   id: string;
@@ -59,11 +60,24 @@ export interface HoldView {
   seats: SeatView[];
 }
 
+/** What the buyer must do before the payment can go on. */
+export type NextActionView = { type: "card_challenge" } | { type: "upi"; intentUri: string; expiresAtMs: number };
+
 export interface PaymentView {
   id: string;
+  method: PaymentMethod;
   status: PaymentStatus;
-  last4: string;
+  last4: string | null;
   failureCode: PaymentFailureCode | null;
+  nextAction: NextActionView | null;
+}
+
+/** A UPI request as the buyer's phone shows it: who's asking, for how much, until when. */
+export interface UpiRequestView {
+  paymentId: string;
+  payeeName: string;
+  amountMinor: number;
+  expiresAtMs: number;
 }
 
 export interface OrderView {
@@ -172,11 +186,37 @@ const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
   seats: seatsOf(hold.eventSlug, hold.seatIds),
 });
 
-export const toPaymentView = (payment: PaymentRecord): PaymentView => ({
-  id: payment.id,
-  status: payment.status,
-  last4: payment.last4,
-  failureCode: payment.failureCode,
+const nextActionFor = (payment: PaymentRecord): NextActionView =>
+  payment.method === "upi"
+    ? {
+        type: "upi",
+        intentUri: buildUpiIntent({
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          amountMinor: payment.amountMinor,
+        }),
+        expiresAtMs: payment.expiresAtMs,
+      }
+    : { type: "card_challenge" };
+
+/** A payment as it stands now: an expired UPI request reads as failed before anything writes it down. */
+export function toPaymentView(context: BackendContext, payment: PaymentRecord): PaymentView {
+  const { status, failureCode } = resolvePayment(context, payment);
+  return {
+    id: payment.id,
+    method: payment.method,
+    status,
+    last4: payment.method === "card" ? payment.last4 : null,
+    failureCode,
+    nextAction: status === "requires_action" ? nextActionFor(payment) : null,
+  };
+}
+
+export const toUpiRequestView = (payment: PaymentRecord & { method: "upi" }): UpiRequestView => ({
+  paymentId: payment.id,
+  payeeName: UPI_PAYEE.name,
+  amountMinor: payment.amountMinor,
+  expiresAtMs: payment.expiresAtMs,
 });
 
 export function toOrderView(context: BackendContext, order: OrderRecord): OrderView {
@@ -197,7 +237,7 @@ export function toOrderView(context: BackendContext, order: OrderRecord): OrderV
       ...ticket,
       seat: seatId ? (seatsOf(order.eventSlug, [seatId])[0] ?? null) : null,
     })),
-    payment: payment ? toPaymentView(payment) : null,
+    payment: payment ? toPaymentView(context, payment) : null,
     createdAtMs: order.createdAtMs,
     updatedAtMs: order.updatedAtMs,
   };

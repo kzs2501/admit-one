@@ -13,7 +13,8 @@ import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
 import {
   confirmChallengeRequestSchema,
   createHoldRequestSchemaFor,
-  createPaymentRequestSchema,
+  createPaymentRequestSchemaFor,
+  upiPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
 import { API_ROUTES, IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
@@ -44,10 +45,14 @@ interface Reply {
   headers?: Record<string, string>;
 }
 
-const PAYMENT_FAILURE_DETAILS = {
+/** A card payment can fail as it's attempted; a UPI payment only fails later, by webhook. */
+const CARD_FAILURE_DETAILS = {
   card_declined: "Your card was declined. Try a different card.",
   authentication_failed: "Authentication failed. Try again or use a different card.",
 } as const;
+
+const isCardFailure = (code: string | null): code is keyof typeof CARD_FAILURE_DETAILS =>
+  code !== null && Object.hasOwn(CARD_FAILURE_DETAILS, code);
 
 // `*/api/...` matches any origin, so the same handlers work in the browser and in
 // Node-based tests.
@@ -132,13 +137,16 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
     return { ok: false, reply: problemReply({ code: "invalid_request", detail }, request) };
   }
 
-  /** An attempted charge: 202 while it's processing or needs authentication, 402 when the bank said no. */
+  /**
+   * An attempted payment: 202 while it's processing or waiting for the buyer (a 3-D
+   * Secure check, a UPI app), 402 when the bank said no.
+   */
   function paymentReply(result: Result<PaymentResultView>, request: Request): Reply {
     if (!result.ok) return problemReply(result.error, request);
     const { payment } = result.value;
-    if (payment.status === "failed") {
-      const code = payment.failureCode ?? "card_declined";
-      return problemReply({ code, detail: PAYMENT_FAILURE_DETAILS[code], paymentId: payment.id }, request);
+    if (payment.status === "failed" && isCardFailure(payment.failureCode)) {
+      const code = payment.failureCode;
+      return problemReply({ code, detail: CARD_FAILURE_DETAILS[code], paymentId: payment.id }, request);
     }
     return { status: 202, body: toPaymentResultDto(result.value) };
   }
@@ -239,7 +247,8 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
           );
         }
         const body = await readJson(request);
-        const card = createPaymentRequestSchema.safeParse(body);
+        const schema = createPaymentRequestSchemaFor(body);
+        const input = schema.safeParse(body);
         const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
 
         const stored = backend.idempotency.find(key);
@@ -254,11 +263,12 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
           return { status: stored.status, body: stored.body };
         }
 
-        if (!card.success) {
-          const detail = card.error.issues[0]?.message ?? "Check the card details.";
-          return problemReply({ code: "invalid_card", detail }, request);
+        if (!input.success) {
+          const detail = input.error.issues[0]?.message ?? "Check the payment details.";
+          const code = schema === upiPaymentRequestSchema ? "invalid_request" : "invalid_card";
+          return problemReply({ code, detail }, request);
         }
-        const result = backend.createPayment(params.orderId, card.data);
+        const result = backend.createPayment(params.orderId, input.data);
         const attempted = paymentReply(result, request);
         if (result.ok) backend.idempotency.save(key, { fingerprint, ...attempted });
         return attempted;
@@ -282,6 +292,15 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       await latency();
       if (!input.ok) return send(request, input.reply);
       return send(request, paymentReply(backend.confirmChallenge(params.paymentId, input.value.decision), request));
+    }),
+
+    /**
+     * Cancel a payment the buyer hasn't approved, to pay another way: 200 with the
+     * cancelled payment, the same again if repeated, 409 once it's too late.
+     */
+    http.post<{ paymentId: string }>(anyOrigin(API_ROUTES.cancelPayment), async ({ params, request }) => {
+      await latency();
+      return send(request, resultReply(backend.cancelPayment(params.paymentId), request, toPaymentResultDto));
     }),
   ];
 }

@@ -6,9 +6,11 @@ import { deriveOrderPageState, pollDelayMs, toOrderPageState } from "./use-order
 
 const payment = (status: PaymentDto["status"]): PaymentDto => ({
   id: "pay_1",
+  method: "card",
   status,
   last4: "4242",
   failureCode: null,
+  nextAction: null,
 });
 
 const order = (status: OrderStatus, paymentDto: PaymentDto | null = null): OrderDto => ({
