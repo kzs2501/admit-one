@@ -117,7 +117,7 @@ input[type="radio"] {
   transition-property: transform, background-color, border-color, color, opacity;
   transition-duration: 160ms;
   transition-timing-function: var(--ease-out);
-  &:active:not(:disabled) {
+  &:active:not(:disabled, [aria-disabled="true"]) {
     transform: scale(0.97);
   }
 }
