@@ -31,7 +31,7 @@ export function showToast(title: string, detail: string) {
   emit();
 }
 
-function dismissToast() {
+export function dismissToast() {
   current = null;
   emit();
 }

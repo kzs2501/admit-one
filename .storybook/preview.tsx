@@ -27,6 +27,7 @@ const preview: Preview = {
     // A violation fails the story's test, in the UI and in CI.
     a11y: { test: "error" },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
+    options: { storySort: { order: ["Foundations", ["Introduction", "Colour", "Typography"], "UI", "Features"] } },
   },
 };
 

@@ -1,0 +1,39 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Foundations/Introduction" />
+
+# admit-one's component catalogue
+
+Every part of the ticketing checkout and the organisers' dashboard, in every state it
+can be in.
+
+## How it's organised
+
+- **Foundations:** colour tokens, the text-on-surface pairings and the type scale.
+- **UI:** the shared components in `src/components/ui`.
+- **Features:** each feature's components and screens, by feature.
+
+## Screens are a function of their state
+
+The checkout and the order page each have a view-model hook that returns exactly one
+state at a time (`CheckoutState`, `OrderPageState`). The screen renders whatever it's
+given, so every state is a story built from data, including ones that are hard to
+reach by clicking: loading, a failed load, a payment that's slow to confirm.
+
+## Components that fetch their own data run on the real sandbox
+
+The seat map, the waiting room and the organisers' dashboard fetch their own data.
+Their stories run against the same simulated backend as the app, through the same
+HTTP handlers, with a fresh backend for every story. There are no hand-written mocks to
+drift from the real API.
+
+## Every story is a test
+
+- **In Chromium, through Vitest:** each story must render, pass its play function (the
+  interactions you can replay in the Interactions panel), and have no accessibility
+  violations.
+- **As a screenshot,** in light and dark, and at 375 px for whole screens. The
+  screenshots are made in Playwright's Linux image, the same as CI's, so a one-pixel
+  change shows up as a diff.
+
+The theme follows your system setting, as the app does.
