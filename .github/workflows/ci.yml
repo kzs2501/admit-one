@@ -36,8 +36,11 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
       - name: Unit tests, with coverage floors
         run: npm run test:coverage
+      - name: Every story renders, passes its play function, and has no axe violations
+        run: npm run test:stories
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -46,9 +49,7 @@ jobs:
       - run: npm run build
 
       - name: Browser tests (every chaos preset, guards, expiry, axe, 375px)
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npx playwright test
 
       - name: Lighthouse budgets
         run: npx lhci autorun
@@ -65,3 +66,31 @@ jobs:
             playwright-report
             test-results
             .lighthouseci
+
+  visual:
+    # Screenshots only compare on the machine that made them: the same OS, browser build,
+    # fonts and CPU architecture. This is Playwright's Linux image on arm64, the same as
+    # `npm run test:visual` on an Apple-silicon laptop (ADR 017). A unit test keeps the
+    # tag in step with the installed Playwright.
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --user 1001 --ipc=host
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build-storybook
+      - name: Screenshots of every story, in both themes and at 375 px, with axe
+        run: npx playwright test --config=playwright.visual.config.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-diffs
+          path: |
+            playwright-report/visual
+            test-results/visual
