@@ -1,22 +1,45 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import path from "node:path";
 
 export default defineConfig({
-  plugins: [react()],
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
   test: {
-    // UI tests run in jsdom; the simulated server's tests opt into node with a
-    // `// @vitest-environment node` docblock.
-    environment: "jsdom",
-    globals: true,
-    setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
-    css: false,
+    projects: [
+      {
+        plugins: [react()],
+        resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+        test: {
+          name: "unit",
+          // UI tests run in jsdom; the simulated server's tests opt into node with a
+          // `// @vitest-environment node` docblock.
+          environment: "jsdom",
+          globals: true,
+          setupFiles: ["./vitest.setup.ts"],
+          include: ["src/**/*.test.{ts,tsx}"],
+          css: false,
+        },
+      },
+      {
+        // Every story is a test, in a real Chromium: it must render, pass its play
+        // function's checks, and have no accessibility violations.
+        plugins: [storybookTest({ configDir: path.join(import.meta.dirname, ".storybook") })],
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: "chromium" }],
+          },
+        },
+      },
+    ],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.test.{ts,tsx}", "src/**/testing/**"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.tsx", "src/stories/**", "src/**/testing/**"],
       reporter: ["text-summary", "html"],
       // Floors at today's numbers less two points, so coverage can't quietly slide.
       // Components and routes are mostly covered by the browser tests, so the overall

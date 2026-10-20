@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { fontVariables } from "./fonts";
 import { Providers } from "./providers";
 import { WebVitals } from "./web-vitals";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -8,10 +8,6 @@ import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
 import { SimulatedPhone } from "@/features/sandbox/components/simulated-phone";
 import { SITE } from "@/lib/site";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: { default: "admit-one — a ticketing checkout, done properly", template: "%s · admit-one" },
@@ -28,7 +24,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${display.variable} ${mono.variable} antialiased`}>
+    <html lang="en" className={`${fontVariables} antialiased`}>
       <body className="flex min-h-dvh flex-col">
         <WebVitals />
         <a
