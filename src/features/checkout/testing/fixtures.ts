@@ -1,22 +1,13 @@
 /** Test fixtures for the checkout: DTOs and step contexts, as the API would send them. */
-import type { EventDto, HoldDto, OrderDto, PaymentDto } from "@/contract/dto";
-import { getEvent } from "@/core/catalog";
+import type { HoldDto, OrderDto, PaymentDto } from "@/contract/dto";
+import { eventDtoFor } from "@/contract/testing/dto-fixtures";
 import type { OrderStatus } from "@/core/statuses";
 import type { StepContext } from "@/features/checkout/domain/step-registry";
 import { createEmptyDraft, type Draft } from "@/features/checkout/hooks/use-draft";
 
-const EPOCH = new Date(0).toISOString();
+export { eventDtoFor };
 
-export function eventDtoFor(slug: string, available = 5): EventDto {
-  const { tiers, addOns, seating, ...event } = getEvent(slug);
-  return {
-    ...event,
-    seating: seating.kind === "reserved" ? { kind: "reserved", venueId: seating.plan.venueId } : { kind: "general" },
-    isQueueActive: false,
-    tiers: tiers.map(({ id, name, description, priceMinor }) => ({ id, name, description, priceMinor, available })),
-    addOns,
-  };
-}
+const EPOCH = new Date(0).toISOString();
 
 export const holdDtoFor = (eventSlug: string, tierId: string, quantity: number): HoldDto => ({
   id: "hold_1",
