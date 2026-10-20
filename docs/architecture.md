@@ -145,12 +145,14 @@ sequenceDiagram
 Following the testing trophy, most confidence comes from tests that use the system the
 way it's used:
 
-| Layer       | Tests                                                                                                                        | Where                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Static      | strict TypeScript, type-aware ESLint (naming, boundaries, exhaustiveness)                                                    | every commit, CI                               |
-| Unit        | domain rules on a fake clock; pure view-model derivations; money, schemas, countdown                                         | `*.test.ts` next to each module                |
-| Integration | the HTTP contract through real `fetch` and MSW; the API client against a mock network; components with Testing Library       | `backend/http`, `lib`, `features/*/components` |
-| End-to-end  | one Playwright test per chaos preset, plus guards, expiry, refresh-resume, focus, axe in both themes, 375 px, reduced motion | `e2e/` — page objects in `e2e/fixtures.ts`     |
+| Layer       | Tests                                                                                                                        | Where                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Static      | strict TypeScript, type-aware ESLint (naming, boundaries, exhaustiveness)                                                    | every commit, CI                                                   |
+| Unit        | domain rules on a fake clock; pure view-model derivations; money, schemas, countdown                                         | `*.test.ts` next to each module                                    |
+| Integration | the HTTP contract through real `fetch` and MSW; the API client against a mock network; components with Testing Library       | `backend/http`, `lib`, `features/*/components`                     |
+| Catalogue   | every story renders in Chromium, passes its play function and axe; fixtures parsed with the contract's schemas               | `*.stories.tsx` (Storybook + Vitest addon)                         |
+| Visual      | every story screenshotted in light and dark, screens at 375 px, in Playwright's Linux image on arm64; axe in both themes     | `visual/` ([ADR 017](decisions/017-catalogue-and-visual-tests.md)) |
+| End-to-end  | one Playwright test per chaos preset, plus guards, expiry, refresh-resume, focus, axe in both themes, 375 px, reduced motion | `e2e/` — page objects in `e2e/fixtures.ts`                         |
 
 ## What a production version would change
 

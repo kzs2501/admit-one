@@ -20,10 +20,31 @@ No environment variables, keys or accounts are needed: the backend runs in the b
 | `npm test`                          | unit, component and HTTP-contract tests (Vitest)                           |
 | `npm run test:coverage`             | the same, failing if coverage drops below its floors (`vitest.config.mts`) |
 | `npm run build && npm run test:e2e` | browser tests against the production build (Playwright + axe)              |
+| `npm run test:stories`              | every story in the catalogue renders, passes its play function and axe     |
+| `npm run test:visual`               | screenshots of every story, in Playwright's Linux image (needs Docker)     |
 | `npm run lhci`                      | Lighthouse budgets (≥ 95 in every category)                                |
 
 CI runs all of them on every push and pull request. Locally, the pre-commit hook formats
 and lints staged files, and commitlint checks the message.
+
+## The component catalogue and its screenshots
+
+`npm run storybook` opens the catalogue at http://localhost:6006. Each component and
+screen has a story for every state it can be in ([ADR 017](docs/decisions/017-catalogue-and-visual-tests.md)).
+
+- **New state, new story.** A screen that renders a state (`CheckoutView`,
+  `OrderStatusScreen`) gets its data from `features/*/testing/story-fixtures.ts`, which
+  a unit test parses with the contract's schemas. A component that fetches its own data
+  runs on the story's own sandbox; set the scene in the story's `beforeEach`, over HTTP.
+- **Screenshots compare only in Playwright's Linux image, on arm64,** the same as CI.
+  On a Mac, install Docker (`brew install colima docker`, then `colima start`), and run
+  `npm run test:visual`. It builds the catalogue, runs the browser in the image, and
+  writes the baseline of any new story.
+- **Changed something on purpose?** `npm run test:visual -- --update-snapshots=changed`,
+  then look at every changed image before committing it. On a failure, the HTML report
+  (`playwright-report/visual`) shows the expected image, the actual one and the diff.
+- **"Failed to fetch dynamically imported module"** right after adding an import to a
+  story means Vite re-optimised its dependencies mid-run. Run the stories again.
 
 ## How code is written here
 
