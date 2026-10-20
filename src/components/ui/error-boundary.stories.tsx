@@ -8,6 +8,7 @@ function Broken(): never {
 }
 
 const meta = {
+  title: "UI/Error boundary",
   component: ErrorBoundary,
   tags: ["autodocs"],
   args: {

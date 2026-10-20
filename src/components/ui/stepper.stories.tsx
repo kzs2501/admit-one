@@ -9,6 +9,7 @@ function ControlledStepper(props: { label: string; value: number; max: number; i
 }
 
 const meta = {
+  title: "UI/Stepper",
   component: ControlledStepper,
   tags: ["autodocs"],
   args: { label: "General", value: 1, max: 3 },

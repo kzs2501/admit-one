@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Notice } from "./notice";
 
 const meta = {
+  title: "UI/Notice",
   component: Notice,
   tags: ["autodocs"],
   decorators: [

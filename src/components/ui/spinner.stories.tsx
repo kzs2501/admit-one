@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect } from "storybook/test";
 import { Spinner } from "./spinner";
 
-const meta = { component: Spinner, tags: ["autodocs"] } satisfies Meta<typeof Spinner>;
+const meta = { title: "UI/Spinner", component: Spinner, tags: ["autodocs"] } satisfies Meta<typeof Spinner>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

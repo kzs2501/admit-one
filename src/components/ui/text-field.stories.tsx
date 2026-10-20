@@ -3,6 +3,7 @@ import { expect } from "storybook/test";
 import { TextField } from "./text-field";
 
 const meta = {
+  title: "UI/Text field",
   component: TextField,
   tags: ["autodocs"],
   args: { id: "email", label: "Email", inputProps: { type: "email", autoComplete: "email" } },

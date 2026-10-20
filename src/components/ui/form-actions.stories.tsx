@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { FormActions } from "./form-actions";
 
 const meta = {
+  title: "UI/Form actions",
   component: FormActions,
   tags: ["autodocs"],
   args: { onBack: fn(), children: <Button type="submit">Continue</Button> },

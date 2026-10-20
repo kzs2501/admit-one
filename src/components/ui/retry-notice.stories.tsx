@@ -10,6 +10,7 @@ function RetryIn({ seconds, onReady }: { seconds: number; onReady: () => void })
 }
 
 const meta = {
+  title: "UI/Retry notice",
   component: RetryIn,
   args: { seconds: 12, onReady: fn() },
   decorators: [

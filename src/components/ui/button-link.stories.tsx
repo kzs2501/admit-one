@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ButtonLink } from "./button-link";
 
 const meta = {
+  title: "UI/Button link",
   component: ButtonLink,
   tags: ["autodocs"],
   args: { href: "/", children: "Browse events" },

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ErrorState } from "./error-state";
 
 const meta = {
+  title: "UI/Error state",
   component: ErrorState,
   tags: ["autodocs"],
   args: { title: "We can’t find that order", children: "It may belong to another tab, or the sandbox was reset." },

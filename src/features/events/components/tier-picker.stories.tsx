@@ -5,6 +5,7 @@ import { TierPicker } from "./tier-picker";
 
 /** Live availability comes from the sandbox, as it does on the event page. */
 const meta = {
+  title: "Features/Events/Tier picker",
   component: TierPicker,
   args: { slug: "frontend-systems-summit" },
   parameters: { layout: "padded" },

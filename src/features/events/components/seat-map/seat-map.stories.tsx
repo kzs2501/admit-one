@@ -2,12 +2,24 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, waitFor, within } from "storybook/test";
 import { SeatMap } from "./seat-map";
 
-/** The concert hall, with which seats are free coming from the story's own sandbox. */
+/**
+ * The concert hall, with which seats are free coming from the story's own sandbox, in
+ * the event page's own container.
+ */
 const meta = {
   title: "Features/Events/Seat map",
   component: SeatMap,
+  // Shot as the window, not the full page: the bar of chosen seats sticks to its bottom.
+  tags: ["screen", "window"],
   args: { slug: "monsoon-strings" },
-  parameters: { layout: "padded" },
+  parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof SeatMap>;
 
 export default meta;
