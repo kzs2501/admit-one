@@ -8,11 +8,15 @@ import { routes } from "@/lib/routes";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
-import { useOrderStatus } from "@/features/orders/hooks/use-order-status";
+import { useOrderStatus, type OrderPageState } from "@/features/orders/hooks/use-order-status";
 
-/** The order page: renders whatever `useOrderStatus` says the order is doing. */
+/** The order page: whatever `useOrderStatus` says the order is doing. */
 export function OrderStatusView({ orderId }: { orderId: string }) {
-  const state = useOrderStatus(orderId);
+  return <OrderStatusScreen state={useOrderStatus(orderId)} />;
+}
+
+/** The order page for one state. It renders what it's given, so every state can be shown on its own. */
+export function OrderStatusScreen({ state }: { state: OrderPageState }) {
   const heading = useRef<HTMLHeadingElement>(null);
 
   // When an outcome arrives, move focus to it so it's announced and in view.

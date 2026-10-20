@@ -32,6 +32,22 @@ const STEP_COMPONENTS: Record<StepId, ComponentType<StepProps>> = {
 export function CheckoutFlow({ holdId }: { holdId: string }) {
   const requestedStep = useParams<{ step?: string }>().step ?? "";
   const { state, updateDraft, expire } = useCheckout(holdId, requestedStep);
+  return <CheckoutView state={state} updateDraft={updateDraft} onExpire={expire} />;
+}
+
+/**
+ * The checkout for one state. It renders what it's given, so every state can be shown
+ * on its own; `CheckoutFlow` supplies the real one.
+ */
+export function CheckoutView({
+  state,
+  updateDraft,
+  onExpire,
+}: {
+  state: CheckoutState;
+  updateDraft: (patch: Partial<Draft>) => void;
+  onExpire: () => void;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
   const shownStepId = useRef<StepId | null>(null);
 
@@ -63,7 +79,7 @@ export function CheckoutFlow({ holdId }: { holdId: string }) {
         </div>
       );
     case "ready":
-      return <CheckoutStep state={state} headingRef={heading} updateDraft={updateDraft} onExpire={expire} />;
+      return <CheckoutStep state={state} headingRef={heading} updateDraft={updateDraft} onExpire={onExpire} />;
   }
 }
 
