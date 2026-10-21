@@ -33,6 +33,7 @@ const plainProblemCodeSchema = z.enum([
   "unauthenticated",
   "forbidden",
   "refund_failed",
+  "invalid_signature",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -170,6 +171,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "Sign in first",
     description:
       "The organisers’ API needs `Authorization: Bearer <token>` from signing in. The `WWW-Authenticate` header says whether a token was missing or is no longer valid (RFC 6750).",
+  },
+  invalid_signature: {
+    status: 400,
+    title: "Webhook signature invalid",
+    description:
+      "A webhook must carry the provider’s signature over its exact body, made in the last five minutes. One without it, or with a body changed since it was signed, is refused and nothing happens.",
   },
   refund_failed: {
     status: 502,

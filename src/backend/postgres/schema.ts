@@ -174,3 +174,10 @@ export const providerEvents = pgTable(
       .where(sql`${table.deliveredAt} IS NULL`),
   ],
 );
+
+/** Webhook events already processed: the insert that deduplicates them commits with their effect. */
+export const webhookEvents = pgTable("webhook_events", {
+  eventId: text("event_id").primaryKey(),
+  type: text("type").notNull(),
+  receivedAt: at("received_at").notNull(),
+});

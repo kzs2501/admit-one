@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, isNull, sql } from "drizzle-orm";
-import { getEvent, getSeatPlan } from "@/core/catalog";
+import { getEvent } from "@/core/catalog";
 import type { Result } from "@/backend/domain/errors";
-import { seatSelectionProblem } from "@/backend/domain/inventory";
 import { createPostgresBackend, type PostgresBackend } from "./backend";
 import { SERVER_SETTINGS } from "./records";
 import { inventory, seatClaims } from "./schema";
-import { unavailableSeatIds } from "./stock";
 import { createTestDatabase } from "./testing/database";
+import { freeSeatPair } from "./testing/seats";
 
 const SUMMIT = "frontend-systems-summit";
 const GENERAL = "fss-general";
@@ -53,20 +52,7 @@ async function stockOf(tierId: string) {
   return row;
 }
 
-/** Two free seats side by side that can be held without stranding a single seat. */
-async function freePair() {
-  const plan = getSeatPlan(CONCERT);
-  const unavailable = await unavailableSeatIds(database.db, CONCERT, new Date(nowMs));
-  for (const row of plan.sections.flatMap((section) => section.rows)) {
-    for (const block of row.blocks) {
-      for (let start = 0; start + 2 <= block.length; start++) {
-        const pair = block.slice(start, start + 2);
-        if (!seatSelectionProblem(plan, unavailable, pair)) return pair.map((seat) => seat.id);
-      }
-    }
-  }
-  throw new Error("No free pair of seats left in the hall");
-}
+const freePair = () => freeSeatPair(database.db, CONCERT, new Date(nowMs));
 
 describe("holding stock on Postgres", () => {
   it("lets exactly 10 of 50 buyers hold the last 10 tickets, at the same moment", async () => {

@@ -21,7 +21,7 @@ import {
 } from "./records";
 import { holds, inventory, orders, payments, providerEvents, seatClaims } from "./schema";
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Queryable = Database | Transaction;
 
 /** How a request names the hold it's about: directly, or by its order or a payment. */
@@ -121,15 +121,23 @@ export function withHold<T>(
   reference: HoldReference,
   run: (context: BackendContext, records: HoldRecords) => T,
 ): Promise<T | null> {
-  return db.transaction(async (tx) => {
-    const holdId = await holdIdFor(tx, reference);
-    const records = holdId ? await loadHoldRecords(tx, holdId, { isLocked: true }) : null;
-    if (!holdId || !records) return null;
-    const context = contextWith(deps, records);
-    const result = run(context, records);
-    await persist(tx, context, holdId);
-    return result;
-  });
+  return db.transaction((tx) => withHoldIn(tx, deps, reference, run));
+}
+
+/** The same, inside a transaction already open, so its writes commit with the caller's. */
+export async function withHoldIn<T>(
+  tx: Transaction,
+  deps: ServerDeps,
+  reference: HoldReference,
+  run: (context: BackendContext, records: HoldRecords) => T,
+): Promise<T | null> {
+  const holdId = await holdIdFor(tx, reference);
+  const records = holdId ? await loadHoldRecords(tx, holdId, { isLocked: true }) : null;
+  if (!holdId || !records) return null;
+  const context = contextWith(deps, records);
+  const result = run(context, records);
+  await persist(tx, context, holdId);
+  return result;
 }
 
 /** Read a hold's records, for views: no lock, and nothing written. Null when there's no such hold. */

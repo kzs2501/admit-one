@@ -15,6 +15,8 @@ export const API_ROUTES = {
   createPayment: "/api/orders/:orderId/payments",
   confirmChallenge: "/api/payments/:paymentId/challenge",
   cancelPayment: "/api/payments/:paymentId/cancel",
+  /** The payment provider's webhooks, in server mode; the sandbox delivers its own in-process. */
+  providerWebhook: "/api/webhooks/payments",
   session: "/api/session",
   organiserAccount: "/api/organiser/account",
   organiserEvents: "/api/organiser/events",
@@ -28,6 +30,9 @@ export const API_ROUTES = {
   /** Server-sent events (`Accept: text/event-stream`) saying when the account's orders change. */
   organiserStream: "/api/organiser/stream",
 } as const;
+
+/** The payment provider's signature on a webhook: `t=<unix seconds>,v1=<hex HMAC-SHA256>`. */
+export const WEBHOOK_SIGNATURE_HEADER = "Webhook-Signature";
 
 export type ApiRoute = (typeof API_ROUTES)[keyof typeof API_ROUTES];
 
