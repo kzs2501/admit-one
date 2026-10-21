@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
@@ -18,7 +18,21 @@ export default defineConfig({
           globals: true,
           setupFiles: ["./vitest.setup.ts"],
           include: ["src/**/*.test.{ts,tsx}"],
+          // The server backend's tests need Postgres; they're the `server` project.
+          exclude: [...configDefaults.exclude, "src/backend/postgres/**"],
           css: false,
+        },
+      },
+      {
+        resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+        test: {
+          // The server backend, against real Postgres (`npm run db:up`, or DATABASE_URL):
+          // each test file gets a fresh database, copied from a migrated template.
+          name: "server",
+          environment: "node",
+          include: ["src/backend/postgres/**/*.test.ts"],
+          globalSetup: ["src/backend/postgres/testing/global-setup.ts"],
+          testTimeout: 30_000,
         },
       },
       {
@@ -39,7 +53,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.tsx", "src/stories/**", "src/**/testing/**"],
+      // The server backend is measured by its own tests (`npm run test:server`), not these.
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.stories.tsx",
+        "src/stories/**",
+        "src/**/testing/**",
+        "src/backend/postgres/**",
+      ],
       reporter: ["text-summary", "html"],
       // Floors at today's numbers less two points, so coverage can't quietly slide.
       // Components and routes are mostly covered by the browser tests, so the overall

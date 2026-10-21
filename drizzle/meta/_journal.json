@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792588513869,
+      "tag": "0000_stock_holds_and_seats",
+      "breakpoints": true
+    }
+  ]
+}
