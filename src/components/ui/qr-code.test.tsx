@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { encode } from "uqr";
 import { describe, expect, it } from "vitest";
-import { UPI_INTENT } from "@/features/checkout/testing/fixtures";
-import { qrPath, UpiQrCode } from "./upi-qr-code";
+import { qrPath, QrCode } from "./qr-code";
+
+const UPI_INTENT = "upi://pay?pa=admit-one@example&pn=admit-one&mc=7922&tr=pay_1&tn=x&am=303.73&cu=INR";
 
 describe("qrPath", () => {
   it("draws each run of dark modules in a row as one rectangle", () => {
@@ -16,9 +17,9 @@ describe("qrPath", () => {
   });
 });
 
-describe("UpiQrCode", () => {
+describe("QrCode", () => {
   it("is a labelled image, black on white, sized to the code with its quiet zone", () => {
-    render(<UpiQrCode value={UPI_INTENT} label="QR code to pay ₹303.73 to admit-one with UPI" />);
+    render(<QrCode value={UPI_INTENT} label="QR code to pay ₹303.73 to admit-one with UPI" />);
     const image = screen.getByRole("img", { name: "QR code to pay ₹303.73 to admit-one with UPI" });
     const { size, data } = encode(UPI_INTENT, { ecc: "M", border: 4 });
     expect(image).toHaveAttribute("viewBox", `0 0 ${String(size)} ${String(size)}`);

@@ -20,12 +20,12 @@ export function qrPath(matrix: readonly (readonly boolean[])[]) {
 }
 
 /**
- * A UPI intent link as a QR code, for a UPI app to scan. It's drawn in React — no
- * markup strings, so nothing for the content security policy to allow — and always
- * black on white, in dark mode too: scanners read dark-on-light codes most reliably,
- * and the spec asks for a light quiet zone around the code.
+ * A QR code: a UPI intent for a payment app, or a signed ticket for the door. It's drawn
+ * in React (no markup strings, so nothing for the content security policy to allow) and
+ * always black on white, in dark mode too: scanners read dark-on-light codes most
+ * reliably, and the spec asks for a light quiet zone around the code.
  */
-export function UpiQrCode({ value, label, className = "" }: { value: string; label: string; className?: string }) {
+export function QrCode({ value, label, className = "" }: { value: string; label: string; className?: string }) {
   // Error correction M (15%) suits a code on a screen; a border of 4 modules is the spec's quiet zone.
   const { size, data } = useMemo(() => encode(value, { ecc: "M", border: 4 }), [value]);
   return (

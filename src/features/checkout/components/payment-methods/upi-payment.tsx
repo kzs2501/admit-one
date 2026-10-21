@@ -8,9 +8,9 @@ import { SIMULATED_PHONE_ID } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { FormActions } from "@/components/ui/form-actions";
 import { Notice } from "@/components/ui/notice";
+import { QrCode } from "@/components/ui/qr-code";
 import { upiOutcome, type PendingUpiRequest } from "@/features/checkout/domain/payment-methods";
 import { useUpiPayment } from "@/features/checkout/hooks/use-upi-payment";
-import { UpiQrCode } from "./upi-qr-code";
 
 /**
  * Pay by UPI: ask for a payment request, then approve it in a UPI app — by scanning a
@@ -120,7 +120,7 @@ function PendingRequest({
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         {/* On a computer, scan the code with a phone; on a phone, a code on its own screen can't be scanned. */}
-        <UpiQrCode
+        <QrCode
           value={request.intentUri}
           label={`QR code to pay ${total} to admit-one with UPI`}
           className="hidden size-48 shrink-0 border border-line sm:block"
