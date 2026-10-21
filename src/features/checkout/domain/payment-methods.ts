@@ -5,6 +5,7 @@
  */
 import type { OrderDto } from "@/contract/dto";
 import type { PaymentMethod } from "@/core/statuses";
+import { isServerMode } from "@/lib/backend-mode";
 
 export interface PaymentMethodOption {
   id: PaymentMethod;
@@ -19,7 +20,8 @@ export const PAYMENT_METHOD_OPTIONS: readonly PaymentMethodOption[] = [
     id: "upi",
     label: "UPI",
     hint: "Any UPI app — scan a QR code, or open the app on this phone",
-    isOffered: (order) => order.amounts.currency === "INR",
+    // On the server, UPI comes with a real provider: there's no simulated phone to approve it on.
+    isOffered: (order) => order.amounts.currency === "INR" && !isServerMode,
   },
 ];
 

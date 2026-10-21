@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:server": "NEXT_PUBLIC_BACKEND=server next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -36,6 +37,7 @@
     "@tanstack/react-table": "^9.3.1",
     "@tanstack/react-virtual": "^3.14.21",
     "drizzle-orm": "^0.45.4",
+    "msw": "^3.0.3",
     "next": "16.3.8",
     "postgres": "^3.4.9",
     "react": "19.2.8",
@@ -75,7 +77,6 @@
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^16.4.0",
-    "msw": "^3.0.3",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "storybook": "^10.6.3",

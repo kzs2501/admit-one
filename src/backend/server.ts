@@ -1,0 +1,107 @@
+/**
+ * The buyer's API on a server, for server mode: the same HTTP handlers as the sandbox,
+ * answering requests from a Next route handler instead of a service worker, over the
+ * Postgres backend. Server-side only.
+ *
+ * MSW's `getResponse` is the router here: it runs the very handlers the sandbox uses,
+ * so both modes parse, refuse and reply identically. It's one function behind `handle`,
+ * replaceable by any router that takes a `Request` and gives a `Response`.
+ */
+import { randomUUID } from "node:crypto";
+import { getResponse } from "msw";
+import { http } from "msw/http";
+import { API_ROUTES } from "@/contract/routes";
+import { createBuyerHandlers } from "./http/handlers";
+import { anyOrigin, createKit, type Kit } from "./http/kit";
+import { createWebhookHandlers } from "./http/webhook-handlers";
+import { createPostgresBackend } from "./postgres/backend";
+import { connect, type Database } from "./postgres/db";
+import type { ServerDeps } from "./postgres/records";
+import { seed } from "./postgres/seed";
+import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
+
+/** Where the simulated provider's webhooks are addressed: they're handled in-process. */
+const INTERNAL_ORIGIN = "http://admit-one.internal";
+
+/** The sandbox's alone: the organisers' dashboard and the waiting room. */
+const SANDBOX_ONLY = [API_ROUTES.joinQueue, API_ROUTES.getQueueEntry, API_ROUTES.session, "/api/organiser/*"];
+
+function sandboxOnlyHandlers({ problemReply, send }: Kit) {
+  return SANDBOX_ONLY.map((route) =>
+    http.all(anyOrigin(route), ({ request }) =>
+      send(
+        request,
+        problemReply(
+          {
+            code: "not_in_server_mode",
+            detail: "The organisers’ dashboard and the waiting room run in the sandbox demo only.",
+          },
+          request,
+        ),
+      ),
+    ),
+  );
+}
+
+/** Reads of an order's state: before answering one, deliver any webhook that's due. */
+const isOrderRead = (request: Request) =>
+  request.method === "GET" && /^\/api\/(orders|holds)\/[^/]+$/.test(new URL(request.url).pathname);
+
+export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret }: { webhookSecret: string }) {
+  const backend = createPostgresBackend(db, deps);
+  const options = { sleep: () => Promise.resolve(), random: deps.random, now: deps.now };
+  const kit = createKit(backend, options);
+  const handlers = [
+    ...createBuyerHandlers(backend, options, kit),
+    ...createWebhookHandlers(createWebhookReceiver(db, deps, webhookSecret), kit),
+    ...sandboxOnlyHandlers(kit),
+  ];
+
+  async function respond(request: Request): Promise<Response> {
+    const response = await getResponse(handlers, request);
+    return response ?? kit.send(request, kit.problemReply({ code: "not_found", detail: "No such endpoint." }, request));
+  }
+
+  /** The simulated provider sends what's due; returns how many it sent. */
+  const deliverDueWebhooks = () =>
+    sendDueWebhooks(db, deps, { secret: webhookSecret, send: respond, origin: INTERNAL_ORIGIN });
+
+  return {
+    async handle(request: Request): Promise<Response> {
+      // Webhooks go out when due, and at the latest when the buyer next looks: there's
+      // no timer on a serverless function, so correctness never waits for one.
+      if (isOrderRead(request)) await deliverDueWebhooks();
+      return respond(request);
+    },
+    deliverDueWebhooks,
+  };
+}
+
+export type ServerApi = ReturnType<typeof createServerApi>;
+
+const DEVELOPMENT_DATABASE = "postgres://admit@localhost:54329/admit_one";
+const DEVELOPMENT_SECRET = "whsec_development_only";
+
+let serverApi: Promise<ServerApi> | null = null;
+
+/** The process's server API: connected and seeded on first use, then reused. */
+export function getServerApi(): Promise<ServerApi> {
+  serverApi ??= (async () => {
+    const isProduction = process.env.NODE_ENV === "production" && process.env["CI"] === undefined;
+    const databaseUrl = process.env["DATABASE_URL"] ?? DEVELOPMENT_DATABASE;
+    const webhookSecret = process.env["WEBHOOK_SECRET"] ?? (isProduction ? null : DEVELOPMENT_SECRET);
+    if (!webhookSecret) throw new Error("WEBHOOK_SECRET must be set for the server backend in production.");
+    const { db } = connect(databaseUrl, { max: 5 });
+    await seed(db);
+    return createServerApi(
+      db,
+      {
+        now: Date.now,
+        newId: (prefix) => `${prefix}_${randomUUID().replaceAll("-", "").slice(0, 16)}`,
+        random: Math.random,
+      },
+      { webhookSecret },
+    );
+  })();
+  return serverApi;
+}

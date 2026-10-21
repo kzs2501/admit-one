@@ -34,6 +34,7 @@ const plainProblemCodeSchema = z.enum([
   "forbidden",
   "refund_failed",
   "invalid_signature",
+  "not_in_server_mode",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -171,6 +172,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "Sign in first",
     description:
       "The organisers’ API needs `Authorization: Bearer <token>` from signing in. The `WWW-Authenticate` header says whether a token was missing or is no longer valid (RFC 6750).",
+  },
+  not_in_server_mode: {
+    status: 501,
+    title: "Only in the sandbox",
+    description:
+      "The organisers’ dashboard and the waiting room run in the browser sandbox, the public demo. The server, on Postgres, serves the buyer’s checkout.",
   },
   invalid_signature: {
     status: 400,

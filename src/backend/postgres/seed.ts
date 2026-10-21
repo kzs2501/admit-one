@@ -9,6 +9,7 @@ import { inventory, seatClaims } from "./schema";
 /** The moment baseline sales are dated: they happened before anything in the demo. */
 const BEFORE_THE_DEMO = new Date(0);
 
+/** Safe to run again: anything already there is left as it is. */
 export async function seed(db: Database) {
   const generalTiers = CATALOG.filter((event) => event.seating.kind === "general").flatMap((event) =>
     event.tiers.map((tier) => ({
@@ -30,6 +31,6 @@ export async function seed(db: Database) {
   );
   await db.transaction(async (tx) => {
     await tx.insert(inventory).values(generalTiers).onConflictDoNothing();
-    if (soldSeats.length) await tx.insert(seatClaims).values(soldSeats);
+    if (soldSeats.length) await tx.insert(seatClaims).values(soldSeats).onConflictDoNothing();
   });
 }

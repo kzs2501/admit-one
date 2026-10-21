@@ -5,5 +5,7 @@
  */
 import { startBackend } from "@/backend";
 import { setApiReadiness } from "@/lib/api-client";
+import { isServerMode } from "@/lib/backend-mode";
 
-setApiReadiness(startBackend());
+// In server mode the API is the server's, ready as soon as the page is.
+setApiReadiness(isServerMode ? Promise.resolve() : startBackend());

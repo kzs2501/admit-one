@@ -27,8 +27,15 @@ const LAYER_RULES = [
     message: "The backend is a separate service: it may depend only on core and the contract.",
   },
   {
+    // The API route mounts the server backend, as instrumentation-client.ts mounts the
+    // sandbox: a composition root, through the backend's server entry and nothing else.
+    target: "./src/app",
+    from: "./src/backend",
+    except: ["./server.ts"],
+    message: "Talk to the backend over HTTP (lib/api-client); only the API route mounts it, via @/backend/server.",
+  },
+  {
     target: [
-      "./src/app",
       "./src/components",
       "./src/lib",
       "./src/features/events",

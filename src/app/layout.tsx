@@ -6,6 +6,7 @@ import { WebVitals } from "./web-vitals";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
 import { SimulatedPhone } from "@/features/sandbox/components/simulated-phone";
+import { isServerMode } from "@/lib/backend-mode";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
@@ -42,33 +43,41 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
                 Demo — no real payments
               </span>
-              <div className="ml-auto flex items-center gap-3">
-                <Link
-                  href="/organiser"
-                  className="rounded-md px-2 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline"
-                >
-                  <span className="sm:hidden">Organisers</span>
-                  <span className="hidden sm:inline">For organisers</span>
-                </Link>
-                {/* The panel lives in the root layout, which no error.tsx covers: contain it here. */}
-                <ErrorBoundary
-                  fallback={<span className="text-xs text-ink-3">Chaos panel unavailable — reload to retry</span>}
-                >
-                  <ChaosPanel />
-                </ErrorBoundary>
-              </div>
+              {/* The organisers' dashboard and the chaos panel are the sandbox's: server mode has neither. */}
+              {!isServerMode && (
+                <div className="ml-auto flex items-center gap-3">
+                  <Link
+                    href="/organiser"
+                    className="rounded-md px-2 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    <span className="sm:hidden">Organisers</span>
+                    <span className="hidden sm:inline">For organisers</span>
+                  </Link>
+                  {/* The panel lives in the root layout, which no error.tsx covers: contain it here. */}
+                  <ErrorBoundary
+                    fallback={<span className="text-xs text-ink-3">Chaos panel unavailable — reload to retry</span>}
+                  >
+                    <ChaosPanel />
+                  </ErrorBoundary>
+                </div>
+              )}
             </div>
           </header>
           <main id="main" tabIndex={-1} className="flex-1 outline-none">
             {children}
           </main>
           {/* Outside main: it stands for the buyer's own phone, not part of the shop's page. */}
-          <ErrorBoundary fallback={null}>
-            <SimulatedPhone />
-          </ErrorBoundary>
+          {!isServerMode && (
+            <ErrorBoundary fallback={null}>
+              <SimulatedPhone />
+            </ErrorBoundary>
+          )}
           <footer className="border-t border-line">
             <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-ink-3 sm:px-8">
-              <p>All events, venues and people are fictional. The backend runs in your browser.</p>
+              <p>
+                All events, venues and people are fictional.{" "}
+                {isServerMode ? "The backend runs on a server, on Postgres." : "The backend runs in your browser."}
+              </p>
               <p>
                 Built by{" "}
                 <a className="underline underline-offset-4 hover:text-ink" href={SITE.authorUrl}>
