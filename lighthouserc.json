@@ -7,7 +7,9 @@
         "http://localhost:4181/",
         "http://localhost:4181/events/frontend-systems-summit",
         "http://localhost:4181/events/monsoon-strings",
-        "http://localhost:4181/organiser/sign-in"
+        "http://localhost:4181/organiser/sign-in",
+        "http://localhost:4181/tickets",
+        "http://localhost:4181/scan"
       ],
       "numberOfRuns": 3,
       "settings": {
@@ -17,7 +19,7 @@
     "assert": {
       "assertMatrix": [
         {
-          "matchingUrlPattern": "^(?!.*/organiser).*$",
+          "matchingUrlPattern": "^(?!.*/(organiser|scan)).*$",
           "assertions": {
             "categories:performance": [
               "error",
@@ -52,7 +54,7 @@
           }
         },
         {
-          "matchingUrlPattern": ".*/organiser.*",
+          "matchingUrlPattern": ".*/(organiser|scan).*",
           "assertions": {
             "categories:performance": [
               "error",
