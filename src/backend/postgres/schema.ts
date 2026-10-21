@@ -18,7 +18,9 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { Amounts } from "@/core/pricing";
 import type { LineItem } from "@/core/ticketing";
+import type { JsonValue, OrderRecord } from "@/backend/domain/state";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -95,5 +97,80 @@ export const seatClaims = pgTable(
       .on(table.eventSlug, table.seatId)
       .where(sql`${table.releasedAt} IS NULL`),
     index("seat_claims_by_hold").on(table.holdId),
+  ],
+);
+
+/** An order, one per hold. Its smaller parts are JSON, kept whole, as the order is. */
+export const orders = pgTable("orders", {
+  id: text("id").primaryKey(),
+  holdId: text("hold_id")
+    .notNull()
+    .unique()
+    .references(() => holds.id),
+  eventSlug: text("event_slug").notNull(),
+  items: jsonb("items").$type<LineItem[]>().notNull(),
+  attendees: jsonb("attendees").$type<OrderRecord["attendees"]>().notNull(),
+  addOns: jsonb("add_ons").$type<Record<string, number>>().notNull(),
+  amounts: jsonb("amounts").$type<Amounts>().notNull(),
+  status: text("status").$type<OrderRecord["status"]>().notNull(),
+  statusReason: text("status_reason"),
+  tickets: jsonb("tickets").$type<OrderRecord["tickets"]>().notNull(),
+  paymentId: text("payment_id"),
+  createdAt: at("created_at").notNull(),
+  updatedAt: at("updated_at").notNull(),
+});
+
+/** Every payment attempt: by card (with its last four digits) or by UPI (with when the request runs out). */
+export const payments = pgTable(
+  "payments",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    method: text("method", { enum: ["card", "upi"] }).notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    status: text("status").notNull(),
+    failureCode: text("failure_code"),
+    last4: text("last4"),
+    upiExpiresAt: at("upi_expires_at"),
+    webhookLagMs: integer("webhook_lag_ms"),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [index("payments_by_order").on(table.orderId)],
+);
+
+/**
+ * Idempotency-Keys, claimed before the work starts. A row with no status is a request
+ * still in flight; a status and body are the answer, replayed to retries for 24 hours.
+ */
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  key: text("key").primaryKey(),
+  fingerprint: text("fingerprint").notNull(),
+  status: integer("status"),
+  body: jsonb("body").$type<JsonValue>(),
+  createdAt: at("created_at").notNull(),
+});
+
+/**
+ * The simulated provider's outbox: each event it will send, when, and whether it has.
+ * Providers deliver at least once, so the same event may have more than one delivery.
+ */
+export const providerEvents = pgTable(
+  "provider_events",
+  {
+    deliveryId: text("delivery_id").primaryKey(),
+    eventId: text("event_id").notNull(),
+    type: text("type").notNull(),
+    paymentId: text("payment_id"),
+    failureCode: text("failure_code"),
+    enqueuedAt: at("enqueued_at").notNull(),
+    deliverAt: at("deliver_at").notNull(),
+    deliveredAt: at("delivered_at"),
+  },
+  (table) => [
+    index("provider_events_due")
+      .on(table.deliverAt)
+      .where(sql`${table.deliveredAt} IS NULL`),
   ],
 );

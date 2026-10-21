@@ -8,6 +8,13 @@
       "when": 1792588513869,
       "tag": "0000_stock_holds_and_seats",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792589226426,
+      "tag": "0001_orders_payments_and_keys",
+      "breakpoints": true
     }
   ]
 }

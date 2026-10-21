@@ -1,12 +1,19 @@
 /**
- * Rows as the sandbox's records. The server backend loads one hold's rows into the
- * sandbox's own shapes and runs the sandbox's rules on them (see `unit-of-work.ts`), so
- * both backends keep the same rules and show the same views.
+ * Rows as the sandbox's records, and back. The server backend loads one hold's rows
+ * into the sandbox's own shapes and runs the sandbox's rules on them (see
+ * `unit-of-work.ts`), so both backends keep the same rules and show the same views.
  */
 import { DEFAULT_CHAOS, type ChaosConfig } from "@/backend/chaos/presets";
 import type { BackendContext, Deps } from "@/backend/domain/context";
-import { createInitialState, type HoldRecord } from "@/backend/domain/state";
-import type { holds } from "./schema";
+import {
+  createInitialState,
+  type HoldRecord,
+  type OrderRecord,
+  type OutboxItem,
+  type PaymentRecord,
+} from "@/backend/domain/state";
+import type { PaymentFailureCode, PaymentStatus } from "@/core/statuses";
+import type { holds, orders, payments, providerEvents } from "./schema";
 
 /**
  * The server's settings, where the sandbox has chaos presets: no simulated latency, and
@@ -23,22 +30,101 @@ export const SERVER_SETTINGS: ChaosConfig = {
 
 export type ServerDeps = Omit<Deps, "newToken">;
 
+const msOf = (date: Date) => date.getTime();
+
 export const holdRecordOf = (row: typeof holds.$inferSelect): HoldRecord => ({
   id: row.id,
   eventSlug: row.eventSlug,
   items: row.items,
   seatIds: row.seatIds,
-  createdAtMs: row.createdAt.getTime(),
-  expiresAtMs: row.expiresAt.getTime(),
+  createdAtMs: msOf(row.createdAt),
+  expiresAtMs: msOf(row.expiresAt),
   isConverted: row.status === "converted",
   isExtended: row.isExtended,
   orderId: row.orderId,
 });
 
+export const orderRecordOf = (row: typeof orders.$inferSelect): OrderRecord => ({
+  id: row.id,
+  holdId: row.holdId,
+  eventSlug: row.eventSlug,
+  items: row.items,
+  attendees: row.attendees,
+  addOns: row.addOns,
+  amounts: row.amounts,
+  status: row.status,
+  statusReason: row.statusReason,
+  tickets: row.tickets,
+  paymentId: row.paymentId,
+  createdAtMs: msOf(row.createdAt),
+  updatedAtMs: msOf(row.updatedAt),
+});
+
+export const orderRowOf = (record: OrderRecord): typeof orders.$inferInsert => ({
+  ...record,
+  createdAt: new Date(record.createdAtMs),
+  updatedAt: new Date(record.updatedAtMs),
+});
+
+export function paymentRecordOf(row: typeof payments.$inferSelect): PaymentRecord {
+  const base = {
+    id: row.id,
+    orderId: row.orderId,
+    amountMinor: row.amountMinor,
+    status: row.status as PaymentStatus,
+    failureCode: row.failureCode as PaymentFailureCode | null,
+    webhookLagMs: row.webhookLagMs,
+    createdAtMs: msOf(row.createdAt),
+  };
+  return row.method === "upi"
+    ? { ...base, method: "upi", expiresAtMs: msOf(row.upiExpiresAt ?? row.createdAt) }
+    : { ...base, method: "card", last4: row.last4 ?? "" };
+}
+
+export const paymentRowOf = (record: PaymentRecord): typeof payments.$inferInsert => ({
+  id: record.id,
+  orderId: record.orderId,
+  method: record.method,
+  amountMinor: record.amountMinor,
+  status: record.status,
+  failureCode: record.failureCode,
+  last4: record.method === "card" ? record.last4 : null,
+  upiExpiresAt: record.method === "upi" ? new Date(record.expiresAtMs) : null,
+  webhookLagMs: record.webhookLagMs,
+  createdAt: new Date(record.createdAtMs),
+});
+
+/** A payment event the sandbox's rules put in the outbox, as the simulated provider's row. */
+export function providerEventRowOf(item: OutboxItem): typeof providerEvents.$inferInsert {
+  const common = {
+    deliveryId: item.deliveryId,
+    eventId: item.eventId,
+    type: item.type,
+    enqueuedAt: new Date(item.enqueuedAtMs),
+    deliverAt: new Date(item.deliverAtMs),
+  };
+  switch (item.type) {
+    case "payment.succeeded":
+      return { ...common, paymentId: item.paymentId };
+    case "payment.failed":
+      return { ...common, paymentId: item.paymentId, failureCode: item.failureCode };
+    case "refund.succeeded":
+      throw new Error("Refunds are the sandbox's alone.");
+  }
+}
+
+export interface HoldRecords {
+  hold: HoldRecord;
+  orders: OrderRecord[];
+  payments: PaymentRecord[];
+}
+
 /** The sandbox's context, holding only the given records: enough for its rules and views to run on. */
-export function contextWith(deps: ServerDeps, { hold }: { hold?: HoldRecord }): BackendContext {
+export function contextWith(deps: ServerDeps, records: Partial<HoldRecords> = {}): BackendContext {
   const state = createInitialState("happy", deps.now());
-  if (hold) state.holds[hold.id] = hold;
+  if (records.hold) state.holds[records.hold.id] = records.hold;
+  for (const order of records.orders ?? []) state.orders[order.id] = order;
+  for (const payment of records.payments ?? []) state.payments[payment.id] = payment;
   return {
     state,
     deps: {

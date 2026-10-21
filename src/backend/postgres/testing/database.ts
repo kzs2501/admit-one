@@ -3,6 +3,7 @@
  * that's migrated and seeded once (`global-setup.ts`). Copying is quick, and no test can
  * see another's rows. Only tests import this.
  */
+import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import { connect } from "@/backend/postgres/db";
 
@@ -34,6 +35,10 @@ export async function createTestDatabase({ poolSize = 20 }: { poolSize?: number 
   const name = `admit_one_test_${String(process.pid)}_${String(++created)}`;
   await asAdmin((sql) => sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${TEMPLATE_DATABASE}"`));
   const connection = connect(urlFor(name), { max: poolSize });
+  // Open every connection now. Opening one takes longer than a whole short transaction,
+  // so on a cold pool the first of several "simultaneous" requests would finish before
+  // the rest even start, and a race test would pass without the race.
+  await Promise.all(Array.from({ length: poolSize }, () => connection.db.execute(sql`SELECT pg_sleep(0.02)`)));
   return {
     ...connection,
     drop: async () => {
