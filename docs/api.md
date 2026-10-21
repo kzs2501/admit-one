@@ -128,6 +128,25 @@ catalogue (`src/core/venues.ts`); only what changes comes from the API.
   general admission). These fields are additions: clients that don't know them ignore
   them.
 
+## Tickets
+
+A fulfilled order's `tickets` are `{ code, attendeeName, tierName, seat, token }`. The
+`token` is what the door checks, so it's what the ticket's QR code holds
+([ADR 019](decisions/019-offline-tickets-and-door-scanner.md)).
+
+- **Format:** `ao1.<kid>.<payload>.<signature>`. The payload is base64url JSON,
+  `{ c: code, e: eventSlug, n: attendeeName, t: tierName, s: seat }` (`s` is `null` for
+  general admission); the signature is Ed25519 (RFC 8032) over `ao1.<kid>.<payload>`,
+  in base64url.
+- **Checking one** needs only the public key for its `kid`, and no request, so a door
+  can check tickets offline. Anything else is refused: another version, a key id the
+  door doesn't know, a payload that isn't the claims.
+- **Keys:** the sandbox signs with a public demo key (`demo-2026`), so anyone can make
+  tickets its scanner accepts. A server signs with `TICKET_SIGNING_KEY` (key id
+  `TICKET_KEY_ID`, by default `server-1`), and its scanner trusts the matching
+  `NEXT_PUBLIC_TICKET_PUBLIC_KEY`.
+- `token` is an addition: clients that don't know it ignore it.
+
 ## The organisers' API
 
 For organisers' dashboards ([ADR 014](decisions/014-organiser-access.md),

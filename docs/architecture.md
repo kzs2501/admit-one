@@ -23,7 +23,7 @@ accounts, keys or cost — and every tab gets its own sandbox.
 flowchart LR
   subgraph tab["Browser tab"]
     ui["Next.js app\nReact 19 · TanStack Query · RHF + Zod"]
-    sw["Service worker (MSW)\nintercepts /api/*"]
+    sw["Service worker (sw.js + MSW)\nintercepts /api/*, keeps offline pages"]
     be["Backend\ndomain · HTTP adapter · runtime"]
     store[("sessionStorage\nstate + webhook outbox\n+ checkout drafts")]
     ui -->|"fetch /api/* (JSON, problem+json)"| sw --> be
@@ -37,6 +37,9 @@ flowchart LR
   would to a remote service, and parses every response against the contract.
 - **The backend** starts in `src/instrumentation-client.ts`, before the app is
   interactive; the API client holds requests until its service worker answers.
+- **One service worker** does two jobs: MSW's, answering `/api/*`, and the app's,
+  keeping the wallet and the door scanner working offline. A scope has one worker, so
+  `public/sw.js` imports MSW's ([019](decisions/019-offline-tickets-and-door-scanner.md)).
 - **State** is persisted after every command, including webhooks still waiting in the
   outbox, so a reload mid-payment resumes exactly where it was.
 
@@ -69,7 +72,7 @@ flowchart TB
 | `backend/domain`  | Inventory, orders, payments, webhooks, the order state machine — plain functions over plain state, with time, ids and randomness injected                                                                  | `core`, `contract`                      |
 | `backend/http`    | The adapter: request parsing, status codes, problem details, idempotency keys, ISO timestamps                                                                                                              | the domain                              |
 | `backend/runtime` | The MSW worker, persistence, and timers for webhooks and the crowd                                                                                                                                         | the domain, the adapter                 |
-| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting                                                                                                              | `core`, `contract`                      |
+| `lib/`            | The API client (the anti-corruption layer), query factories, routes, safe storage, formatting, the wallet and the door's scan log (IndexedDB), the QR reader, the service worker's registration            | `core`, `contract`                      |
 | `components/ui/`  | Design-system primitives: `Button`, `TextField`, `Notice`, `ErrorState`, …                                                                                                                                 | `lib`, `core`                           |
 | `features/*`      | View-model hooks (`useCheckout`, `useOrderStatus`, `useCardPayment`, `useUpiPayment`, `useReserveTickets`, `useSeatMap`, `useQueueEntry`, `useOrderList`, `useRefund`) and the components that render them | everything above; never another feature |
 | `app/`            | Routes and error boundaries; composes features                                                                                                                                                             | everything except backend internals     |
@@ -130,7 +133,12 @@ sequenceDiagram
   chooses "best available" in the same step as the hold
   ([010](decisions/010-reserved-seating.md)).
 - **Security headers** — a Content Security Policy without nonces, so pages stay static,
-  plus the usual hardening headers ([009](decisions/009-security-headers.md)).
+  plus the usual hardening headers ([009](decisions/009-security-headers.md)). Only the
+  door scanner may use the camera or compile WebAssembly.
+- **Offline tickets** — each ticket is an Ed25519-signed token, kept on the buyer's
+  device; the door checks the signature with the public key alone and remembers whom it
+  has let in, so neither needs a network
+  ([019](decisions/019-offline-tickets-and-door-scanner.md)).
 - **Failures are contained and reported.** `app/error.tsx` covers every route and keeps
   the header; `global-error.tsx` covers the root layout; an `ErrorBoundary` contains the
   chaos panel, which lives in the root layout. Render errors, and query or mutation
@@ -145,14 +153,14 @@ sequenceDiagram
 Following the testing trophy, most confidence comes from tests that use the system the
 way it's used:
 
-| Layer       | Tests                                                                                                                        | Where                                                              |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Static      | strict TypeScript, type-aware ESLint (naming, boundaries, exhaustiveness)                                                    | every commit, CI                                                   |
-| Unit        | domain rules on a fake clock; pure view-model derivations; money, schemas, countdown                                         | `*.test.ts` next to each module                                    |
-| Integration | the HTTP contract through real `fetch` and MSW; the API client against a mock network; components with Testing Library       | `backend/http`, `lib`, `features/*/components`                     |
-| Catalogue   | every story renders in Chromium, passes its play function and axe; fixtures parsed with the contract's schemas               | `*.stories.tsx` (Storybook + Vitest addon)                         |
-| Visual      | every story screenshotted in light and dark, screens at 375 px, in Playwright's Linux image on arm64; axe in both themes     | `visual/` ([ADR 017](decisions/017-catalogue-and-visual-tests.md)) |
-| End-to-end  | one Playwright test per chaos preset, plus guards, expiry, refresh-resume, focus, axe in both themes, 375 px, reduced motion | `e2e/` — page objects in `e2e/fixtures.ts`                         |
+| Layer       | Tests                                                                                                                                                                             | Where                                                              |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Static      | strict TypeScript, type-aware ESLint (naming, boundaries, exhaustiveness)                                                                                                         | every commit, CI                                                   |
+| Unit        | domain rules on a fake clock; pure view-model derivations; money, schemas, countdown                                                                                              | `*.test.ts` next to each module                                    |
+| Integration | the HTTP contract through real `fetch` and MSW; the API client against a mock network; components with Testing Library                                                            | `backend/http`, `lib`, `features/*/components`                     |
+| Catalogue   | every story renders in Chromium, passes its play function and axe; fixtures parsed with the contract's schemas                                                                    | `*.stories.tsx` (Storybook + Vitest addon)                         |
+| Visual      | every story screenshotted in light and dark, screens at 375 px, in Playwright's Linux image on arm64; axe in both themes                                                          | `visual/` ([ADR 017](decisions/017-catalogue-and-visual-tests.md)) |
+| End-to-end  | one Playwright test per chaos preset, plus guards, expiry, refresh-resume, focus, axe in both themes, 375 px, reduced motion; offline, and the door by photo and by a fake camera | `e2e/` — page objects in `e2e/fixtures.ts`                         |
 
 ## What a production version would change
 

@@ -1,6 +1,6 @@
 # 009 — Security headers, and a Content Security Policy without nonces
 
-**Status:** Accepted
+**Status:** Accepted. Amended by [019](019-offline-tickets-and-door-scanner.md): the door scanner, `/scan`, alone may use the camera and compile WebAssembly.
 
 ## Context
 

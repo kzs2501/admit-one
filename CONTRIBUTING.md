@@ -67,6 +67,26 @@ if none is running.
   `{ tag: "@both" }`; `npm run build:server && npm run test:e2e:server` runs those on
   server mode.
 
+## Offline, and the door scanner
+
+[ADR 019](docs/decisions/019-offline-tickets-and-door-scanner.md) has the design.
+
+- **The service worker** is `public/sw.js`, plain JavaScript that the browser runs as
+  it is. It caches nothing in development, so `npm run dev` never serves a stale file.
+  To try offline, build and start the app (`npm run build && npm start`); DevTools →
+  Application → Service workers shows it, and its caches are under Cache storage.
+- **Changing what it caches?** Bump `VERSION` in `sw.js`: activating deletes every other
+  version's caches.
+- **The scanner's QR reader** (`zxing_reader-<version>.wasm`) is copied into
+  `public/vendor/` after every install. If `/scan` says the reader didn't load, run
+  `npm install` again.
+- **The camera test** (`e2e/camera.spec.ts`) has a Playwright project of its own, in
+  full Chromium, which Playwright's `chromium` install includes: the headless shell it
+  runs by default has no camera.
+- **Server mode in production** needs a ticket key pair. Make one with
+  `node -e 'const k=require("crypto").generateKeyPairSync("ed25519").privateKey.export({format:"jwk"});console.log("TICKET_SIGNING_KEY="+k.d+"\nNEXT_PUBLIC_TICKET_PUBLIC_KEY="+k.x)'`.
+  The first is a secret, for the server; the second is public, built into the scanner.
+
 ## How code is written here
 
 Read [docs/architecture.md](docs/architecture.md) for the layers and the dependency
