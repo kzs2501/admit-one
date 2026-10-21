@@ -8,9 +8,11 @@
  */
 import type { PresetId } from "./chaos/presets";
 import type { LogEntry } from "./domain/state";
+import type { WorkerLocation } from "./runtime/worker";
 
 export { PRESETS, type Preset, type PresetId } from "./chaos/presets";
 export type { LogEntry, LogKind } from "./domain/state";
+export type { WorkerLocation } from "./runtime/worker";
 
 /** A UPI request as the buyer's phone shows it. */
 export interface PendingUpiRequest {
@@ -37,14 +39,17 @@ export interface SandboxControl {
   respondInUpiApp: (paymentId: string, decision: "approve" | "decline") => void;
 }
 
-/** Start the in-browser backend. Resolves once the service worker can answer requests. */
-export async function startBackend(): Promise<void> {
+/**
+ * Start the in-browser backend. Resolves once the service worker can answer requests.
+ * The worker is the app's: it imports MSW's when its URL asks for mocking.
+ */
+export async function startBackend(worker: WorkerLocation): Promise<void> {
   // The backend only runs in the browser. Next replaces `typeof window` at build time,
   // so keeping the import inside this check also keeps the browser-only MSW build out
   // of the server bundle.
   if (typeof window !== "undefined") {
     const { startWorker } = await import("./runtime/worker");
-    await startWorker();
+    await startWorker(worker);
   }
 }
 

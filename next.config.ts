@@ -39,7 +39,16 @@ const nextConfig: NextConfig = {
   // Check every literal href against the real routes at build time.
   typedRoutes: true,
   poweredByHeader: false,
-  headers: () => Promise.resolve([{ source: "/(.*)", headers: SECURITY_HEADERS }]),
+  headers: () =>
+    Promise.resolve([
+      { source: "/(.*)", headers: SECURITY_HEADERS },
+      // The service worker and the MSW script it imports are checked on every load, so a
+      // deploy reaches them at once (ADR 019).
+      ...["/sw.js", "/mockServiceWorker.js"].map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      })),
+    ]),
 };
 
 export default nextConfig;

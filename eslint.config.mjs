@@ -151,7 +151,7 @@ const eslintConfig = defineConfig([
     rules: { "import/no-default-export": "off" },
   },
   {
-    files: ["**/*.mjs"],
+    files: ["**/*.mjs", "public/sw.js"],
     ...tseslint.configs.disableTypeChecked,
   },
   globalIgnores([
