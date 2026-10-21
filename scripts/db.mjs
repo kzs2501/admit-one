@@ -7,6 +7,7 @@
  *
  *   npm run db:up     start it, creating it the first time
  *   npm run db:down   stop it
+ *   node scripts/db.mjs reset <database>   an empty database, for the server-mode e2e run
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
@@ -16,7 +17,8 @@ import postgres from "postgres";
 const binaries = await import(`@embedded-postgres/${process.platform}-${process.arch}`);
 const DATA = ".postgres/data";
 const PORT = process.env.PG_PORT ?? "54329";
-const URL = `postgres://admit@localhost:${PORT}`;
+/** The Postgres server: this one, or another (CI's service) given as DATABASE_SERVER_URL. */
+const URL = process.env.DATABASE_SERVER_URL ?? `postgres://admit@localhost:${PORT}`;
 
 function run(command, args) {
   const result = spawnSync(binaries[command], args, { stdio: "inherit" });
@@ -38,6 +40,18 @@ if (action === "up") {
   if (!found) await sql`CREATE DATABASE admit_one`;
   await sql.end();
   console.log(`Postgres is up: ${URL}/admit_one`);
+} else if (action === "reset") {
+  // A database of its own, empty: for a run of the server-mode end-to-end tests.
+  const name = process.argv[3];
+  if (!name || !/^[a-z][a-z0-9_]*$/.test(name)) {
+    console.error("usage: node scripts/db.mjs reset <database>");
+    process.exit(1);
+  }
+  const sql = postgres(`${URL}/postgres`, { max: 1, onnotice: () => undefined });
+  await sql.unsafe(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+  await sql.unsafe(`CREATE DATABASE ${name}`);
+  await sql.end();
+  console.log(`Empty database: ${URL}/${name}`);
 } else if (action === "down") {
   run("pg_ctl", [`--pgdata=${DATA}`, "--mode=fast", "stop"]);
 } else {

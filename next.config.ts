@@ -34,6 +34,8 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // A server-mode build goes to its own directory, so it never overwrites the default one.
+  distDir: process.env["NEXT_DIST_DIR"] ?? ".next",
   // Check every literal href against the real routes at build time.
   typedRoutes: true,
   poweredByHeader: false,

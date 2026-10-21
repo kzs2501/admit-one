@@ -90,7 +90,7 @@ test("seat snatched: nothing is held, the lost seat is named, and the rest stay 
   await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
 });
 
-test("best available seats a party together, and a refresh keeps the seats", async ({ page }) => {
+test("best available seats a party together, and a refresh keeps the seats", { tag: "@both" }, async ({ page }) => {
   await page.goto(`/events/${SLUG}`);
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "More: Stalls" }).click();
   await page.getByRole("button", { name: "Find the best seats" }).click();
@@ -121,7 +121,7 @@ test.describe("seat map accessibility", () => {
     });
   }
 
-  test("at 375 px the map scrolls on its own, and the page doesn't", async ({ page }) => {
+  test("at 375 px the map scrolls on its own, and the page doesn't", { tag: "@both" }, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openMap(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);

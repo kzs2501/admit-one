@@ -8,7 +8,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test as base, type Page } from "@playwright/test";
 import { SANDBOX_STORAGE_KEY, type ServerState } from "../src/backend/domain/state";
 import { seatAvailabilityDtoSchema } from "../src/contract/dto";
-import { getSeatPlan } from "../src/core/catalog";
+import postgres from "postgres";
+import { CATALOG, getSeatPlan } from "../src/core/catalog";
 import { findSingleSeatGaps, type Seat } from "../src/core/seating";
 import type { TestCardLabel } from "../src/features/checkout/domain/test-cards";
 
@@ -175,7 +176,40 @@ export class Sandbox {
 
 // Playwright's fixture callback is usually called `use`; `provide` avoids reading as
 // React's use() hook.
-export const test = base.extend<{ buyer: Buyer; sandbox: Sandbox; organiser: Organiser }>({
+/**
+ * In server mode every test shares one database, as real buyers do, so the tests'
+ * purchases would use up a small event's stock. Before each test, the catalogue's stock
+ * is put back: tickets, holds and seats, as a fresh sandbox has them. The server-mode
+ * run goes one test at a time, so a reset can't land in the middle of another test.
+ */
+async function restoreCatalogueStock(databaseUrl: string) {
+  const sql = postgres(databaseUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await sql.begin(async (tx) => {
+      await tx`UPDATE holds SET status = 'expired' WHERE status = 'active'`;
+      await tx`UPDATE seat_claims SET released_at = now() WHERE hold_id IS NOT NULL AND released_at IS NULL`;
+      for (const tier of CATALOG.flatMap((event) => (event.seating.kind === "general" ? event.tiers : []))) {
+        await tx`UPDATE inventory SET held = 0, sold = ${tier.baselineSold} WHERE tier_id = ${tier.id}`;
+      }
+    });
+  } finally {
+    await sql.end();
+  }
+}
+
+export const test = base.extend<
+  { buyer: Buyer; sandbox: Sandbox; organiser: Organiser; freshStock: undefined },
+  { databaseUrl: string | null }
+>({
+  // Set by the server-mode config; null for the sandbox, which is fresh in every test anyway.
+  databaseUrl: [null, { option: true, scope: "worker" }],
+  freshStock: [
+    async ({ databaseUrl }, provide) => {
+      if (databaseUrl) await restoreCatalogueStock(databaseUrl);
+      await provide(undefined);
+    },
+    { auto: true },
+  ],
   buyer: async ({ page }, provide) => {
     await provide(new Buyer(page));
   },

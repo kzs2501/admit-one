@@ -14,3 +14,4 @@ next-env.d.ts
 storybook-static
 *storybook.log
 .postgres
+.next-server

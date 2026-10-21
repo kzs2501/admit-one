@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { axeViolations, expect, test } from "./fixtures";
 
-test("extras appear only for events that have them", async ({ page, buyer }) => {
+test("extras appear only for events that have them", { tag: "@both" }, async ({ page, buyer }) => {
   await page.goto("/");
   await buyer.reserve(/Frontend Systems Summit/, "General", 1);
   await buyer.fillAttendees(1);
@@ -12,7 +12,7 @@ test("extras appear only for events that have them", async ({ page, buyer }) => 
   await expect(page.getByText("1 × Lunch pass").first()).toBeVisible();
 });
 
-test("refresh mid-form keeps what you typed", async ({ page, buyer }) => {
+test("refresh mid-form keeps what you typed", { tag: "@both" }, async ({ page, buyer }) => {
   await page.goto("/");
   await buyer.reserve(/Open Studio/, "Two-hour session", 2);
   await page.getByLabel("Full name").first().fill("Asha Rao");
@@ -25,16 +25,20 @@ test("refresh mid-form keeps what you typed", async ({ page, buyer }) => {
   await expect(page.getByLabel(/^Email/).first()).toHaveValue("asha@example.com");
 });
 
-test("you can't skip ahead: a deep link to payment lands on the first unfinished step", async ({ page, buyer }) => {
-  await page.goto("/");
-  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
-  await expect(page).toHaveURL(/\/attendees$/);
-  await page.goto(page.url().replace(/attendees$/, "payment"));
-  await expect(page).toHaveURL(/\/attendees$/);
-  await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
-});
+test(
+  "you can't skip ahead: a deep link to payment lands on the first unfinished step",
+  { tag: "@both" },
+  async ({ page, buyer }) => {
+    await page.goto("/");
+    await buyer.reserve(/Open Studio/, "Two-hour session", 1);
+    await expect(page).toHaveURL(/\/attendees$/);
+    await page.goto(page.url().replace(/attendees$/, "payment"));
+    await expect(page).toHaveURL(/\/attendees$/);
+    await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
+  },
+);
 
-test("focus moves to the new step's heading", async ({ page, buyer }) => {
+test("focus moves to the new step's heading", { tag: "@both" }, async ({ page, buyer }) => {
   await page.goto("/");
   await buyer.reserve(/Open Studio/, "Two-hour session", 1);
   await buyer.fillAttendees(1);
@@ -54,7 +58,7 @@ test("an expired hold offers to reserve the same tickets again, keeping the draf
   await expect(page.getByLabel("Full name")).toHaveValue("Asha Rao");
 });
 
-test("the countdown announces thresholds, not every second", async ({ page, buyer }) => {
+test("the countdown announces thresholds, not every second", { tag: "@both" }, async ({ page, buyer }) => {
   await page.clock.install();
   await page.goto("/");
   await buyer.reserve(/Open Studio/, "Two-hour session", 1);
@@ -64,21 +68,21 @@ test("the countdown announces thresholds, not every second", async ({ page, buye
   await expect(live).toHaveText("2 minutes left to complete your order.");
 });
 
-test("a problem's type URI opens its documentation", async ({ page }) => {
+test("a problem's type URI opens its documentation", { tag: "@both" }, async ({ page }) => {
   await page.goto("/problems/sold-out");
   await expect(page.getByRole("heading", { level: 1, name: "Not enough tickets left" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText("sold_out");
   expect(await axeViolations(page)).toEqual([]);
 });
 
-test("an unknown reservation explains itself", async ({ page }) => {
+test("an unknown reservation explains itself", { tag: "@both" }, async ({ page }) => {
   await page.goto("/checkout/hold_doesnotexist/attendees");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("We can’t find that reservation");
 });
 
 test.describe("accessibility", () => {
   for (const scheme of ["light", "dark"] as const) {
-    test(`a hovered primary button keeps its contrast (${scheme})`, async ({ page }) => {
+    test(`a hovered primary button keeps its contrast (${scheme})`, { tag: "@both" }, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/events/frontend-systems-summit");
       await page.getByRole("button", { name: "More: General" }).click();
@@ -94,7 +98,7 @@ test.describe("accessibility", () => {
   }
 
   for (const scheme of ["light", "dark"] as const) {
-    test(`no axe violations across the purchase (${scheme})`, async ({ page, buyer }) => {
+    test(`no axe violations across the purchase (${scheme})`, { tag: "@both" }, async ({ page, buyer }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/");
       await expect(
@@ -130,7 +134,12 @@ test.describe("accessibility", () => {
       await buyer.pay();
       await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
       expect(await axeViolations(page), "tickets").toEqual([]);
+    });
 
+    // The sandbox's own: server mode has no chaos panel.
+    test(`no axe violations in the chaos panel (${scheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/");
       await page.getByRole("button", { name: /^Chaos/ }).click();
       await expect(page.getByRole("dialog", { name: "Chaos panel" })).toBeVisible();
       expect(await axeViolations(page), "chaos panel").toEqual([]);
@@ -138,7 +147,7 @@ test.describe("accessibility", () => {
   }
 });
 
-test("no horizontal scroll at 375px through checkout", async ({ page, buyer }) => {
+test("no horizontal scroll at 375px through checkout", { tag: "@both" }, async ({ page, buyer }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const noOverflow = async (where: string) =>
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), where).toBeLessThanOrEqual(0);
@@ -151,7 +160,7 @@ test("no horizontal scroll at 375px through checkout", async ({ page, buyer }) =
   await noOverflow("tickets");
 });
 
-test("reduced motion: the whole purchase still works", async ({ page, buyer }) => {
+test("reduced motion: the whole purchase still works", { tag: "@both" }, async ({ page, buyer }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await buyer.goToPayment();
