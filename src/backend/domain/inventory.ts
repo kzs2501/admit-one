@@ -102,7 +102,7 @@ export function returnToSale(
 }
 
 /** "Stalls, row F, seat 12", or "Stalls F12–F13" for more than one. */
-function describeSeats(seats: readonly Seat[]) {
+export function describeSeats(seats: readonly Seat[]) {
   const [first] = seats;
   return first && seats.length === 1 ? seatLabel(first) : formatSeatList(seats);
 }
@@ -150,7 +150,7 @@ function recordCrowdPurchase(context: BackendContext, tierId: string, quantity: 
   context.log("crowd", `Another buyer took ${quantity} × ${tier.name} (${why}).`);
 }
 
-const soldOut = (tierId: string, left: number): DomainError => ({
+export const soldOut = (tierId: string, left: number): DomainError => ({
   code: "sold_out",
   detail: left === 0 ? "Those tickets just sold out." : `Only ${left} left for that ticket type.`,
   tierId,
@@ -213,6 +213,39 @@ function holdByTiers(context: BackendContext, event: EventInfo, items: LineItem[
   return ok(insertHold(context, event.slug, items, []));
 }
 
+/** Why these seats can't be held, given the seats already gone: taken, or leaving a single seat stranded. */
+export function seatSelectionProblem(
+  plan: ReservedEvent["seating"]["plan"],
+  unavailable: ReadonlySet<string>,
+  seats: readonly Seat[],
+): DomainError | null {
+  const taken = seats.filter((seat) => unavailable.has(seat.id));
+  if (taken.length > 0) return seatsTaken(taken);
+  const gaps = findSingleSeatGaps(plan, unavailable, new Set(seats.map((seat) => seat.id)));
+  if (gaps.length > 0) {
+    return {
+      code: "single_seat_gap",
+      detail: `That would leave ${describeSeats(gaps)} empty on ${gaps.length === 1 ? "its" : "their"} own. Move your selection over by one seat.`,
+      seatIds: gaps.map((seat) => seat.id),
+    };
+  }
+  return null;
+}
+
+/** Someone else has these seats. */
+export const seatsTaken = (taken: readonly Seat[]): DomainError => ({
+  code: "seats_unavailable",
+  detail: `${describeSeats(taken)} ${taken.length === 1 ? "was" : "were"} just taken. Nothing was held; choose again.`,
+  seatIds: taken.map((seat) => seat.id),
+});
+
+/** A hold's line items, from the seats it holds: so many of each tier. */
+export const itemsForSeats = (event: EventInfo, seats: readonly Seat[]): LineItem[] =>
+  event.tiers.flatMap((tier) => {
+    const quantity = seats.filter((seat) => seat.tierId === tier.id).length;
+    return quantity > 0 ? [{ tierId: tier.id, quantity }] : [];
+  });
+
 /** Particular seats: all of them, or none — a buyer never ends up holding seats they didn't choose. */
 function holdSeats(context: BackendContext, event: EventInfo, seatIds: string[]): Result<HoldRecord> {
   if (!isReservedEvent(event)) {
@@ -231,29 +264,9 @@ function holdSeats(context: BackendContext, event: EventInfo, seatIds: string[])
     sellSeatsToCrowd(context, [snatchTarget], "a moment before you");
   }
 
-  const unavailable = unavailableSeatIds(context, event);
-  const taken = seats.filter((seat) => unavailable.has(seat.id));
-  if (taken.length > 0) {
-    return fail({
-      code: "seats_unavailable",
-      detail: `${describeSeats(taken)} ${taken.length === 1 ? "was" : "were"} just taken. Nothing was held; choose again.`,
-      seatIds: taken.map((seat) => seat.id),
-    });
-  }
-  const gaps = findSingleSeatGaps(plan, unavailable, new Set(seatIds));
-  if (gaps.length > 0) {
-    return fail({
-      code: "single_seat_gap",
-      detail: `That would leave ${describeSeats(gaps)} empty on ${gaps.length === 1 ? "its" : "their"} own. Move your selection over by one seat.`,
-      seatIds: gaps.map((seat) => seat.id),
-    });
-  }
-
-  const items = event.tiers.flatMap((tier) => {
-    const quantity = seats.filter((seat) => seat.tierId === tier.id).length;
-    return quantity > 0 ? [{ tierId: tier.id, quantity }] : [];
-  });
-  return ok(insertHold(context, event.slug, items, seats));
+  const problem = seatSelectionProblem(plan, unavailableSeatIds(context, event), seats);
+  if (problem) return fail(problem);
+  return ok(insertHold(context, event.slug, itemsForSeats(event, seats), seats));
 }
 
 export function createHold(context: BackendContext, command: CreateHoldCommand): Result<HoldRecord> {

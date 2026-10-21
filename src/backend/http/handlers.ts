@@ -94,7 +94,9 @@ export function createBuyerHandlers(
    * and that no cache may keep.
    */
   const rateLimitReply = (request: Request): Reply | null => {
-    const decision = holdAttempts.take(backend.chaos().holdRateLimit);
+    const limit = backend.chaos().holdRateLimit;
+    if (!limit) return null;
+    const decision = holdAttempts.take(limit);
     if (decision.isAllowed) return null;
     const retryAfterSeconds = Math.max(1, Math.ceil(decision.retryAfterMs / 1000));
     const problem = problemReply(

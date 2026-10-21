@@ -39,7 +39,8 @@ export interface ChaosConfig {
   /** Another buyer takes one of the seats you ask for, a moment first (once). */
   shouldSnatchRequestedSeat: boolean;
   /** How many reservation attempts one client may make per window. */
-  holdRateLimit: { limit: number; windowMs: number };
+  /** How often one client may try to reserve; null when the adapter doesn't limit it. */
+  holdRateLimit: { limit: number; windowMs: number } | null;
   /** A high-demand sale: everyone queues before they can reserve. */
   waitingRoom: WaitingRoomConfig | null;
   /** How long a UPI payment request stays payable, unless the hold runs out first. */

@@ -289,7 +289,17 @@ function seatsOf(eventSlug: string, seatIds: readonly string[]): SeatView[] {
   });
 }
 
-export const toEventView = (context: BackendContext, event: EventInfo): EventView => ({
+export const toEventView = (context: BackendContext, event: EventInfo): EventView =>
+  eventViewOf(event, {
+    isQueueActive: context.chaos().waitingRoom !== null,
+    availableFor: (tierId) => availableQuantity(context, tierId),
+  });
+
+/** An event as the API shows it, with live availability from whichever backend knows it. */
+export const eventViewOf = (
+  event: EventInfo,
+  { isQueueActive, availableFor }: { isQueueActive: boolean; availableFor: (tierId: string) => number },
+): EventView => ({
   slug: event.slug,
   name: event.name,
   tagline: event.tagline,
@@ -301,14 +311,14 @@ export const toEventView = (context: BackendContext, event: EventInfo): EventVie
   description: event.description,
   seating:
     event.seating.kind === "reserved" ? { kind: "reserved", venueId: event.seating.plan.venueId } : { kind: "general" },
-  isQueueActive: context.chaos().waitingRoom !== null,
+  isQueueActive,
   // Public fields only: capacity and baseline sales stay inside the backend.
   tiers: event.tiers.map((tier) => ({
     id: tier.id,
     name: tier.name,
     description: tier.description,
     priceMinor: tier.priceMinor,
-    available: availableQuantity(context, tier.id),
+    available: availableFor(tier.id),
   })),
   addOns: event.addOns,
 });
@@ -381,11 +391,15 @@ export function toOrderView(context: BackendContext, order: OrderRecord): OrderV
   };
 }
 
-export function toHoldDetailsView(context: BackendContext, hold: HoldRecord): HoldDetailsView {
+export function toHoldDetailsView(
+  context: BackendContext,
+  hold: HoldRecord,
+  event: EventView = toEventView(context, getEvent(hold.eventSlug)),
+): HoldDetailsView {
   const order = hold.orderId ? context.state.orders[hold.orderId] : undefined;
   return {
     hold: toHoldView(context, hold),
-    event: toEventView(context, getEvent(hold.eventSlug)),
+    event,
     order: order ? toOrderView(context, order) : null,
     serverTimeMs: context.deps.now(),
   };
