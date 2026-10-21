@@ -156,10 +156,19 @@ way it's used:
 
 ## What a production version would change
 
-- A real database: the availability check and hold insert become one transaction (or a
-  conditional `UPDATE … WHERE available >= quantity`), and webhook dedupe a unique insert.
-- A real provider adapter behind the same payment port, with webhook signature
-  verification (HMAC over the raw body, with a timestamp check against replay).
+Server mode ([ADR 018](decisions/018-server-mode.md)) has made the first of these real:
+
+- **Done: a real database.** In server mode, holds are a conditional
+  `UPDATE … WHERE capacity - sold - held >= n`, seats a partial unique index,
+  idempotency a table claimed before the work starts, and webhook dedupe an insert in
+  the same transaction as its effect, all proven against real Postgres under
+  concurrency.
+- **Done: signed webhooks.** HMAC-SHA256 over the raw body, a constant-time compare and
+  a five-minute tolerance, from a simulated provider. A real provider's adapter
+  (Razorpay, 6b) is next.
+
+Still to do:
+
 - Organisers signing in through an identity provider, with an HttpOnly session cookie
   rather than a token a script can read.
 - Reporting from a database with indexes on the sort keys, not rows in memory.

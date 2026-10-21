@@ -20,6 +20,7 @@ No environment variables, keys or accounts are needed: the backend runs in the b
 | `npm test`                          | unit, component and HTTP-contract tests (Vitest)                           |
 | `npm run test:coverage`             | the same, failing if coverage drops below its floors (`vitest.config.mts`) |
 | `npm run build && npm run test:e2e` | browser tests against the production build (Playwright + axe)              |
+| `npm run test:server`               | the server backend against real Postgres (starts one if none is running)   |
 | `npm run test:stories`              | every story in the catalogue renders, passes its play function and axe     |
 | `npm run test:visual`               | screenshots of every story, in Playwright's Linux image (needs Docker)     |
 | `npm run lhci`                      | Lighthouse budgets (≥ 95 in every category)                                |
@@ -46,6 +47,25 @@ screen has a story for every state it can be in ([ADR 017](docs/decisions/017-ca
   (`playwright-report/visual`) shows the expected image, the actual one and the diff.
 - **"Failed to fetch dynamically imported module"** right after adding an import to a
   story means Vite re-optimised its dependencies mid-run. Run the stories again.
+
+## Server mode
+
+`NEXT_PUBLIC_BACKEND=server` builds the app against Next route handlers and Postgres
+([ADR 018](docs/decisions/018-server-mode.md)). Postgres comes from the
+`embedded-postgres` package, so `npm run db:up` (then `npm run db:migrate`) is all it
+takes; `npm run db:down` stops it. `npm run test:server` starts a temporary one by itself
+if none is running.
+
+- **A schema change:** edit `src/backend/postgres/schema.ts`, then `npm run db:generate`,
+  and commit the SQL migration it writes.
+- **A rule change** goes in the sandbox's domain (`src/backend/domain`): the server runs
+  the same functions on its own rows, so both backends change together. Only stock and
+  seats are the server's own (`src/backend/postgres/stock.ts`).
+- **A race test** must use a test database's whole pool at once (`createTestDatabase`
+  opens every connection first), and must fail against a version without its guard.
+- **An end-to-end test** that a buyer could run against either backend gets
+  `{ tag: "@both" }`; `npm run build:server && npm run test:e2e:server` runs those on
+  server mode.
 
 ## How code is written here
 

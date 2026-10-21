@@ -182,6 +182,23 @@ that can't be honoured, such as an unknown sort, is a `422` too.
 **Refunds.** A refund is settled by the provider's `refund.succeeded` webhook. Then
 the order is `refunded`, its tickets stop working, and they go back on sale.
 
+## Webhooks, in server mode
+
+`POST /api/webhooks/payments` is where the payment provider tells the server what
+happened to a payment. The sandbox has no such endpoint: its provider runs in the same
+page and delivers in-process.
+
+- **Signed:** `Webhook-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body">`,
+  under a secret shared with the provider (`WEBHOOK_SECRET`).
+- **Checked before anything is parsed:** over the raw body, with a constant-time compare,
+  and refused if `t` is more than five minutes from now. A webhook that fails any check
+  is a `400 invalid_signature`, and nothing happens.
+- **Acted on once,** by event id: a repeat is acknowledged (`200`, `"outcome": "duplicate"`)
+  and changes nothing. So is an event about a payment the server doesn't know, so the
+  provider stops sending it.
+- **Sandbox-only routes** (the waiting room, the organisers' API) answer
+  `501 not_in_server_mode` in server mode.
+
 ## Order lifecycle
 
 ```mermaid

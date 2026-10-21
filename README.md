@@ -172,6 +172,26 @@ own data run on a fresh copy of the sandbox for every story.
 
 ([decision](docs/decisions/017-catalogue-and-visual-tests.md))
 
+### 13. The same API on Postgres, and races the database can't lose
+
+Built with `NEXT_PUBLIC_BACKEND=server`, the app talks to a server instead of the
+sandbox: Next route handlers answer `/api/*` with the very handlers the sandbox runs in
+its service worker, over Postgres. The same ten HTTP contract tests pass on both
+backends, and so do 18 end-to-end buyer flows.
+
+- **Stock and seats:** a hold takes tickets with one conditional update of the tier's
+  row, and seats with a partial unique index. Against real Postgres, 50 buyers at the
+  last 10 tickets get exactly 10, and 20 buyers for one pair of seats get one.
+- **Everything else:** the sandbox's own rules, run on the server's rows under a lock on
+  the hold. Ten payments at once for one order give one charge.
+- **Webhooks:** signed by a simulated provider, checked over the raw body, and acted on
+  once, in the same transaction as their effect.
+- **A race test that couldn't fail:** on a cold connection pool, the first
+  "simultaneous" request finished before the rest connected. Each test pool now opens
+  every connection first, and a version without the lock fails.
+
+([decision](docs/decisions/018-server-mode.md))
+
 ## How it works
 
 ```mermaid
@@ -217,25 +237,25 @@ the chaos panel can genuinely control the server. MSW runs handlers in the page,
 server's state — including webhooks still waiting to be delivered — is persisted to
 sessionStorage and resumes after a reload: the outbox pattern.
 
-**What this doesn't exercise:** true multi-client concurrency. In a real database the
-availability check and the hold insert would be one transaction or a conditional
-`UPDATE … WHERE available >= quantity`; here the backend is single-threaded, so it's
-atomic by construction. Contention is simulated by a crowd of bot buyers. Swapping in a
-real backend means deleting `src/backend/` and the line that starts it — lint guarantees
-nothing else depends on it.
+**What the sandbox doesn't exercise:** true multi-client concurrency. In the browser the
+backend is single-threaded, so a hold is atomic by construction, and contention is
+simulated by a crowd of bot buyers. Server mode exercises the real thing: the same API
+on Postgres, where the database itself refuses an oversold tier or a seat held twice
+(see 13 above). The default build never loads it.
 ([decision](docs/decisions/001-simulated-backend.md))
 
 ## Quality
 
-| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `npm test`                   | 401 unit, component and HTTP-contract tests: the catalogue's fixtures against the contract, permissions and tenant isolation, keyset paging, CSV escaping, metrics in the organiser's time zone, refunds, the live stream, the virtualised table's ARIA, optimistic rollback, pricing and GST, UPI intents, expiry and cancelling, inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter |
-| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `npm run test:stories`       | 84 stories, each a test in Chromium: it renders, passes its play function (keyboard models, focus after a dialog, permissions, reserving on the sandbox) and has no axe violations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `npm run test:visual`        | 206 screenshots: every story in light and dark, and whole screens at 375 px, compared in Playwright's Linux image on arm64, with axe in both themes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `npm run test:e2e`           | 63 browser tests: one per chaos preset, plus the organisers' dashboard (filters in the URL, a 9,000-row table, CSV, refunds and their rollback, access, live updates, axe, a responsiveness budget), paying by UPI (approved, declined, expired, cancelled, after a refresh), all-in prices, a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion     |
-| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Check                        | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint` + `typecheck` | strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) and type-aware ESLint: naming conventions, exhaustive switches, and the layer boundaries                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `npm test`                   | 414 unit, component and HTTP-contract tests: the catalogue's fixtures against the contract, permissions and tenant isolation, keyset paging, CSV escaping, metrics in the organiser's time zone, refunds, the live stream, the virtualised table's ARIA, optimistic rollback, pricing and GST, UPI intents, expiry and cancelling, inventory, the order state machine (every legal and illegal transition), idempotency, webhook dedupe, persistence, problem details, the API client's error handling, the view-model state machines, the step registry, countdown maths, money and validation, the hall's geometry, the seat allocator, the seat map's keyboard model, the waiting room's line and the rate limiter                                                                  |
+| `npm run test:server`        | 35 tests of the server backend against real Postgres: concurrent holds and seats, ten payments at once, Idempotency-Keys across processes, signed webhooks (forged, altered, replayed, duplicated), and the shared HTTP contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `npm run test:coverage`      | the same, with coverage floors per layer: core, contract, the backend domain and HTTP adapter, the checkout rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `npm run test:stories`       | 84 stories, each a test in Chromium: it renders, passes its play function (keyboard models, focus after a dialog, permissions, reserving on the sandbox) and has no axe violations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `npm run test:visual`        | 206 screenshots: every story in light and dark, and whole screens at 375 px, compared in Playwright's Linux image on arm64, with axe in both themes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `npm run test:e2e`           | 65 browser tests (18 of them also run against server mode, `npm run test:e2e:server`): one per chaos preset, plus the organisers' dashboard (filters in the URL, a 9,000-row table, CSV, refunds and their rollback, access, live updates, axe, a responsiveness budget), paying by UPI (approved, declined, expired, cancelled, after a refresh), all-in prices, a flash sale through the waiting room, a rate limit waited out, a keyboard-only seat purchase, best available, axe on the seat map, a responsiveness budget, security headers and the content security policy, refresh-resume (mid-form and mid-payment), step guards, expiry and re-reserve, threshold announcements, focus management, hover contrast, axe (WCAG 2.2 AA) in light and dark, 375 px, reduced motion |
+| `npm run lhci`               | Lighthouse ≥ 95 everywhere — currently 100 / 100 / 100 / 100                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Accessibility details worth knowing: focus moves to each step's heading; the countdown
 is announced at 2 min, 1 min and 30 s rather than every second; errors are linked to
@@ -259,6 +279,16 @@ npm run build && npm run test:e2e
 
 No environment variables, keys or accounts needed.
 
+**Server mode,** on Postgres (installed by npm; nothing else to set up):
+
+```bash
+npm run db:up && npm run db:migrate   # a throwaway Postgres on port 54329, migrated
+npm run dev:server                    # the app, against it
+npm run test:server                   # the server backend against real Postgres
+npm run build:server && npm run test:e2e:server
+npm run db:down
+```
+
 ## Layout
 
 ```
@@ -269,10 +299,12 @@ src/
   lib/              API client, query factories, routes, safe storage, formatting
   contract/         the HTTP contract: routes, DTO and request schemas, problem types
   core/             the shared kernel: catalogue, pricing and GST, statuses, validation
-  backend/          the simulated service: domain, HTTP adapter, runtime, chaos presets
+  backend/          the service: domain, HTTP adapter, the in-browser runtime and chaos presets,
+                    and the server backend on Postgres (backend/postgres, backend/server.ts)
   instrumentation-client.ts   starts the backend before the app is interactive
 docs/               architecture, conventions, API, and decision records
 e2e/                Playwright, with page objects in fixtures.ts
+drizzle/            SQL migrations for server mode, generated from the schema
 .storybook/         the catalogue's config, and the sandbox each story runs on
 visual/             screenshot tests of every story, and their baselines
 ```
