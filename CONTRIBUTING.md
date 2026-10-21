@@ -39,7 +39,8 @@ screen has a story for every state it can be in ([ADR 017](docs/decisions/017-ca
 - **Screenshots compare only in Playwright's Linux image, on arm64,** the same as CI.
   On a Mac, install Docker (`brew install colima docker`, then `colima start`), and run
   `npm run test:visual`. It builds the catalogue, runs the browser in the image, and
-  writes the baseline of any new story.
+  writes the baseline of any new story. Docker's VM holds its memory while it runs, so
+  `colima stop` when you're done.
 - **Changed something on purpose?** `npm run test:visual -- --update-snapshots=changed`,
   then look at every changed image before committing it. On a failure, the HTML report
   (`playwright-report/visual`) shows the expected image, the actual one and the diff.
