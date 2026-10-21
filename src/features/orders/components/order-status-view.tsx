@@ -1,22 +1,48 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import Link from "next/link";
 import { getEvent } from "@/core/catalog";
 import { describePayment, formatEventDate, formatEventTime, formatMoney, formatSeat } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { saveTickets, ticketsFromOrder } from "@/lib/wallet";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
 import { useOrderStatus, type OrderPageState } from "@/features/orders/hooks/use-order-status";
 
+/** Whether this order's tickets are kept on this device, for offline. */
+export type WalletStatus = "saved" | "unavailable";
+
 /** The order page: whatever `useOrderStatus` says the order is doing. */
 export function OrderStatusView({ orderId }: { orderId: string }) {
-  return <OrderStatusScreen state={useOrderStatus(orderId)} />;
+  const state = useOrderStatus(orderId);
+  const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null);
+
+  // Once the tickets are issued, keep them on this device, so they open offline.
+  const fulfilledOrder = state.kind === "fulfilled" ? state.order : null;
+  useEffect(() => {
+    if (!fulfilledOrder) return;
+    let isCurrent = true;
+    void saveTickets(ticketsFromOrder(fulfilledOrder)).then((isSaved) => {
+      if (isCurrent) setWalletStatus(isSaved ? "saved" : "unavailable");
+    });
+    return () => {
+      isCurrent = false;
+    };
+  }, [fulfilledOrder]);
+
+  return <OrderStatusScreen state={state} walletStatus={walletStatus} />;
 }
 
 /** The order page for one state. It renders what it's given, so every state can be shown on its own. */
-export function OrderStatusScreen({ state }: { state: OrderPageState }) {
+export function OrderStatusScreen({
+  state,
+  walletStatus = null,
+}: {
+  state: OrderPageState;
+  walletStatus?: WalletStatus | null;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
 
   // When an outcome arrives, move focus to it so it's announced and in view.
@@ -101,6 +127,19 @@ export function OrderStatusScreen({ state }: { state: OrderPageState }) {
               </li>
             ))}
           </ul>
+          {walletStatus === "saved" && (
+            <p className="mt-6 text-sm text-ink-2">
+              Saved on this device, so they open without a connection.{" "}
+              <Link href={routes.tickets()} className="underline underline-offset-4">
+                Your tickets
+              </Link>
+            </p>
+          )}
+          {walletStatus === "unavailable" && (
+            <p className="mt-6 text-sm text-ink-2">
+              This browser isn’t keeping tickets for offline, so come back to this page at the door.
+            </p>
+          )}
           <p className="mt-6 text-sm text-ink-3">
             Paid {formatMoney(order.amounts.totalMinor, order.amounts.currency)}
             {order.payment && ` ${describePayment(order.payment)}`}. Order {order.id}.

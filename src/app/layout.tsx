@@ -36,19 +36,28 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </a>
         <Providers>
           <header className="border-b border-line">
-            <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-5 sm:px-8">
+            <div className="mx-auto flex h-16 max-w-5xl items-center gap-2 px-5 sm:gap-4 sm:px-8">
               <Link href="/" className="font-display text-lg font-semibold tracking-tight">
                 admit<span className="text-accent">·</span>one
               </Link>
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
                 Demo — no real payments
               </span>
+              <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                <Link
+                  href="/tickets"
+                  className="rounded-md px-1.5 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline sm:px-2"
+                >
+                  <span className="sm:hidden">Tickets</span>
+                  <span className="hidden sm:inline">Your tickets</span>
+                </Link>
+              </div>
               {/* The organisers' dashboard and the chaos panel are the sandbox's: server mode has neither. */}
               {!isServerMode && (
-                <div className="ml-auto flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <Link
                     href="/organiser"
-                    className="rounded-md px-2 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                    className="rounded-md px-1.5 py-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline sm:px-2"
                   >
                     <span className="sm:hidden">Organisers</span>
                     <span className="hidden sm:inline">For organisers</span>
