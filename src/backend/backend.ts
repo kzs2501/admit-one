@@ -39,6 +39,7 @@ import {
   type UpiAppDecision,
 } from "./domain/payments";
 import { createInitialState, type IdempotencyRecord, type LogKind, type ServerState } from "./domain/state";
+import type { IdempotencyClaim, IdempotencyStore } from "./idempotency-store";
 import {
   toEventView,
   toHoldDetailsView,
@@ -91,6 +92,8 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
   };
 
   const isLive = (record: IdempotencyRecord) => deps.now() - record.createdAtMs < IDEMPOTENCY_KEY_TTL_MS;
+  /** Idempotency-Keys whose request is still being handled, with that request's fingerprint. */
+  const keysInFlight = new Map<string, string>();
 
   const notify = () => {
     version += 1;
@@ -244,20 +247,32 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     getOrganiserOrder: (account: Account, orderId: string): Result<OrganiserOrderView> =>
       map(findOrganiserOrder(context, account, orderId), toOrganiserOrderView),
 
-    /** The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A key past its TTL is new again. */
+    /**
+     * The idempotency store: stored HTTP responses, kept with the rest of the sandbox. A
+     * key past its TTL is new again. Keys in flight live only in memory: a reload ends
+     * every request that was in flight.
+     */
     idempotency: {
-      find: (key: string): IdempotencyRecord | undefined => {
+      claim: (key: string, fingerprint: string): IdempotencyClaim => {
         const record = context.state.idempotency[key];
-        return record && isLive(record) ? record : undefined;
+        if (record && isLive(record)) return { kind: "stored", record };
+        const inFlight = keysInFlight.get(key);
+        if (inFlight !== undefined) return { kind: "in-flight", fingerprint: inFlight };
+        keysInFlight.set(key, fingerprint);
+        return { kind: "claimed" };
       },
-      save: (key: string, record: Omit<IdempotencyRecord, "createdAtMs">) => {
+      complete: (key: string, record: Omit<IdempotencyRecord, "createdAtMs">) => {
+        keysInFlight.delete(key);
         command(() => {
           // Saving is also when expired keys are dropped, so the store can't grow forever.
           const live = Object.entries(context.state.idempotency).filter(([, stored]) => isLive(stored));
           context.state.idempotency = Object.fromEntries([...live, [key, { ...record, createdAtMs: deps.now() }]]);
         });
       },
-    },
+      release: (key: string) => {
+        keysInFlight.delete(key);
+      },
+    } satisfies IdempotencyStore,
 
     /** When the next webhook is due, so the runtime can sleep until then. */
     nextDeliveryAtMs: () => nextDeliveryAtMs(context),

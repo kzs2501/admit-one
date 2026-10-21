@@ -1,10 +1,13 @@
 /**
- * The HTTP adapter of the simulated backend: routing, request parsing, status codes,
- * problem details, idempotency keys and latency. Everything domain-related is
- * delegated to the backend; these handlers are as thin as a real API's controllers.
+ * The HTTP adapter: routing, request parsing, status codes, problem details,
+ * idempotency keys and latency. Everything domain-related is delegated to the backend,
+ * through its port; these handlers are as thin as a real API's controllers. The buyer's
+ * API runs on either backend (the sandbox or Postgres); the waiting room and the
+ * organisers' API are the sandbox's alone.
  */
 import { http, HttpResponse } from "msw/http";
 import type { Backend } from "@/backend/backend";
+import type { BuyerPort } from "@/backend/port";
 import type { Result } from "@/backend/domain/errors";
 import type { PaymentResultView } from "@/backend/domain/views";
 import {
@@ -23,7 +26,7 @@ import {
   toQueueEntryDto,
   toSeatAvailabilityDto,
 } from "./mappers";
-import { anyOrigin, createKit, pathOf, type HandlerOptions, type Reply } from "./kit";
+import { anyOrigin, createKit, pathOf, type HandlerOptions, type Kit, type Reply } from "./kit";
 import { createOrganiserHandlers } from "./organiser-handlers";
 import { createSlidingWindow } from "./rate-limit";
 
@@ -36,9 +39,44 @@ const CARD_FAILURE_DETAILS = {
 const isCardFailure = (code: string | null): code is keyof typeof CARD_FAILURE_DETAILS =>
   code !== null && Object.hasOwn(CARD_FAILURE_DETAILS, code);
 
-export function createHandlers(backend: Backend, { sleep, random, now }: HandlerOptions) {
+/** The sandbox's whole API. */
+export function createHandlers(backend: Backend, options: HandlerOptions) {
+  const kit = createKit(backend, options);
+  return [
+    ...createBuyerHandlers(backend, options, kit),
+    ...createQueueHandlers(backend, kit),
+    ...createOrganiserHandlers(backend, kit),
+  ];
+}
+
+/** The waiting room: the sandbox's alone, since it's driven by its chaos presets. */
+function createQueueHandlers(backend: Backend, { latency, problemReply, resultReply, send }: Kit) {
+  return [
+    http.post<{ slug: string }>(anyOrigin(API_ROUTES.joinQueue), async ({ params, request }) => {
+      await latency();
+      const result = backend.joinQueue(params.slug);
+      return send(
+        request,
+        result.ok
+          ? { status: result.value.isNew ? 201 : 200, body: toQueueEntryDto(result.value.entry) }
+          : problemReply(result.error, request),
+      );
+    }),
+
+    http.get<{ token: string }>(anyOrigin(API_ROUTES.getQueueEntry), async ({ params, request }) => {
+      await latency();
+      return send(request, resultReply(backend.getQueueEntry(params.token), request, toQueueEntryDto));
+    }),
+  ];
+}
+
+/** The buyer's API: events, seats, holds, orders and payments, on either backend. */
+export function createBuyerHandlers(
+  backend: BuyerPort,
+  { sleep, random, now }: HandlerOptions,
+  kit: Kit = createKit(backend, { sleep, random }),
+) {
   const holdAttempts = createSlidingWindow(now);
-  const kit = createKit(backend, { sleep, random });
   const { latency, problemReply, resultReply, send, parseBody, withIdempotencyKey } = kit;
 
   // What the "connection drops" preset loses. The work has already happened; only the
@@ -87,33 +125,17 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
   return [
     http.get(anyOrigin(API_ROUTES.listEvents), async ({ request }) => {
       await latency();
-      return send(request, { status: 200, body: backend.listEvents().map(toEventDto) });
+      return send(request, { status: 200, body: (await backend.listEvents()).map(toEventDto) });
     }),
 
     http.get<{ slug: string }>(anyOrigin(API_ROUTES.getEvent), async ({ params, request }) => {
       await latency();
-      return send(request, resultReply(backend.getEvent(params.slug), request, toEventDto));
+      return send(request, resultReply(await backend.getEvent(params.slug), request, toEventDto));
     }),
 
     http.get<{ slug: string }>(anyOrigin(API_ROUTES.getSeatAvailability), async ({ params, request }) => {
       await latency();
-      return send(request, resultReply(backend.getSeatAvailability(params.slug), request, toSeatAvailabilityDto));
-    }),
-
-    http.post<{ slug: string }>(anyOrigin(API_ROUTES.joinQueue), async ({ params, request }) => {
-      await latency();
-      const result = backend.joinQueue(params.slug);
-      return send(
-        request,
-        result.ok
-          ? { status: result.value.isNew ? 201 : 200, body: toQueueEntryDto(result.value.entry) }
-          : problemReply(result.error, request),
-      );
-    }),
-
-    http.get<{ token: string }>(anyOrigin(API_ROUTES.getQueueEntry), async ({ params, request }) => {
-      await latency();
-      return send(request, resultReply(backend.getQueueEntry(params.token), request, toQueueEntryDto));
+      return send(request, resultReply(await backend.getSeatAvailability(params.slug), request, toSeatAvailabilityDto));
     }),
 
     http.post(anyOrigin(API_ROUTES.createHold), async ({ request }) => {
@@ -128,7 +150,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       return send(
         request,
         resultReply(
-          backend.createHold({ ...input.value, queueToken: request.headers.get(QUEUE_TOKEN_HEADER) }),
+          await backend.createHold({ ...input.value, queueToken: request.headers.get(QUEUE_TOKEN_HEADER) }),
           request,
           toHoldDetailsDto,
           201,
@@ -138,14 +160,14 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
 
     http.get<{ holdId: string }>(anyOrigin(API_ROUTES.getHold), async ({ params, request }) => {
       await latency();
-      return send(request, resultReply(backend.getHold(params.holdId), request, toHoldDetailsDto));
+      return send(request, resultReply(await backend.getHold(params.holdId), request, toHoldDetailsDto));
     }),
 
     http.post(anyOrigin(API_ROUTES.upsertOrder), async ({ request }) => {
       const input = await parseBody(request, upsertOrderRequestSchema);
       await latency();
       if (!input.ok) return send(request, input.reply);
-      const result = backend.upsertOrder(input.value);
+      const result = await backend.upsertOrder(input.value);
       return send(
         request,
         result.ok
@@ -159,7 +181,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       const checkCount = (statusCheckCounts.get(params.orderId) ?? 0) + 1;
       statusCheckCounts.set(params.orderId, checkCount);
       if (checkCount > 1 && checkCount <= 1 + backend.chaos().droppedStatusChecks) return lostResponse(request);
-      return send(request, resultReply(backend.getOrder(params.orderId), request, toOrderDto));
+      return send(request, resultReply(await backend.getOrder(params.orderId), request, toOrderDto));
     }),
 
     /**
@@ -169,7 +191,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
      * card — can be retried with the same key.
      */
     http.post<{ orderId: string }>(anyOrigin(API_ROUTES.createPayment), async ({ params, request }) => {
-      const reply = await withIdempotencyKey(request, { what: "Payments" }, (body) => {
+      const reply = await withIdempotencyKey(request, { what: "Payments" }, async (body) => {
         const schema = createPaymentRequestSchemaFor(body);
         const input = schema.safeParse(body);
         if (!input.success) {
@@ -177,7 +199,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
           const code = schema === upiPaymentRequestSchema ? "invalid_request" : "invalid_card";
           return { reply: problemReply({ code, detail }, request), isAttempted: false };
         }
-        const result = backend.createPayment(params.orderId, input.data);
+        const result = await backend.createPayment(params.orderId, input.data);
         return { reply: paymentReply(result, request), isAttempted: result.ok };
       });
       // The work happens *before* the response is delayed: that's what lets a webhook
@@ -198,7 +220,10 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
       const input = await parseBody(request, confirmChallengeRequestSchema);
       await latency();
       if (!input.ok) return send(request, input.reply);
-      return send(request, paymentReply(backend.confirmChallenge(params.paymentId, input.value.decision), request));
+      return send(
+        request,
+        paymentReply(await backend.confirmChallenge(params.paymentId, input.value.decision), request),
+      );
     }),
 
     /**
@@ -207,9 +232,7 @@ export function createHandlers(backend: Backend, { sleep, random, now }: Handler
      */
     http.post<{ paymentId: string }>(anyOrigin(API_ROUTES.cancelPayment), async ({ params, request }) => {
       await latency();
-      return send(request, resultReply(backend.cancelPayment(params.paymentId), request, toPaymentResultDto));
+      return send(request, resultReply(await backend.cancelPayment(params.paymentId), request, toPaymentResultDto));
     }),
-
-    ...createOrganiserHandlers(backend, kit),
   ];
 }

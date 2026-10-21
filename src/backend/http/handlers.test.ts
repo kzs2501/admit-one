@@ -18,7 +18,7 @@ import {
 import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER } from "@/contract/routes";
 import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan, valueOf } from "@/backend/testing/fixtures";
-import { createHandlers } from "./handlers";
+import { createBuyerHandlers, createHandlers } from "./handlers";
 
 let idCount = 0;
 // The backend's clock: real time, until a test needs to move it on (a queue, say).
@@ -34,12 +34,12 @@ const backend = createBackend(
 );
 // The rate limiter's clock: a whole window passes between tests, so each starts fresh.
 let limiterNowMs = 0;
-const network = setupServer(
-  ...createHandlers(backend, { sleep: () => Promise.resolve(), random: () => 0, now: () => limiterNowMs }),
-);
+const OPTIONS = { sleep: () => Promise.resolve(), random: () => 0, now: () => limiterNowMs };
+const network = setupServer(...createHandlers(backend, OPTIONS));
 
 beforeAll(() => network.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
+  network.resetHandlers();
   backend.setPreset("happy");
   backend.reset();
   limiterNowMs += 60 * 60_000;
@@ -151,6 +151,36 @@ describe("HTTP contract", () => {
     const replayBody: unknown = await replay.json();
     expect(replayBody).toEqual(firstBody);
     expect(paymentResultDtoSchema.parse(replayBody).payment.status).toBe("processing");
+    expect(Object.keys(backend.getState().payments)).toHaveLength(1);
+  });
+
+  it("answers 409 to a retry that arrives while the first request is still being handled", async () => {
+    const { order } = await reserveAndOrder();
+    // A backend whose charge takes as long as the test says: the first request waits inside it.
+    const hasArrived = Promise.withResolvers<undefined>();
+    const mayFinish = Promise.withResolvers<undefined>();
+    network.use(
+      ...createBuyerHandlers(
+        {
+          ...backend,
+          createPayment: async (...args) => {
+            hasArrived.resolve(undefined);
+            await mayFinish.promise;
+            return backend.createPayment(...args);
+          },
+        },
+        OPTIONS,
+      ),
+    );
+    const headers = { [IDEMPOTENCY_KEY_HEADER]: "key-in-flight" };
+    const first = post(`/api/orders/${order.id}/payments`, card, headers);
+    await hasArrived.promise;
+
+    await expectProblem(await post(`/api/orders/${order.id}/payments`, card, headers), 409, "idempotency_key_in_use");
+    mayFinish.resolve(undefined);
+    expect((await first).status).toBe(202);
+    // Once it has finished, the same request gets its answer back, and nothing is charged twice.
+    expect((await post(`/api/orders/${order.id}/payments`, card, headers)).status).toBe(202);
     expect(Object.keys(backend.getState().payments)).toHaveLength(1);
   });
 

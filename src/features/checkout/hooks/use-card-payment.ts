@@ -96,8 +96,11 @@ export function useCardPayment({
   return {
     pay: pay.mutate,
     isPaying: pay.isPending,
-    /** The outcome is unknown, so the same attempt — and key — is kept for a safe retry. */
-    hasConnectionProblem: pay.error instanceof NetworkError,
+    /**
+     * The outcome is unknown, so the same attempt — and key — is kept for a safe retry:
+     * the answer was lost, or the first request with the key is still being handled.
+     */
+    hasConnectionProblem: pay.error instanceof NetworkError || problemOf(pay.error)?.code === "idempotency_key_in_use",
     challengePaymentId,
     authenticate: authenticate.mutate,
     isAuthenticating: authenticate.isPending,

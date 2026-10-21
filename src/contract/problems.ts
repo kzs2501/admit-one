@@ -27,6 +27,7 @@ const plainProblemCodeSchema = z.enum([
   "payment_in_progress",
   "missing_idempotency_key",
   "idempotency_key_reused",
+  "idempotency_key_in_use",
   "invalid_card",
   "invalid_state",
   "unauthenticated",
@@ -137,6 +138,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     status: 422,
     title: "Idempotency-Key reused",
     description: "The key was already used for a different request. Use a new key for a new payment attempt.",
+  },
+  idempotency_key_in_use: {
+    status: 409,
+    title: "Request still in progress",
+    description:
+      "A request with this Idempotency-Key is still being handled. Wait a moment and send the same request again: you’ll get its answer, and nothing happens twice.",
   },
   invalid_card: {
     status: 422,

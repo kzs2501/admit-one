@@ -5,7 +5,7 @@
  */
 import { HttpResponse } from "msw/http";
 import type { z } from "@/core/zod";
-import type { Backend } from "@/backend/backend";
+import type { Awaitable, KitPort } from "@/backend/port";
 import type { DomainError, Result } from "@/backend/domain/errors";
 import type { JsonValue } from "@/backend/domain/state";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
@@ -42,7 +42,7 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptions, "sleep" | "random">) {
+export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptions, "sleep" | "random">) {
   const latency = (extraMs = 0) => {
     const [minMs, maxMs] = backend.chaos().latencyRangeMs;
     return sleep(minMs + random() * (maxMs - minMs) + extraMs);
@@ -103,7 +103,7 @@ export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptio
   async function withIdempotencyKey(
     request: Request,
     { what, scope = "" }: { what: string; scope?: string },
-    attempt: (body: unknown) => { reply: Reply; isAttempted: boolean },
+    attempt: (body: unknown) => Awaitable<{ reply: Reply; isAttempted: boolean }>,
   ): Promise<Reply> {
     const key = request.headers.get(IDEMPOTENCY_KEY_HEADER);
     if (!key) {
@@ -115,20 +115,41 @@ export function createKit(backend: Backend, { sleep, random }: Pick<HandlerOptio
     const body = await readJson(request);
     const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
     const storedKey = scope ? `${scope}:${key}` : key;
-    const stored = backend.idempotency.find(storedKey);
-    if (stored) {
-      if (stored.fingerprint !== fingerprint) {
+    // Claim the key before doing anything, so a retry that arrives mid-request can't
+    // start the same work again.
+    const claim = await backend.idempotency.claim(storedKey, fingerprint);
+    if (claim.kind !== "claimed") {
+      const claimedFingerprint = claim.kind === "stored" ? claim.record.fingerprint : claim.fingerprint;
+      if (claimedFingerprint !== fingerprint) {
         return problemReply(
           { code: "idempotency_key_reused", detail: "That Idempotency-Key was used for a different request." },
           request,
         );
       }
+      if (claim.kind === "in-flight") {
+        return problemReply(
+          {
+            code: "idempotency_key_in_use",
+            detail: "A request with this Idempotency-Key is still being handled. Try again in a moment.",
+          },
+          request,
+        );
+      }
       backend.log("payment", "Idempotency-Key replayed — returning the original response, nothing done twice.");
-      return { status: stored.status, body: stored.body };
+      return { status: claim.record.status, body: claim.record.body };
     }
-    const { reply, isAttempted } = attempt(body);
-    if (isAttempted) backend.idempotency.save(storedKey, { fingerprint, ...reply });
-    return reply;
+    try {
+      const { reply, isAttempted } = await attempt(body);
+      if (isAttempted) {
+        await backend.idempotency.complete(storedKey, { fingerprint, ...reply });
+      } else {
+        await backend.idempotency.release(storedKey);
+      }
+      return reply;
+    } catch (error) {
+      await backend.idempotency.release(storedKey);
+      throw error;
+    }
   }
 
   return { latency, problemReply, resultReply, send, sendText, sendEmpty, parseBody, withIdempotencyKey };
