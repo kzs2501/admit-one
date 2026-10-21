@@ -67,6 +67,33 @@ jobs:
             test-results
             .lighthouseci
 
+  server:
+    # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
+    # embedded-postgres package, as it does on a laptop, so there's no service to run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run db:up
+      - name: The server backend against real Postgres (races, webhooks, the shared contract)
+        run: npm run test:server
+      - run: npm run build:server
+      - run: npx playwright install --with-deps chromium
+      - name: The buyer's flows against server mode
+        run: npm run test:e2e:server
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: server-reports
+          path: |
+            playwright-report
+            test-results/server
+
   visual:
     # Screenshots only compare on the machine that made them: the same OS, browser build,
     # fonts and CPU architecture. This is Playwright's Linux image on arm64, the same as
