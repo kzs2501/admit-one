@@ -3,8 +3,9 @@
  * runs in one (MSW's), so this worker does both jobs, as MSW's docs suggest ("Merging
  * service workers"). What it does is in its URL, so each build registers one URL:
  *
- * - `offline=1` keeps the tickets wallet working with no network. Its page is
- *   network-first and cached; the build's hashed assets are served cache-first; any
+ * - `offline=1` keeps the tickets wallet and the door scanner working with no network.
+ *   Their pages are network-first and cached; the build's hashed assets, and the
+ *   versioned files in /vendor/ (the scanner's QR reader), are served cache-first; any
  *   other page, offline, gets a short page that points to the wallet.
  * - `mocking=1` then imports MSW's worker, which answers `/api/*` for the sandbox.
  *
@@ -21,8 +22,10 @@ const VERSION = "v1";
 const PAGES = `admit-one-pages-${VERSION}`;
 const ASSETS = `admit-one-assets-${VERSION}`;
 /** Pages that work with no network. */
-const OFFLINE_PAGES = ["/tickets"];
-/** Hashed assets are kept up to this many, oldest first out, so old builds don't pile up. */
+const OFFLINE_PAGES = ["/tickets", "/scan"];
+/** Files named by their content or version, so a cached copy is never stale. */
+const isImmutable = (url) => url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/vendor/");
+/** Those are kept up to this many, oldest first out, so old builds don't pile up. */
 const MAX_ASSETS = 200;
 /** On a slow network, a cached offline page is shown after this long. */
 const NETWORK_TIMEOUT_MS = 3000;
@@ -55,7 +58,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== PREPARE_OFFLINE) return;
   event.stopImmediatePropagation();
-  if (OFFLINE) event.waitUntil(prepareOffline());
+  if (OFFLINE) event.waitUntil(Promise.all([prepareOffline(), keep(event.source, event.data.urls)]));
 });
 
 self.addEventListener("fetch", (event) => {
@@ -69,7 +72,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.stopImmediatePropagation();
     event.respondWith(OFFLINE_PAGES.includes(url.pathname) ? offlinePage(event, url.pathname) : anyPage(event));
-  } else if (url.pathname.startsWith("/_next/static/")) {
+  } else if (isImmutable(url)) {
     event.stopImmediatePropagation();
     event.respondWith(asset(event));
   }
@@ -108,7 +111,7 @@ async function anyPage(event) {
   }
 }
 
-/** Hashed, so never stale: the cached copy when there is one. Kept for offline pages. */
+/** Never stale, so the cached copy when there is one. Kept when an offline page asks. */
 async function asset(event) {
   const cache = await caches.open(ASSETS);
   // A hashed URL names one file, whatever the request's headers.
@@ -151,6 +154,24 @@ function prepareOffline() {
   return prepared;
 }
 
+/**
+ * Keep the files an offline page loaded before this worker controlled it: on a first
+ * visit, the page's own requests never reached the worker. Only the build's immutable
+ * files, and only from the offline pages.
+ */
+async function keep(source, urls) {
+  if (!source || !Array.isArray(urls) || !OFFLINE_PAGES.includes(new URL(source.url).pathname)) return;
+  const cache = await caches.open(ASSETS);
+  for (const href of urls) {
+    const url = new URL(href, self.location.origin);
+    if (url.origin !== self.location.origin || !isImmutable(url)) continue;
+    if (await cache.match(url, { ignoreVary: true })) continue;
+    const response = await fetch(url, { priority: "low" });
+    if (response.ok) await cache.put(url, response);
+  }
+  await trim(cache);
+}
+
 /** The build's assets a page's HTML names: its scripts, styles, fonts, and the chunks its
  * inline React payload refers to (as JSON inside a script, so with escaped quotes). */
 function assetsNamedIn(html) {
@@ -185,6 +206,7 @@ function offlineFallback() {
 <h1>You’re offline</h1>
 <p>This page needs a connection. Your tickets are saved on this device.</p>
 <p><a href="/tickets">Open your tickets</a></p>
+<p><a href="/scan">Open the door scanner</a></p>
 </main>
 </body>
 </html>`;

@@ -131,7 +131,7 @@ const eslintConfig = defineConfig([
   },
   {
     // Next.js and tool configs require default exports.
-    files: ["src/app/**/*.{ts,tsx}", "*.config.{ts,mts,mjs}", "src/instrumentation-client.ts"],
+    files: ["src/app/**/*.{ts,tsx}", "*.config.{ts,mts,mjs}", "src/instrumentation-client.ts", "e2e/global-setup.ts"],
     rules: { "import/no-default-export": "off" },
   },
   {

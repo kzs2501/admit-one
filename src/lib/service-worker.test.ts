@@ -49,7 +49,7 @@ describe("preparing for offline", () => {
 
     window.dispatchEvent(new Event("load"));
     await vi.waitFor(() => {
-      expect(postMessage).toHaveBeenCalledWith({ type: "admit-one:prepare-offline" });
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "admit-one:prepare-offline" }));
     });
     // In the sandbox, MSW's start registers the worker.
     expect(register).not.toHaveBeenCalled();
@@ -63,6 +63,24 @@ describe("preparing for offline", () => {
       expect(postMessage).toHaveBeenCalled();
     });
     expect(register).toHaveBeenCalledWith(SERVICE_WORKER_URL, { updateViaCache: "none" });
+  });
+
+  it("tells the worker which of the build's files the page loaded before it took over", async () => {
+    const { keepForOffline } = await load({ nodeEnv: "production" });
+    const { postMessage } = stubWorker();
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+      { name: `${location.origin}/_next/static/chunks/reader.js` },
+      { name: `${location.origin}/vendor/zxing_reader-1.0.0.wasm` },
+      { name: `${location.origin}/api/events` },
+      { name: "https://elsewhere.example/_next/static/chunks/x.js" },
+    ] as PerformanceEntry[]);
+    keepForOffline();
+    await vi.waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith({
+        type: "admit-one:prepare-offline",
+        urls: [`${location.origin}/_next/static/chunks/reader.js`, `${location.origin}/vendor/zxing_reader-1.0.0.wasm`],
+      });
+    });
   });
 
   it("does nothing in development, where caching would hide a change", async () => {

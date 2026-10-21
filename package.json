@@ -31,7 +31,8 @@
     "lhci:mobile": "lhci autorun --config=lighthouserc.mobile.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "node scripts/copy-zxing-wasm.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -40,6 +41,7 @@
     "@tanstack/react-query": "^5.104.2",
     "@tanstack/react-table": "^9.3.1",
     "@tanstack/react-virtual": "^3.14.21",
+    "barcode-detector": "^3.2.3",
     "drizzle-orm": "^0.45.4",
     "idb-keyval": "^6.3.0",
     "msw": "^3.0.3",

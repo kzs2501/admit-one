@@ -15,3 +15,5 @@ storybook-static
 *storybook.log
 .postgres
 .next-server
+# Copied from node_modules after install (scripts/copy-zxing-wasm.mjs)
+public/vendor

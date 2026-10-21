@@ -19,6 +19,7 @@ export const routes = {
     (query?.size ? `/organiser/orders?${query.toString()}` : "/organiser/orders") as Route,
   organiserOrder: (orderId: string) => `/organiser/orders/${encodeURIComponent(orderId)}` as Route,
   tickets: (): Route => "/tickets",
+  scanner: (): Route => "/scan",
   problems: (): Route => "/problems",
   problem: (code: ProblemCode) => problemPathFor(code) as Route,
 };

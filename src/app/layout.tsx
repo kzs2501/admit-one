@@ -88,7 +88,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 {isServerMode ? "The backend runs on a server, on Postgres." : "The backend runs in your browser."}
               </p>
               <p>
-                Built by{" "}
+                <Link className="underline underline-offset-4 hover:text-ink" href="/scan">
+                  Door scanner
+                </Link>{" "}
+                · Built by{" "}
                 <a className="underline underline-offset-4 hover:text-ink" href={SITE.authorUrl}>
                   {SITE.author}
                 </a>{" "}
