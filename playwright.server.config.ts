@@ -39,6 +39,9 @@ export default defineConfig<object, ServerModeOptions>({
       NEXT_DIST_DIR: ".next-server",
       DATABASE_URL: databaseUrl,
       WEBHOOK_SECRET: "whsec_e2e",
+      // A key for these tests only, so tickets are signed as in production, on CI and off it.
+      TICKET_SIGNING_KEY: "VgjR3ifEFNcI1PdhTvaCo_-w09pHOzQ9pGr8xhm6i-Q",
+      TICKET_KEY_ID: "e2e-1",
       ...(process.env["DATABASE_SERVER_URL"] ? {} : { PG_PORT: "54329" }),
     },
   },
