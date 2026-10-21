@@ -19,6 +19,7 @@ import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER, QUEUE_TOKEN_HEADER } from "@/contract/routes";
 import { freeSeatRun, gapMakingSelection, SEATED_EVENT, seatedPlan, valueOf } from "@/backend/testing/fixtures";
 import { createBuyerHandlers, createHandlers } from "./handlers";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 let idCount = 0;
 // The backend's clock: real time, until a test needs to move it on (a queue, say).
@@ -29,6 +30,7 @@ const backend = createBackend(
     newId: (prefix) => `${prefix}_${++idCount}`,
     newToken: () => `token_${++idCount}`,
     random: () => 0.5,
+    signTicket: signDemoTicket,
   },
   createInitialState("happy", backendNowMs),
 );

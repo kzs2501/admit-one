@@ -6,6 +6,8 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSeatPlan } from "@/core/catalog";
+import { DEMO_TICKET_KEY_ID, DEMO_TICKET_PUBLIC_KEY } from "@/core/demo-ticket-key";
+import { ticketKeyFrom, verifyTicket } from "@/core/ticket-token";
 import {
   eventDtoSchema,
   holdDetailsDtoSchema,
@@ -176,6 +178,14 @@ export function describeBuyerContract(backendName: string, createHarness: () => 
       const after = orderDtoSchema.parse(await (await call(`/api/orders/${id}`)).json());
       expect(after).toMatchObject({ status: "fulfilled", payment: { status: "succeeded" } });
       expect(after.tickets.map((ticket) => ticket.attendeeName)).toEqual(["Guest 1", "Guest 2"]);
+      // Each ticket is signed: a door verifies it with the public key alone.
+      const keyring = new Map([[DEMO_TICKET_KEY_ID, ticketKeyFrom(DEMO_TICKET_PUBLIC_KEY)]]);
+      for (const ticket of after.tickets) {
+        expect(verifyTicket(ticket.token, keyring)).toMatchObject({
+          ok: true,
+          claims: { code: ticket.code, eventSlug: after.eventSlug, attendeeName: ticket.attendeeName },
+        });
+      }
     });
 
     it("refuses an order for a hold that has run out", async () => {

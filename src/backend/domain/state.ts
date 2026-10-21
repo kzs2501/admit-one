@@ -19,7 +19,7 @@ import {
 } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 13;
+const STATE_VERSION = 14;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -67,7 +67,14 @@ const orderRecordSchema = z.object({
   status: z.enum(ORDER_STATUSES),
   statusReason: z.string().nullable(),
   tickets: z.array(
-    z.object({ code: z.string(), attendeeName: z.string(), tierName: z.string(), seatId: z.string().nullable() }),
+    z.object({
+      code: z.string(),
+      attendeeName: z.string(),
+      tierName: z.string(),
+      seatId: z.string().nullable(),
+      /** Signed when issued (core/ticket-token): what the door verifies. */
+      token: z.string(),
+    }),
   ),
   paymentId: z.string().nullable(),
   createdAtMs: epochMsSchema,

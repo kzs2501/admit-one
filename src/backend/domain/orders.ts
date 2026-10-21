@@ -3,6 +3,7 @@
  * order state machine, and fulfilled with tickets once paid.
  */
 import { getEvent } from "@/core/catalog";
+import { seatLabel } from "@/core/seating";
 import { priceOrder } from "@/core/pricing";
 import type { Attendee } from "@/core/schemas";
 import type { OrderStatus, PaymentFailureCode, PaymentStatus } from "@/core/statuses";
@@ -115,12 +116,23 @@ export function issueTickets(context: BackendContext, order: OrderRecord) {
   const tierIds = order.items.flatMap(({ tierId, quantity }) => Array.from({ length: quantity }, () => tierId));
   order.tickets = order.attendees.map((attendee, i) => {
     const tierId = seatTierIds[i] ?? tierIds[i];
-    return {
+    const seatId = seatIds[i] ?? null;
+    const seat = seatId && seating.kind === "reserved" ? seating.plan.seatsById.get(seatId) : undefined;
+    const ticket = {
       code: createTicketCode(context),
       attendeeName: attendee.name,
       tierName: tierId ? tierName(tierId) : "Ticket",
-      seatId: seatIds[i] ?? null,
+      seatId,
     };
+    // Signed as it's issued: the token is the ticket, as far as the door is concerned.
+    const token = context.deps.signTicket({
+      code: ticket.code,
+      eventSlug: order.eventSlug,
+      attendeeName: ticket.attendeeName,
+      tierName: ticket.tierName,
+      seat: seat ? seatLabel(seat) : null,
+    });
+    return { ...ticket, token };
   });
 }
 

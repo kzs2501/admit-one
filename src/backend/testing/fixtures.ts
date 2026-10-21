@@ -9,6 +9,7 @@ import { TEST_CARDS, type PaymentInput } from "@/backend/domain/payments";
 import { createInitialState } from "@/backend/domain/state";
 import { getEvent } from "@/core/catalog";
 import { findSingleSeatGaps, type Seat, type SeatPlan } from "@/core/seating";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 export const START_MS = Date.UTC(2026, 9, 12, 10, 0, 0);
 
@@ -28,6 +29,7 @@ export function createTestBackend(presetId: PresetId = "happy") {
       newId: (prefix) => `${prefix}_${++idCount}`,
       newToken: () => `token_${++idCount}`,
       random: () => 0.42,
+      signTicket: signDemoTicket,
     },
     createInitialState(presetId, START_MS),
   );

@@ -13,6 +13,7 @@ import { createInitialState } from "@/backend/domain/state";
 import { createHandlers } from "@/backend/http/handlers";
 import { seededRandom } from "@/core/random";
 import { setApiReadiness } from "@/lib/api-client";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 /** What a story may ask of its backend, as `parameters.sandbox`. */
 export interface SandboxParameters {
@@ -30,6 +31,7 @@ function createStoryBackend(presetId: PresetId): Backend {
       newId: (prefix) => `${prefix}_${String(++idCount).padStart(4, "0")}`,
       newToken: () => `story-token-${++idCount}`,
       random,
+      signTicket: signDemoTicket,
     },
     createInitialState(presetId, Date.now()),
   );

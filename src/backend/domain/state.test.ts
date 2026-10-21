@@ -4,6 +4,7 @@ import { createBackend } from "@/backend/backend";
 import { DEFAULT_CHAOS } from "@/backend/chaos/presets";
 import { createTestBackend, purchase, testAttendees, valueOf } from "@/backend/testing/fixtures";
 import { createInitialState, deserializeState, serializeState } from "./state";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 describe("persisted state", () => {
   it("survives a reload mid-payment, including the webhook still in the outbox", () => {
@@ -13,7 +14,13 @@ describe("persisted state", () => {
     expect(restoredState).not.toBeNull();
 
     const restored = createBackend(
-      { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
+      {
+        now: clock.now,
+        newId: (prefix) => `${prefix}_restored`,
+        newToken: () => "token_restored",
+        random: () => 0.1,
+        signTicket: signDemoTicket,
+      },
       restoredState ?? createInitialState("happy", clock.now()),
     );
     expect(restored.nextDeliveryAtMs()).not.toBeNull();
@@ -34,7 +41,13 @@ describe("persisted state", () => {
     const restoredState = deserializeState(serializeState(backend.getState()));
     expect(restoredState?.payments[payment.id]).toMatchObject({ method: "upi", status: "processing" });
     const restored = createBackend(
-      { now: clock.now, newId: (prefix) => `${prefix}_restored`, newToken: () => "token_restored", random: () => 0.1 },
+      {
+        now: clock.now,
+        newId: (prefix) => `${prefix}_restored`,
+        newToken: () => "token_restored",
+        random: () => 0.1,
+        signTicket: signDemoTicket,
+      },
       restoredState ?? createInitialState("happy", clock.now()),
     );
     clock.advance(DEFAULT_CHAOS.webhookDelayMs);

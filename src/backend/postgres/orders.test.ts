@@ -7,6 +7,7 @@ import { ABANDONED_AFTER_MS } from "./idempotency";
 import { SERVER_SETTINGS } from "./records";
 import { payments, providerEvents } from "./schema";
 import { createTestDatabase } from "./testing/database";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 const STUDIO = "open-studio-ceramics";
 
@@ -21,6 +22,7 @@ beforeAll(async () => {
     now: () => nowMs,
     newId: (prefix) => `${prefix}_${String(++idCount)}`,
     random: () => 0.42,
+    signTicket: signDemoTicket,
   });
 });
 afterAll(() => database.drop());

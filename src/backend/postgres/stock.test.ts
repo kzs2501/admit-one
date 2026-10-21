@@ -7,6 +7,7 @@ import { SERVER_SETTINGS } from "./records";
 import { inventory, seatClaims } from "./schema";
 import { createTestDatabase } from "./testing/database";
 import { freeSeatPair } from "./testing/seats";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 const SUMMIT = "frontend-systems-summit";
 const GENERAL = "fss-general";
@@ -24,6 +25,7 @@ beforeAll(async () => {
     now: () => nowMs,
     newId: (prefix) => `${prefix}_${String(++idCount)}`,
     random: () => 0.5,
+    signTicket: signDemoTicket,
   });
 });
 afterAll(() => database.drop());

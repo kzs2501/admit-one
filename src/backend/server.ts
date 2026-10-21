@@ -11,6 +11,8 @@ import { randomUUID } from "node:crypto";
 import { getResponse } from "msw";
 import { http } from "msw/http";
 import { API_ROUTES } from "@/contract/routes";
+import { signDemoTicket } from "@/core/demo-ticket-key";
+import { signTicket, ticketKeyFrom, type TicketClaims } from "@/core/ticket-token";
 import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
@@ -80,6 +82,21 @@ export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret 
 export type ServerApi = ReturnType<typeof createServerApi>;
 
 const DEVELOPMENT_DATABASE = "postgres://admit@localhost:54329/admit_one";
+
+/**
+ * The server's ticket-signing key, from TICKET_SIGNING_KEY (32 bytes, base64url) and
+ * TICKET_KEY_ID; scanners trust it by its public key (NEXT_PUBLIC_TICKET_PUBLIC_KEY).
+ * Outside production it falls back to the sandbox's demo key.
+ */
+function ticketSignerFrom(env: NodeJS.ProcessEnv, isProduction: boolean): (claims: TicketClaims) => string {
+  const secret = env["TICKET_SIGNING_KEY"];
+  if (!secret) {
+    if (isProduction) throw new Error("TICKET_SIGNING_KEY must be set for the server backend in production.");
+    return signDemoTicket;
+  }
+  const key = { kid: env["TICKET_KEY_ID"] ?? "server-1", secretKey: ticketKeyFrom(secret) };
+  return (claims) => signTicket(claims, key);
+}
 const DEVELOPMENT_SECRET = "whsec_development_only";
 
 let serverApi: Promise<ServerApi> | null = null;
@@ -99,6 +116,7 @@ export function getServerApi(): Promise<ServerApi> {
         now: Date.now,
         newId: (prefix) => `${prefix}_${randomUUID().replaceAll("-", "").slice(0, 16)}`,
         random: Math.random,
+        signTicket: ticketSignerFrom(process.env, isProduction),
       },
       { webhookSecret },
     );

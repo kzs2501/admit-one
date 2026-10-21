@@ -9,6 +9,7 @@
  */
 import { createBackend, type Backend } from "@/backend/backend";
 import { createInitialState, deserializeState, SANDBOX_STORAGE_KEY, serializeState } from "@/backend/domain/state";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 let sandboxInstance: Backend | null = null;
 
@@ -76,7 +77,7 @@ function startRuntime(sandbox: Backend) {
 export function getSandbox(): Backend {
   if (!sandboxInstance) {
     sandboxInstance = createBackend(
-      { now: Date.now, newId, newToken, random: Math.random },
+      { now: Date.now, newId, newToken, random: Math.random, signTicket: signDemoTicket },
       load() ?? createInitialState("happy", Date.now()),
     );
     startRuntime(sandboxInstance);

@@ -2,6 +2,7 @@ import { afterAll, beforeAll } from "vitest";
 import { createServerApi } from "@/backend/server";
 import { describeBuyerContract } from "@/backend/testing/buyer-contract";
 import { createTestDatabase } from "./testing/database";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let nowMs = Date.UTC(2026, 9, 21, 6, 30);
@@ -18,7 +19,12 @@ describeBuyerContract("the server, on Postgres", () => {
   nowMs += 10 * 60_000;
   const api = createServerApi(
     database.db,
-    { now: () => nowMs, newId: (prefix) => `${prefix}_${String(++idCount)}`, random: () => 0 },
+    {
+      now: () => nowMs,
+      newId: (prefix) => `${prefix}_${String(++idCount)}`,
+      random: () => 0,
+      signTicket: signDemoTicket,
+    },
     { webhookSecret: "whsec_contract" },
   );
   return {

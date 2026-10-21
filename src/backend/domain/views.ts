@@ -66,6 +66,8 @@ export interface TicketView {
   attendeeName: string;
   tierName: string;
   seat: SeatView | null;
+  /** Signed: a door can verify it offline with the public key. */
+  token: string;
 }
 
 export interface HoldView {

@@ -13,6 +13,7 @@ import { inventory, providerEvents, seatClaims } from "./schema";
 import { createTestDatabase } from "./testing/database";
 import { freeSeatPair } from "./testing/seats";
 import { createWebhookReceiver, sendDueWebhooks } from "./webhooks";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 
 const SECRET = "whsec_test_secret";
 const ORIGIN = "http://admit-one.test";
@@ -23,7 +24,12 @@ let backend: PostgresBackend;
 let nowMs = Date.UTC(2026, 9, 21, 6, 30);
 let idCount = 0;
 let handlers: ReturnType<typeof createWebhookHandlers>;
-const deps = { now: () => nowMs, newId: (prefix: string) => `${prefix}_${String(++idCount)}`, random: () => 0.42 };
+const deps = {
+  now: () => nowMs,
+  newId: (prefix: string) => `${prefix}_${String(++idCount)}`,
+  random: () => 0.42,
+  signTicket: signDemoTicket,
+};
 
 beforeAll(async () => {
   database = await createTestDatabase();

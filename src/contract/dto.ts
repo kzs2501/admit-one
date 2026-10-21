@@ -127,6 +127,8 @@ export const ticketDtoSchema = z.object({
   attendeeName: z.string(),
   tierName: z.string(),
   seat: seatDtoSchema.nullable(),
+  /** The ticket, signed: `ao1.<kid>.<payload>.<signature>` (Ed25519), verifiable offline. */
+  token: z.string(),
 });
 
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);

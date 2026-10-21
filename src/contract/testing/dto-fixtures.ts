@@ -6,6 +6,7 @@
  */
 import type { EventDto, HoldDto, OrderDto, PaymentDto, SeatDto } from "@/contract/dto";
 import { getEvent, getSeatPlan } from "@/core/catalog";
+import { signDemoTicket } from "@/core/demo-ticket-key";
 import { priceOrder } from "@/core/pricing";
 import type { LineItem } from "@/core/ticketing";
 
@@ -92,12 +93,20 @@ export function orderFor(
     status,
     statusReason,
     tickets: isIssued
-      ? draft.attendees.map((attendee, i) => ({
-          code: TICKET_CODES[i] ?? `CODE-${i}`,
-          attendeeName: attendee.name,
-          tierName: tierNames[i] ?? "",
-          seat: hold.seats[i] ?? null,
-        }))
+      ? draft.attendees.map((attendee, i) => {
+          const seat = hold.seats[i] ?? null;
+          const ticket = {
+            code: TICKET_CODES[i] ?? `CODE-${String(i)}`,
+            attendeeName: attendee.name,
+            tierName: tierNames[i] ?? "",
+          };
+          const token = signDemoTicket({
+            ...ticket,
+            eventSlug: hold.eventSlug,
+            seat: seat ? `${seat.sectionName}, row ${seat.row}, seat ${String(seat.number)}` : null,
+          });
+          return { ...ticket, seat, token };
+        })
       : [],
     payment,
     createdAt: isoIn(-MINUTE_MS),

@@ -1,4 +1,5 @@
 import type { ChaosConfig } from "@/backend/chaos/presets";
+import type { TicketClaims } from "@/core/ticket-token";
 import type { LogKind, ServerState } from "./state";
 
 /** What the outside world provides — injected, so every rule runs on a fake clock in tests. */
@@ -8,6 +9,8 @@ export interface Deps {
   /** A secret, such as a session token: unguessable, unlike an id. */
   newToken: () => string;
   random: () => number;
+  /** Sign a ticket as it's issued, so a door can verify it offline (core/ticket-token). */
+  signTicket: (claims: TicketClaims) => string;
 }
 
 /**
