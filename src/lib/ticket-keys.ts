@@ -10,11 +10,8 @@
  *   so a production server's scanner never trusts it.
  */
 import { DEMO_TICKET_KEY_ID, DEMO_TICKET_PUBLIC_KEY } from "@/core/demo-ticket-key";
-import { ticketKeyFrom, type TicketKeyring } from "@/core/ticket-token";
+import { DEFAULT_SERVER_KEY_ID, ticketKeyFrom, type TicketKeyring } from "@/core/ticket-token";
 import { isServerMode } from "./backend-mode";
-
-/** The server's default key id, as `backend/server.ts` signs with. */
-const SERVER_KEY_ID = "server-1";
 
 export interface DoorKeyConfig {
   isServerMode: boolean;
@@ -27,7 +24,7 @@ export function doorKeyringFor(config: DoorKeyConfig): TicketKeyring {
   const keys = new Map<string, Uint8Array>();
   if (!config.isServerMode || !config.isProduction) keys.set(DEMO_TICKET_KEY_ID, ticketKeyFrom(DEMO_TICKET_PUBLIC_KEY));
   if (config.isServerMode && config.publicKey) {
-    keys.set(config.keyId ?? SERVER_KEY_ID, ticketKeyFrom(config.publicKey));
+    keys.set(config.keyId ?? DEFAULT_SERVER_KEY_ID, ticketKeyFrom(config.publicKey));
   }
   return keys;
 }

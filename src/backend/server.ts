@@ -11,8 +11,6 @@ import { randomUUID } from "node:crypto";
 import { getResponse } from "msw";
 import { http } from "msw/http";
 import { API_ROUTES } from "@/contract/routes";
-import { signDemoTicket } from "@/core/demo-ticket-key";
-import { signTicket, ticketKeyFrom, type TicketClaims } from "@/core/ticket-token";
 import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
@@ -21,6 +19,7 @@ import { connect, type Database } from "./postgres/db";
 import type { ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
+import { serverConfigFrom } from "./server-config";
 
 /** Where the simulated provider's webhooks are addressed: they're handled in-process. */
 const INTERNAL_ORIGIN = "http://admit-one.internal";
@@ -81,34 +80,16 @@ export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret 
 
 export type ServerApi = ReturnType<typeof createServerApi>;
 
-const DEVELOPMENT_DATABASE = "postgres://admit@localhost:54329/admit_one";
-
-/**
- * The server's ticket-signing key, from TICKET_SIGNING_KEY (32 bytes, base64url) and
- * TICKET_KEY_ID; scanners trust it by its public key (NEXT_PUBLIC_TICKET_PUBLIC_KEY).
- * Outside production it falls back to the sandbox's demo key.
- */
-function ticketSignerFrom(env: NodeJS.ProcessEnv, isProduction: boolean): (claims: TicketClaims) => string {
-  const secret = env["TICKET_SIGNING_KEY"];
-  if (!secret) {
-    if (isProduction) throw new Error("TICKET_SIGNING_KEY must be set for the server backend in production.");
-    return signDemoTicket;
-  }
-  const key = { kid: env["TICKET_KEY_ID"] ?? "server-1", secretKey: ticketKeyFrom(secret) };
-  return (claims) => signTicket(claims, key);
-}
-const DEVELOPMENT_SECRET = "whsec_development_only";
-
 let serverApi: Promise<ServerApi> | null = null;
 
-/** The process's server API: connected and seeded on first use, then reused. */
+/**
+ * The process's server API: configured, connected and seeded on first use, then
+ * reused. A start that fails isn't kept, so the next request tries again.
+ */
 export function getServerApi(): Promise<ServerApi> {
   serverApi ??= (async () => {
-    const isProduction = process.env.NODE_ENV === "production" && process.env["CI"] === undefined;
-    const databaseUrl = process.env["DATABASE_URL"] ?? DEVELOPMENT_DATABASE;
-    const webhookSecret = process.env["WEBHOOK_SECRET"] ?? (isProduction ? null : DEVELOPMENT_SECRET);
-    if (!webhookSecret) throw new Error("WEBHOOK_SECRET must be set for the server backend in production.");
-    const { db } = connect(databaseUrl, { max: 5 });
+    const config = serverConfigFrom(process.env);
+    const { db } = connect(config.databaseUrl, { max: 5 });
     await seed(db);
     return createServerApi(
       db,
@@ -116,10 +97,13 @@ export function getServerApi(): Promise<ServerApi> {
         now: Date.now,
         newId: (prefix) => `${prefix}_${randomUUID().replaceAll("-", "").slice(0, 16)}`,
         random: Math.random,
-        signTicket: ticketSignerFrom(process.env, isProduction),
+        signTicket: config.signTicket,
       },
-      { webhookSecret },
+      { webhookSecret: config.webhookSecret },
     );
-  })();
+  })().catch((error: unknown) => {
+    serverApi = null;
+    throw error;
+  });
   return serverApi;
 }

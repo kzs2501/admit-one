@@ -59,8 +59,14 @@ export type TicketVerdict =
 const KID_PATTERN = /^[a-z0-9-]{1,32}$/;
 const utf8 = new TextEncoder();
 
+/** The key id a server signs with unless TICKET_KEY_ID says otherwise; scanners expect it too. */
+export const DEFAULT_SERVER_KEY_ID = "server-1";
+
+/** A key id tokens can carry: lowercase letters, digits and hyphens, at most 32. */
+export const isTicketKeyId = (kid: string) => KID_PATTERN.test(kid);
+
 export function signTicket(claims: TicketClaims, { kid, secretKey }: TicketSigningKey): string {
-  if (!KID_PATTERN.test(kid)) throw new Error(`Not a key id: ${kid}`);
+  if (!isTicketKeyId(kid)) throw new Error(`Not a key id: ${kid}`);
   const wire: z.infer<typeof wireClaimsSchema> = {
     c: claims.code,
     e: claims.eventSlug,
