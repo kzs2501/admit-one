@@ -167,6 +167,11 @@ export const providerEvents = pgTable(
     enqueuedAt: at("enqueued_at").notNull(),
     deliverAt: at("deliver_at").notNull(),
     deliveredAt: at("delivered_at"),
+    /** Failed deliveries so far; each failure puts the next try further off. */
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    /** A sender has the event to itself until then, so another doesn't send it too. */
+    leaseUntil: at("lease_until"),
   },
   (table) => [
     index("provider_events_due")

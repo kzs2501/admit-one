@@ -9,10 +9,10 @@ import { problemSchema } from "@/contract/problems";
 import { createPostgresBackend, type PostgresBackend } from "./backend";
 import { signWebhook, SIGNATURE_TOLERANCE_MS } from "./provider";
 import { SERVER_SETTINGS } from "./records";
-import { inventory, providerEvents, seatClaims } from "./schema";
+import { inventory, providerEvents, seatClaims, webhookEvents } from "./schema";
 import { createTestDatabase } from "./testing/database";
 import { freeSeatPair } from "./testing/seats";
-import { createWebhookReceiver, sendDueWebhooks } from "./webhooks";
+import { createWebhookReceiver, MAX_DELIVERY_ATTEMPTS, sendDueWebhooks } from "./webhooks";
 import { signDemoTicket } from "@/core/demo-ticket-key";
 
 const SECRET = "whsec_test_secret";
@@ -49,7 +49,16 @@ async function send(request: Request): Promise<Response> {
   return response;
 }
 
-const sendDue = () => sendDueWebhooks(database.db, deps, { secret: SECRET, send, origin: ORIGIN });
+const sendDue = (through: (request: Request) => Promise<Response> = send) =>
+  sendDueWebhooks(database.db, deps, { secret: SECRET, send: through, origin: ORIGIN });
+
+const failing = () => Promise.reject(new Error("The endpoint is down"));
+
+async function eventFor(paymentId: string) {
+  const [event] = await database.db.select().from(providerEvents).where(eq(providerEvents.paymentId, paymentId));
+  if (!event) throw new Error(`No provider event for ${paymentId}`);
+  return event;
+}
 
 async function paidOrder({ eventSlug = STUDIO, seatIds }: { eventSlug?: string; seatIds?: string[] } = {}) {
   const held = await backend.createHold(
@@ -127,6 +136,49 @@ describe("the simulated provider's webhooks", () => {
     expect(claims.map((claim) => claim.status)).toEqual(["sold", "sold"]);
   });
 
+  it("tries a failed delivery again later, and acts on it once", async () => {
+    const { orderId, paymentId } = await paidOrder();
+    nowMs += SERVER_SETTINGS.webhookDelayMs;
+    expect(await sendDue(failing)).toBe(0);
+    expect(await eventFor(paymentId)).toMatchObject({
+      attempts: 1,
+      lastError: "The endpoint is down",
+      deliveredAt: null,
+    });
+    // Not due again until its back-off has passed.
+    expect(await sendDue()).toBe(0);
+    nowMs += 1_000;
+    expect(await sendDue()).toBe(1);
+    expect(await backend.getOrder(orderId)).toMatchObject({ ok: true, value: { status: "fulfilled" } });
+  });
+
+  it("sends each due event once, with two senders at the same moment", async () => {
+    const orders = await Promise.all([paidOrder(), paidOrder(), paidOrder()]);
+    nowMs += SERVER_SETTINGS.webhookDelayMs;
+    const sends = new Map<string, number>();
+    const counting = async (request: Request) => {
+      const { id } = (await request.clone().json()) as { id: string };
+      sends.set(id, (sends.get(id) ?? 0) + 1);
+      return send(request);
+    };
+    const [first, second] = await Promise.all([sendDue(counting), sendDue(counting)]);
+    expect(first + second).toBeGreaterThanOrEqual(orders.length);
+    expect([...sends.values()].every((count) => count === 1)).toBe(true);
+    for (const { paymentId } of orders) expect(sends.get((await eventFor(paymentId)).eventId)).toBe(1);
+  });
+
+  it("stops trying an event that has failed ten times, for someone to look at", async () => {
+    const { paymentId } = await paidOrder();
+    nowMs += SERVER_SETTINGS.webhookDelayMs;
+    for (let attempt = 0; attempt < MAX_DELIVERY_ATTEMPTS; attempt++) {
+      await sendDue(failing);
+      nowMs += 61_000;
+    }
+    expect(await eventFor(paymentId)).toMatchObject({ attempts: MAX_DELIVERY_ATTEMPTS, deliveredAt: null });
+    await sendDue();
+    expect((await eventFor(paymentId)).deliveredAt).toBeNull();
+  });
+
   it("refunds a payment confirmed after its hold ran out, and sells nothing", async () => {
     const { orderId } = await paidOrder();
     const before = await soldOf("osc-session");
@@ -154,6 +206,37 @@ describe("receiving webhooks", () => {
     expect(again.outcome).toBe("duplicate");
     expect((await soldOf("osc-session")).sold).toBe(before.sold + 1);
     expect((await backend.getOrder(orderId)).ok).toBe(true);
+  });
+
+  it("answers 404 for a payment it doesn't know yet, so it's sent again, and marks nothing handled", async () => {
+    const { body, signature } = webhookFor("pay_not_yet_recorded");
+    const response = await post(body, signature);
+    expect(response.status).toBe(404);
+    expect(problemSchema.parse(await response.json()).code).toBe("not_found");
+    const { id } = JSON.parse(body) as { id: string };
+    expect(await database.db.select().from(webhookEvents).where(eq(webhookEvents.eventId, id))).toHaveLength(0);
+  });
+
+  it("takes either signature while the secret is being rotated", async () => {
+    const { paymentId } = await paidOrder();
+    const { body } = webhookFor(paymentId);
+    const [stamp, current] = signWebhook(SECRET, body, nowMs).split(",");
+    const old = signWebhook("whsec_old", body, nowMs).split(",")[1];
+    // The current one first: a parser that kept only the last v1 would miss it.
+    const response = await post(body, `${stamp ?? ""},${current ?? ""},${old ?? ""}`);
+    expect(((await response.json()) as { outcome: string }).outcome).toBe("processed");
+  });
+
+  it("refuses a failure it doesn't understand, rather than calling it something else", async () => {
+    const { paymentId } = await paidOrder();
+    const body = JSON.stringify({
+      id: `evt_${String(++idCount)}`,
+      type: "payment.failed",
+      created: Math.floor(nowMs / 1000),
+      data: { paymentId, failureCode: "card_declined" },
+    });
+    const response = await post(body, signWebhook(SECRET, body, nowMs));
+    expect(response.status).toBe(400);
   });
 
   it("refuses forged, altered, replayed and unsigned webhooks, and changes nothing", async () => {

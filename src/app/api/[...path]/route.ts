@@ -8,9 +8,6 @@ import { isServerMode } from "@/lib/backend-mode";
  */
 export const dynamic = "force-dynamic";
 
-/** How long after a payment the simulated provider's webhook is due, plus a moment. */
-const WEBHOOK_DUE_AFTER_MS = 1_600;
-
 async function handle(request: NextRequest): Promise<Response> {
   if (!isServerMode) {
     return Response.json(
@@ -22,14 +19,8 @@ async function handle(request: NextRequest): Promise<Response> {
   const { getServerApi } = await import("@/backend/server");
   const api = await getServerApi();
   const response = await api.handle(request);
-  if (request.method === "POST" && request.nextUrl.pathname.endsWith("/payments") && response.ok) {
-    // After the answer has gone, wait for the webhook to fall due and send it, so the
-    // order page usually finds the order already fulfilled.
-    after(async () => {
-      await new Promise((resolve) => setTimeout(resolve, WEBHOOK_DUE_AFTER_MS));
-      await api.deliverDueWebhooks();
-    });
-  }
+  const followUp = api.followUp(request, response);
+  if (followUp) after(followUp);
   return response;
 }
 

@@ -1,8 +1,9 @@
 /**
  * The payment provider's webhook endpoint, in server mode. It reads the body as text,
  * exactly as sent, because the signature is over those bytes; the receiver checks it
- * before anything is parsed. A webhook it has already handled, or about a payment it
- * doesn't know, is acknowledged too, so the provider stops sending it.
+ * before anything is parsed. A webhook it has already handled is acknowledged, so the
+ * provider stops sending it; one about a payment it doesn't know yet is answered 404,
+ * so the provider sends it again later.
  */
 import { http } from "msw/http";
 import type { Result } from "@/backend/domain/errors";

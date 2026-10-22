@@ -22,6 +22,13 @@
       "when": 1792589794997,
       "tag": "0002_webhook_events",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792681355265,
+      "tag": "0003_provider_event_retries",
+      "breakpoints": true
     }
   ]
 }

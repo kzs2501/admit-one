@@ -16,7 +16,7 @@ import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
 import { connect, type Database } from "./postgres/db";
-import type { ServerDeps } from "./postgres/records";
+import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
 import { serverConfigFrom } from "./server-config";
@@ -44,9 +44,24 @@ function sandboxOnlyHandlers({ problemReply, send }: Kit) {
   );
 }
 
+/** A route pattern (`/api/orders/:orderId/payments`) as a test of a path. */
+const routeTest = (route: string) => {
+  const pattern = new RegExp(`^${route.replace(/:[A-Za-z]+/g, "[^/]+")}$`);
+  return (request: Request) => pattern.test(new URL(request.url).pathname);
+};
+
 /** Reads of an order's state: before answering one, deliver any webhook that's due. */
 const isOrderRead = (request: Request) =>
-  request.method === "GET" && /^\/api\/(orders|holds)\/[^/]+$/.test(new URL(request.url).pathname);
+  request.method === "GET" && (routeTest(API_ROUTES.getOrder)(request) || routeTest(API_ROUTES.getHold)(request));
+
+/** Requests after which the provider's webhook is soon due: a payment, or 3-D Secure approved. */
+const startsPayment = (request: Request) =>
+  request.method === "POST" &&
+  (routeTest(API_ROUTES.createPayment)(request) || routeTest(API_ROUTES.confirmChallenge)(request));
+
+const logDeliveryError = (error: unknown) => {
+  console.error("[webhooks] Couldn't deliver the webhooks that are due", error);
+};
 
 export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret }: { webhookSecret: string }) {
   const backend = createPostgresBackend(db, deps);
@@ -70,9 +85,22 @@ export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret 
   return {
     async handle(request: Request): Promise<Response> {
       // Webhooks go out when due, and at the latest when the buyer next looks: there's
-      // no timer on a serverless function, so correctness never waits for one.
-      if (isOrderRead(request)) await deliverDueWebhooks();
+      // no timer on a serverless function, so correctness never waits for one. A
+      // delivery that fails is tried again later; it never fails the buyer's read.
+      if (isOrderRead(request)) await deliverDueWebhooks().catch(logDeliveryError);
       return respond(request);
+    },
+    /**
+     * What to do once a response has gone (Next's `after`): after a payment starts, wait
+     * until its webhook is due and send it, so the order page usually finds the order
+     * already fulfilled. Null when there's nothing to do.
+     */
+    followUp(request: Request, response: Response): (() => Promise<void>) | null {
+      if (!response.ok || !startsPayment(request)) return null;
+      return async () => {
+        await new Promise((resolve) => setTimeout(resolve, SERVER_SETTINGS.webhookDelayMs + 100));
+        await deliverDueWebhooks().catch(logDeliveryError);
+      };
     },
     deliverDueWebhooks,
   };
