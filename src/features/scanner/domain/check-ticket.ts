@@ -16,7 +16,9 @@ export type Rejection =
   /** The signature doesn't match: the ticket was changed, or made up. */
   | { reason: "forged" }
   /** A real ticket, for another event. */
-  | { reason: "other-event"; eventName: string };
+  | { reason: "other-event"; eventName: string }
+  /** A real ticket for this event, refunded since: its signature still checks out. */
+  | { reason: "refunded" };
 
 export type TicketCheck = { ok: true; claims: TicketClaims } | { ok: false; rejection: Rejection };
 
@@ -26,8 +28,16 @@ const REJECTIONS = {
   "bad-signature": { reason: "forged" },
 } as const satisfies Record<string, Rejection>;
 
-/** A real ticket, for this event: checked with the trusted keys alone. */
-export function checkTicket(code: string, eventSlug: string, keyring: TicketKeyring): TicketCheck {
+/**
+ * A real ticket, for this event, not refunded: checked with the trusted keys, and the
+ * refunded tickets this door has been told of.
+ */
+export function checkTicket(
+  code: string,
+  eventSlug: string,
+  keyring: TicketKeyring,
+  refundedCodes: ReadonlySet<string> = new Set(),
+): TicketCheck {
   const verdict = verifyTicket(code, keyring);
   if (!verdict.ok) return { ok: false, rejection: REJECTIONS[verdict.reason] };
   const { claims } = verdict;
@@ -35,6 +45,7 @@ export function checkTicket(code: string, eventSlug: string, keyring: TicketKeyr
     const eventName = findEvent(claims.eventSlug)?.name ?? claims.eventSlug;
     return { ok: false, rejection: { reason: "other-event", eventName } };
   }
+  if (refundedCodes.has(claims.code)) return { ok: false, rejection: { reason: "refunded" } };
   return { ok: true, claims };
 }
 

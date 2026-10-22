@@ -273,6 +273,13 @@ export const orderPageDtoSchema = z.object({
 });
 
 /** One order in full, as its organiser sees it. */
+/** An event's doors' list: the codes of its refunded tickets, as of a moment. */
+export const doorListDtoSchema = z.object({
+  eventSlug: z.string(),
+  voidedCodes: z.array(z.string()),
+  asOf: isoDateTimeSchema,
+});
+
 export const organiserOrderDtoSchema = orderRowDtoSchema.extend({
   items: z.array(z.object({ tierId: z.string(), tierName: z.string(), quantity: z.number().int().positive() })),
   seats: z.array(seatDtoSchema),
@@ -350,6 +357,7 @@ export type PaymentResultDto = z.infer<typeof paymentResultDtoSchema>;
 export type AccountDto = z.infer<typeof accountDtoSchema>;
 export type SessionDto = z.infer<typeof sessionDtoSchema>;
 export type OrganiserEventDto = z.infer<typeof organiserEventDtoSchema>;
+export type DoorListDto = z.infer<typeof doorListDtoSchema>;
 export type OrderRowDto = z.infer<typeof orderRowDtoSchema>;
 export type OrderPageDto = z.infer<typeof orderPageDtoSchema>;
 export type OrganiserOrderDto = z.infer<typeof organiserOrderDtoSchema>;

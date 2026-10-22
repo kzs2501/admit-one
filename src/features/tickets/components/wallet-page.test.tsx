@@ -26,4 +26,18 @@ describe("the wallet page", () => {
     expect(first.getByText("Stalls, row D, seat 11")).toBeInTheDocument();
     expect(first.getByRole("img", { name: "Code to scan at the door, for Asha Rao" })).toBeInTheDocument();
   });
+
+  it("shows a refunded ticket as refunded, with no code to scan", async () => {
+    const order = orderFor(
+      holdFor(CONCERT),
+      { attendees: attendeesFor(1), addOns: {} },
+      { status: "fulfilled", payment: cardPayment() },
+    );
+    await saveTickets(ticketsFromOrder(order).map((ticket) => ({ ...ticket, code: "AO-REF-1", isRefunded: true })));
+    render(<WalletPage />);
+    const refunded = await screen.findByText("Refunded: this ticket no longer gets anyone in.");
+    expect(refunded).toBeInTheDocument();
+    const card = refunded.closest("article");
+    expect(card && within(card).queryByRole("img")).toBeNull();
+  });
 });

@@ -18,7 +18,11 @@ const VIBRATIONS: Record<DoorResult["kind"], number | number[]> = {
  * The door for one event: checks each code it's given, remembers the tickets it lets
  * in, and keeps the last result to show. All on the device, so it works offline.
  */
-export function useDoor(eventSlug: string, keyring: TicketKeyring) {
+export function useDoor(
+  eventSlug: string,
+  keyring: TicketKeyring,
+  refundedCodes: ReadonlySet<string> = new Set<string>(),
+) {
   const [result, setResult] = useState<DoorResult | null>(null);
   const [admitted, setAdmitted] = useState<number | null>(null);
   const nextId = useRef(0);
@@ -44,7 +48,7 @@ export function useDoor(eventSlug: string, keyring: TicketKeyring) {
 
   const scan = useCallback(
     async (code: string) => {
-      const check = checkTicket(code, eventSlug, keyring);
+      const check = checkTicket(code, eventSlug, keyring, refundedCodes);
       const memory = check.ok ? await recordScan(eventSlug, check.claims.code, Date.now()) : null;
       // Shown even if the door switched events while the log answered: the scan has been
       // recorded, so whoever is at the door must see what it said.
@@ -54,7 +58,7 @@ export function useDoor(eventSlug: string, keyring: TicketKeyring) {
       const count = await countAdmitted(eventSlug);
       if (currentEvent.current === eventSlug) setAdmitted(count);
     },
-    [eventSlug, keyring, show],
+    [eventSlug, keyring, refundedCodes, show],
   );
 
   const noCode = useCallback(() => {

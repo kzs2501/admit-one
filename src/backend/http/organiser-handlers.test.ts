@@ -13,6 +13,7 @@ import {
   orderPageDtoSchema,
   organiserEventDtoSchema,
   organiserOrderDtoSchema,
+  doorListDtoSchema,
   refundResultDtoSchema,
   salesMetricsDtoSchema,
   sessionDtoSchema,
@@ -246,6 +247,31 @@ describe("organisers' API", () => {
       await expectProblem(await refund(fulfilled("lakeside-lights", 2), rangmanch, "refund-key-2"), 404, "not_found");
       // The same key value from another account is that account's own key.
       expect((await refund(fulfilled("monsoon-strings", 0), rangmanch, "refund-key-2")).status).toBe(202);
+    });
+
+    it("tells an event's doors which of its tickets were refunded, and no one else", async () => {
+      const { order } = purchase(backend, { quantity: 2 });
+      clock.advance(2_000);
+      backend.deliverDue();
+      const codes = (backend.getState().orders[order.id]?.tickets ?? []).map((ticket) => ticket.code);
+      expect(codes).toHaveLength(2);
+      const door = (token: string, slug = "open-studio-ceramics") =>
+        call(`/api/organiser/events/${slug}/door`, { headers: bearer(token) });
+
+      const { token } = await signIn("acc-rangmanch-owner");
+      const before = doorListDtoSchema.parse(await (await door(token)).json());
+      expect(before.voidedCodes).not.toContain(codes[0]);
+
+      expect((await refund(order.id, token, "door-refund-1")).status).toBe(202);
+      clock.advance(2_000);
+      backend.deliverDue();
+      const after = await door(token);
+      expect(after.headers.get("Cache-Control")).toContain("no-store");
+      expect(doorListDtoSchema.parse(await after.json()).voidedCodes).toEqual(expect.arrayContaining(codes));
+
+      const { token: lakeside } = await signIn("acc-lakeside-owner");
+      await expectProblem(await door(lakeside), 403, "forbidden");
+      await expectProblem(await call("/api/organiser/events/open-studio-ceramics/door"), 401, "unauthenticated");
     });
 
     it("answers 502 when the provider won't start the refund, and stores nothing", async () => {

@@ -161,6 +161,9 @@ function processRefundSucceeded(context: BackendContext, { eventId, refundId }: 
   const order = state.orders[refund.orderId];
   if (order) {
     setOrderStatus(context, order, "refunded", "The organiser refunded this order in full.");
+    // The tickets stop working: kept as voided, so the event's doors can be told.
+    const voided = (state.voidedTickets[order.eventSlug] ??= []);
+    for (const ticket of order.tickets) voided.push({ code: ticket.code, voidedAtMs: context.deps.now() });
     order.tickets = [];
     const payment = order.paymentId ? state.payments[order.paymentId] : undefined;
     if (payment) payment.status = "refunded";

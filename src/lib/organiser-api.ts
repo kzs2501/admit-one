@@ -7,6 +7,7 @@ import { z } from "@/core/zod";
 import type { RefundReason } from "@/core/statuses";
 import {
   accountDtoSchema,
+  doorListDtoSchema,
   orderPageDtoSchema,
   organiserEventDtoSchema,
   organiserOrderDtoSchema,
@@ -45,6 +46,11 @@ export const organiserApi = {
   listEvents: () =>
     asOrganiser((headers) =>
       request(buildApiPath(API_ROUTES.organiserEvents, {}), z.array(organiserEventDtoSchema), { headers }),
+    ),
+  /** The codes of an event's refunded tickets, for its door scanner. */
+  getDoorList: (eventSlug: string) =>
+    asOrganiser((headers) =>
+      request(buildApiPath(API_ROUTES.organiserDoor, { slug: eventSlug }), doorListDtoSchema, { headers }),
     ),
   getMetrics: (eventSlug?: string) =>
     asOrganiser((headers) =>

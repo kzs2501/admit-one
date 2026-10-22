@@ -19,7 +19,7 @@ import {
 } from "@/core/statuses";
 
 /** Bump when the shape changes; older saves then start a fresh sandbox (see ADR 001). */
-const STATE_VERSION = 14;
+const STATE_VERSION = 15;
 
 /** Versioned, so a save from an older shape is never even read. */
 export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
@@ -207,6 +207,11 @@ const serverStateSchema = z.object({
   payments: z.record(z.string(), paymentRecordSchema),
   idempotency: z.record(z.string(), idempotencyRecordSchema),
   refunds: z.record(z.string(), refundRecordSchema),
+  /**
+   * Tickets of refunded orders, by event. They're still signed, so a door that checks
+   * signatures alone would let them in: organisers' scanners download these codes.
+   */
+  voidedTickets: z.record(z.string(), z.array(z.object({ code: z.string(), voidedAtMs: epochMsSchema }))),
   /** Organisers' sessions, by token. */
   sessions: z.record(z.string(), sessionRecordSchema),
   /** Webhook event ids already processed — the dedupe set. */
@@ -252,6 +257,7 @@ export const createInitialState = (presetId: ServerState["presetId"], createdAtM
   payments: {},
   idempotency: {},
   refunds: {},
+  voidedTickets: {},
   sessions: {},
   processedEventIds: [],
   outbox: [],

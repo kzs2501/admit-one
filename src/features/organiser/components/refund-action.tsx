@@ -92,7 +92,8 @@ export function RefundAction({ order }: { order: OrganiserOrderDto }) {
           </h2>
           <p className="mt-2 text-sm text-ink-2">
             The whole order is refunded to the {order.paymentMethod === "upi" ? "UPI account" : "card"} it was paid
-            with, and its tickets stop working and go back on sale. This can’t be undone.
+            with, and its tickets go back on sale. Door scanners refuse the old tickets once they’ve checked for
+            refunds, which they do every minute while online. This can’t be undone.
           </p>
           <fieldset className="mt-4">
             <legend className="text-sm font-medium">Why?</legend>

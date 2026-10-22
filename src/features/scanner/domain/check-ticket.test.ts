@@ -41,6 +41,14 @@ describe("checking a ticket at the door", () => {
     expect(checkTicket(other, EVENT, keyring)).toEqual({ ok: false, rejection: { reason: "unknown-key" } });
   });
 
+  it("turns away a real ticket for this event that was refunded", () => {
+    expect(checkTicket(ticket, EVENT, keyring, new Set([CLAIMS.code]))).toEqual({
+      ok: false,
+      rejection: { reason: "refunded" },
+    });
+    expect(checkTicket(ticket, EVENT, keyring, new Set(["AO-SOMEONE-ELSE"]))).toMatchObject({ ok: true });
+  });
+
   it("says when a code isn't a ticket at all", () => {
     for (const code of ["https://example.com", "", "upi://pay?pa=x@bank"]) {
       expect(checkTicket(code, EVENT, keyring)).toEqual({ ok: false, rejection: { reason: "not-a-ticket" } });

@@ -4,7 +4,7 @@
  * Storage can be refused (a private window, a full disk), so both ways say whether it
  * worked rather than throw.
  */
-import { createStore, setMany, values, type UseStore } from "idb-keyval";
+import { createStore, entries, setMany, values, type UseStore } from "idb-keyval";
 import type { OrderDto } from "@/contract/dto";
 import { getEvent } from "@/core/catalog";
 import { formatSeat } from "./format";
@@ -23,6 +23,8 @@ export interface WalletTicket {
   attendeeName: string;
   tierName: string;
   seat: string | null;
+  /** Its order was refunded: it no longer gets anyone in. (Absent on tickets saved before.) */
+  isRefunded?: boolean;
 }
 
 export function ticketsFromOrder(order: OrderDto): WalletTicket[] {
@@ -69,5 +71,19 @@ export async function listTickets(): Promise<WalletTicket[] | null> {
     );
   } catch {
     return null;
+  }
+}
+
+/** Mark an order's tickets on this device as refunded. Whether storage took it. */
+export async function markRefunded(orderId: string): Promise<boolean> {
+  try {
+    const store = walletStore();
+    const refunded = (await entries<string, WalletTicket>(store))
+      .filter(([, ticket]) => ticket.orderId === orderId && !ticket.isRefunded)
+      .map(([key, ticket]): [string, WalletTicket] => [key, { ...ticket, isRefunded: true }]);
+    if (refunded.length) await setMany(refunded, store);
+    return true;
+  } catch {
+    return false;
   }
 }

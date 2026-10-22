@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import { cardPayment, CONCERT, holdFor, orderFor, SUMMIT, attendeesFor } from "@/contract/testing/dto-fixtures";
-import { listTickets, saveTickets, ticketsFromOrder } from "./wallet";
+import { listTickets, markRefunded, saveTickets, ticketsFromOrder } from "./wallet";
 
 const fulfilled = (scene: typeof SUMMIT, count: number) =>
   orderFor(
@@ -32,5 +32,17 @@ describe("the wallet", () => {
       "frontend-systems-summit",
       "monsoon-strings",
     ]);
+  });
+
+  it("marks a refunded order's tickets, and only that order's", async () => {
+    const refunded = ticketsFromOrder(fulfilled(SUMMIT, 1));
+    const kept = ticketsFromOrder(fulfilled(CONCERT, 1)).map((ticket) => ({ ...ticket, orderId: "ord_kept" }));
+    await saveTickets([...refunded.map((ticket) => ({ ...ticket, orderId: "ord_refunded" })), ...kept]);
+    expect(await markRefunded("ord_refunded")).toBe(true);
+    const tickets = await listTickets();
+    expect(tickets?.filter((ticket) => ticket.orderId === "ord_refunded").every((ticket) => ticket.isRefunded)).toBe(
+      true,
+    );
+    expect(tickets?.filter((ticket) => ticket.orderId === "ord_kept").some((ticket) => ticket.isRefunded)).toBe(false);
   });
 });

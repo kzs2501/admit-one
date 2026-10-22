@@ -24,11 +24,17 @@ export function TicketCard({ ticket }: { ticket: WalletTicket }) {
             {ticket.attendeeName} · {ticket.tierName}
           </p>
         </div>
-        <QrCode
-          value={ticket.token}
-          label={`Code to scan at the door, for ${ticket.attendeeName}`}
-          className="size-44 justify-self-center sm:size-40"
-        />
+        {ticket.isRefunded ? (
+          <p className="justify-self-center rounded-lg border border-bad/30 bg-bad-soft px-4 py-3 text-sm font-medium sm:max-w-40">
+            Refunded: this ticket no longer gets anyone in.
+          </p>
+        ) : (
+          <QrCode
+            value={ticket.token}
+            label={`Code to scan at the door, for ${ticket.attendeeName}`}
+            className="size-44 justify-self-center sm:size-40"
+          />
+        )}
       </div>
       <div className="perforation mx-5" aria-hidden="true" />
       <div className="flex items-center justify-between gap-4 p-5">

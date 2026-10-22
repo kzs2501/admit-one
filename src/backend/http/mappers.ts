@@ -10,6 +10,7 @@ import type {
   OrderRowDto,
   OrganiserOrderDto,
   AccountDto,
+  DoorListDto,
   OrganiserEventDto,
   SessionDto,
   EventDto,
@@ -21,6 +22,7 @@ import type {
   QueueEntryDto,
   SeatAvailabilityDto,
 } from "@/contract/dto";
+import type { DoorListView } from "@/backend/domain/door";
 import type {
   RefundView,
   OrderRowView,
@@ -50,6 +52,8 @@ export const toSessionDto = ({ token, account }: { token: string; account: Accou
 });
 
 export const toOrganiserEventDto = (event: OrganiserEventView): OrganiserEventDto => event;
+
+export const toDoorListDto = ({ asOfMs, ...list }: DoorListView): DoorListDto => ({ ...list, asOf: toIso(asOfMs) });
 
 /** Metrics have no timestamps to convert: the domain's shape is the contract's. */
 export const toSalesMetricsDto = (metrics: SalesMetrics): SalesMetricsDto => metrics;

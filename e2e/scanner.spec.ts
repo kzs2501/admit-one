@@ -57,6 +57,41 @@ test("a ticket bought here gets in once: a photo of it at the door", async ({ pa
   await expect(door.result).toContainText(/First scanned at .+ on this device/);
 });
 
+test("a refunded ticket is turned away, once the door has its organiser's list, and the wallet says so", async ({
+  page,
+  buyer,
+  organiser,
+}) => {
+  await page.goto("/");
+  await buyer.goToPayment(1);
+  await buyer.pay();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+  const orderId = new URL(page.url()).pathname.split("/").pop() ?? "";
+  await page.goto("/tickets");
+  const code = page.getByRole("img", { name: "Code to scan at the door, for Guest 1" });
+  const photo = { name: "ticket.png", mimeType: "image/png", buffer: await code.screenshot() };
+
+  // Rangmanch Arts runs Open Studio: its owner refunds the order.
+  await organiser.signInAs(/Farah Iyer/);
+  await page.goto(`/organiser/orders/${orderId}`);
+  await page.getByRole("button", { name: "Refund…" }).click();
+  const dialog = page.getByRole("dialog", { name: /^Refund ₹/ });
+  await dialog.getByRole("radio", { name: "The event changed" }).check();
+  await dialog.getByRole("button", { name: /^Refund ₹/ }).click();
+  await expect(organiser.orderStatus).toHaveText("Refunded", { timeout: 10_000 });
+
+  // The door, signed in on this device, fetches the event's refunded tickets.
+  const door = new Door(page);
+  await door.open();
+  await expect(page.getByText(/^Refunds checked at /)).toBeVisible();
+  await door.scan(photo);
+  await expect(door.result).toContainText("This ticket was refunded.");
+
+  await page.goto("/tickets");
+  await expect(page.getByText("Refunded: this ticket no longer gets anyone in.")).toBeVisible();
+  await expect(code).toBeHidden();
+});
+
 test("turns away a changed ticket, one for another event, and a code that isn't a ticket", async ({ page }) => {
   const forged = await photoOfCode(page, forgedTicket());
   const otherEvent = await photoOfCode(page, signDemoTicket(ticketClaims({ eventSlug: "monsoon-strings" })));

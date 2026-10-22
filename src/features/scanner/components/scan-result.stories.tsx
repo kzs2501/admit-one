@@ -58,6 +58,14 @@ export const ForAnotherEvent: Story = {
   },
 };
 
+/** Signed, for this event, and refunded since: the door's list from its organiser says so. */
+export const Refunded: Story = {
+  args: { result: { kind: "rejected", rejection: { reason: "refunded" }, id: 1 } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("status", { name: "Last scan" })).toHaveTextContent(/Not valid.*refunded/);
+  },
+};
+
 export const SignedWithAnUnknownKey: Story = {
   args: { result: { kind: "rejected", rejection: { reason: "unknown-key" }, id: 1 } },
 };

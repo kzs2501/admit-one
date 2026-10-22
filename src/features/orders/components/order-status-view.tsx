@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getEvent } from "@/core/catalog";
 import { describePayment, formatEventDate, formatEventTime, formatMoney, formatSeat } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { saveTickets, ticketsFromOrder } from "@/lib/wallet";
+import { markRefunded, saveTickets, ticketsFromOrder } from "@/lib/wallet";
 import { ErrorState } from "@/components/ui/error-state";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
@@ -31,6 +31,12 @@ export function OrderStatusView({ orderId }: { orderId: string }) {
       isCurrent = false;
     };
   }, [fulfilledOrder]);
+
+  // Refunded: any of its tickets kept on this device stop showing a code to scan.
+  const refundedOrderId = state.kind === "refunded" ? state.order.id : null;
+  useEffect(() => {
+    if (refundedOrderId) void markRefunded(refundedOrderId);
+  }, [refundedOrderId]);
 
   return <OrderStatusScreen state={state} walletStatus={walletStatus} />;
 }

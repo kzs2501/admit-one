@@ -21,6 +21,7 @@ export const API_ROUTES = {
   organiserAccount: "/api/organiser/account",
   organiserEvents: "/api/organiser/events",
   organiserEvent: "/api/organiser/events/:slug",
+  organiserDoor: "/api/organiser/events/:slug/door",
   organiserOrders: "/api/organiser/orders",
   /** Registered before `organiserOrder`, whose `:orderId` would otherwise match "export". */
   organiserOrdersExport: "/api/organiser/orders/export",

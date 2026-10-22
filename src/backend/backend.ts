@@ -17,6 +17,7 @@ import { salesMetrics, type SalesMetrics } from "./domain/metrics";
 import { requestRefund } from "./domain/refunds";
 import { activityOf, findOrganiserOrder, listOrders, queryOrders } from "./domain/reporting";
 import type { BackendContext, Deps } from "./domain/context";
+import { getDoorList, type DoorListView } from "./domain/door";
 import { fail, map, ok, type Result } from "./domain/errors";
 import {
   availableQuantity,
@@ -216,6 +217,9 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
       eventsFor(account).map((event) => toOrganiserEventView(account, event)),
     getOrganiserEvent: (account: Account, slug: string): Result<OrganiserEventView> =>
       map(eventFor(account, slug), (event) => toOrganiserEventView(account, event)),
+
+    /** The codes of an event's refunded tickets, for its doors to refuse. */
+    getDoorList: (account: Account, slug: string): Result<DoorListView> => getDoorList(context, account, slug),
 
     /** A page of the orders this account may see, filtered and sorted on the server. */
     listOrders: (

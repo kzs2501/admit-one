@@ -33,3 +33,12 @@ export const GeneralAdmission: Story = {
 };
 
 export const WithASeat: Story = { args: { ticket: walletTicket(CONCERT) } };
+
+/** Its order was refunded: no code to scan, and the card says why. */
+export const Refunded: Story = {
+  args: { ticket: { ...walletTicket(SUMMIT), isRefunded: true } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Refunded: this ticket no longer gets anyone in.")).toBeVisible();
+    await expect(canvas.queryByRole("img")).toBeNull();
+  },
+};

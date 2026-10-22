@@ -24,6 +24,7 @@ import { toCsv, type CsvCell } from "./csv";
 import {
   toAccountDto,
   toOrderPageDto,
+  toDoorListDto,
   toOrganiserEventDto,
   toOrganiserOrderDto,
   toRefundResultDto,
@@ -286,6 +287,14 @@ export function createOrganiserHandlers(
         request,
         resultReply(backend.getOrganiserEvent(auth.account, params.slug), request, toOrganiserEventDto),
       );
+    }),
+
+    /** The event's refunded tickets, for its door scanners: an organiser's, like everything here. */
+    http.get<{ slug: string }>(anyOrigin(API_ROUTES.organiserDoor), async ({ params, request }) => {
+      await latency();
+      const auth = signedIn(request);
+      if (!auth.ok) return sendPrivate(request, auth.reply);
+      return sendPrivate(request, resultReply(backend.getDoorList(auth.account, params.slug), request, toDoorListDto));
     }),
   ];
 }

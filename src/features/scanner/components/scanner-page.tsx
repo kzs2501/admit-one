@@ -8,9 +8,11 @@ import type { TicketKeyring } from "@/core/ticket-token";
 import { DOOR_KEYRING } from "@/lib/ticket-keys";
 import { useCamera, type CameraState } from "@/features/scanner/hooks/use-camera";
 import { useDoorEvent } from "@/features/scanner/hooks/use-door-event";
+import { useDoorVoids, type RefundCheck } from "@/features/scanner/hooks/use-door-voids";
 import { useDoor } from "@/features/scanner/hooks/use-door";
 import { useFrameScanner } from "@/features/scanner/hooks/use-frame-scanner";
 import { useQrReader } from "@/features/scanner/hooks/use-qr-reader";
+import { formatEventTime } from "@/lib/format";
 import { ScanResult } from "./scan-result";
 
 const CAMERA_NOTICES: Partial<Record<CameraState["kind"], { title: string; body: string }>> = {
@@ -39,7 +41,8 @@ const ticketsLetIn = (count: number) => `${String(count)} ${count === 1 ? "ticke
 export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyring }) {
   const [eventSlug, setEventSlug] = useDoorEvent();
   const event = getEvent(eventSlug);
-  const door = useDoor(eventSlug, keyring);
+  const refunds = useDoorVoids(eventSlug);
+  const door = useDoor(eventSlug, keyring, refunds.codes);
   const camera = useCamera();
   const reader = useQrReader();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -167,6 +170,8 @@ export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyrin
           )}
         </div>
 
+        <RefundStatus check={refunds.check} timeZone={event.timeZone} />
+
         {door.admitted !== null && (
           <p className="text-sm text-ink-2">
             {ticketsLetIn(door.admitted)} for {event.name} on this device.
@@ -175,4 +180,29 @@ export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyrin
       </div>
     </div>
   );
+}
+
+/** How current the door's list of refunded tickets is, and how to bring it up to date. */
+function RefundStatus({ check, timeZone }: { check: RefundCheck; timeZone: string }) {
+  const at = (ms: number) => formatEventTime(new Date(ms).toISOString(), timeZone);
+  switch (check.kind) {
+    case "loading":
+    case "unavailable":
+      return null;
+    case "checked":
+      return <p className="text-sm text-ink-2">Refunds checked at {at(check.asOfMs)}.</p>;
+    case "signed-out":
+      return (
+        <p className="text-sm text-ink-2">
+          {check.asOfMs === null
+            ? "Refunds aren’t checked on this device yet: a refunded ticket would still get in. "
+            : `Refunds checked at ${at(check.asOfMs)}; sign in again to check for newer ones. `}
+          {/* A full load: the sign-in page has the shop's headers, this one its own. */}
+          <a href="/organiser/sign-in" className="font-medium underline underline-offset-4">
+            Sign in as the event’s organiser
+          </a>
+          , then come back here.
+        </p>
+      );
+  }
 }

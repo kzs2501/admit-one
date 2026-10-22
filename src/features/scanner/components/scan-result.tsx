@@ -12,6 +12,8 @@ function rejectionText(rejection: Rejection): string {
       return "Its signature doesn’t match: the ticket has been changed.";
     case "other-event":
       return `This ticket is for ${rejection.eventName}.`;
+    case "refunded":
+      return "This ticket was refunded. It no longer gets anyone in.";
   }
 }
 
