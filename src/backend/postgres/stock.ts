@@ -12,15 +12,19 @@
  *   allows one unreleased claim per seat. The database refuses the second claim.
  * - **Expiry stays lazy.** Nothing runs on a timer: an expired hold is released in the
  *   transaction of the next hold for that event, and reads simply leave it out.
+ * - **One hold at a time per event, and locks in one order.** A hold's transaction first
+ *   takes the event's advisory lock, so the single-seat-gap rule and "best available"
+ *   see every seat claimed before them. Then rows are locked holds first, then tiers by
+ *   id, the order a payment's conversion takes them too, so the two can't deadlock.
  */
-import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { findEvent, type EventInfo } from "@/core/catalog";
 import type { Seat } from "@/core/seating";
 import type { LineItem } from "@/core/ticketing";
 import { fail, ok, type DomainError, type Result } from "@/backend/domain/errors";
 import { itemsForSeats, seatSelectionProblem, seatsTaken, soldOut } from "@/backend/domain/inventory";
 import { chooseBestSeats, freeSeatsInTier, isReservedEvent, type ReservedEvent } from "@/backend/domain/seating";
-import type { Database } from "./db";
+import { sqlStateOf, withRetries, type Database } from "./db";
 import { holds, inventory, seatClaims } from "./schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -35,14 +39,6 @@ class Refusal extends Error {
 
 const UNIQUE_VIOLATION = "23505";
 
-/** Postgres's SQLSTATE for an error, whether the driver's own or wrapped by Drizzle. */
-function sqlStateOf(error: unknown): string | undefined {
-  for (let current: unknown = error; current instanceof Error; current = current.cause) {
-    if ("code" in current && typeof current.code === "string") return current.code;
-  }
-  return undefined;
-}
-
 export interface NewHold {
   id: string;
   eventSlug: string;
@@ -52,17 +48,29 @@ export interface NewHold {
   expiresAt: Date;
 }
 
+/** One hold transaction at a time for an event, until this one ends. */
+async function lockEvent(tx: Transaction, eventSlug: string) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`hold:${eventSlug}`}, 0))`);
+}
+
 /**
- * Release the event's holds that have run out: their tickets back to the tiers, their
- * seats unclaimed. Two transactions can sweep at once; the second waits on each row the
- * first changed, then finds it no longer active and leaves it alone.
+ * The start of every hold's transaction: the event's lock; its holds that have run out
+ * marked expired (their rows locked first); then every one of its tiers locked, by id;
+ * then the expired holds' tickets and seats given back.
  */
-async function sweepExpiredHolds(tx: Transaction, eventSlug: string, now: Date) {
+async function beginHold(tx: Transaction, event: EventInfo, now: Date) {
+  await lockEvent(tx, event.slug);
   const expired = await tx
     .update(holds)
     .set({ status: "expired" })
-    .where(and(eq(holds.eventSlug, eventSlug), eq(holds.status, "active"), lte(holds.expiresAt, now)))
+    .where(and(eq(holds.eventSlug, event.slug), eq(holds.status, "active"), lte(holds.expiresAt, now)))
     .returning({ id: holds.id, items: holds.items });
+  await tx
+    .select({ tierId: inventory.tierId })
+    .from(inventory)
+    .where(eq(inventory.eventSlug, event.slug))
+    .orderBy(asc(inventory.tierId))
+    .for("update");
   if (!expired.length) return;
   const released = new Map<string, number>();
   for (const { items } of expired) {
@@ -170,7 +178,7 @@ async function claimSeats(tx: Transaction, hold: NewHold, seats: readonly Seat[]
 /** Run a hold's transaction; a refusal rolls it back and becomes the result. */
 async function inTransaction(db: Database, run: (tx: Transaction) => Promise<NewHold>): Promise<Result<NewHold>> {
   try {
-    return ok(await db.transaction(run));
+    return ok(await withRetries(() => db.transaction(run)));
   } catch (error) {
     if (error instanceof Refusal) return fail(error.problem);
     throw error;
@@ -190,10 +198,9 @@ export function holdByTiers(
     return Promise.resolve(fail({ code: "invalid_request", detail: "Unknown ticket type." }));
   }
   return inTransaction(db, async (tx) => {
-    await sweepExpiredHolds(tx, event.slug, draft.createdAt);
+    await beginHold(tx, event, draft.createdAt);
     if (isReservedEvent(event)) return holdBestSeats(tx, event, draft, items);
     const hold: NewHold = { ...draft, items, seatIds: [] };
-    // Always in the same order, so two holds across the same tiers can't deadlock.
     for (const { tierId, quantity } of [...items].sort((left, right) => left.tierId.localeCompare(right.tierId))) {
       await takeTickets(tx, tierId, quantity);
     }
@@ -219,8 +226,8 @@ async function holdBestSeats(
   }
   const hold: NewHold = { ...draft, items, seatIds: seats.map((seat) => seat.id) };
   await insertHold(tx, hold);
-  // Chosen from a snapshot: if another buyer claimed one of them first, the index
-  // refuses, and the buyer is told those seats just went (the page offers the next best).
+  // Chosen under the event's lock, so no other hold has claimed one since; the unique
+  // index still refuses a seat a sale took, and the buyer is told it just went.
   await claimSeats(tx, hold, seats);
   return hold;
 }
@@ -243,7 +250,7 @@ export function holdSeats(
     return Promise.resolve(fail({ code: "invalid_request", detail: "One of those seats isn’t in this hall." }));
   }
   return inTransaction(db, async (tx) => {
-    await sweepExpiredHolds(tx, event.slug, draft.createdAt);
+    await beginHold(tx, event, draft.createdAt);
     const problem = seatSelectionProblem(plan, await unavailableSeatIds(tx, event.slug, draft.createdAt), seats);
     if (problem) throw new Refusal(problem);
     const hold: NewHold = { ...draft, items: itemsForSeats(event, seats), seatIds: seats.map((seat) => seat.id) };

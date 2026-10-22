@@ -99,4 +99,38 @@ describe("the server API", () => {
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toHaveProperty("delivered");
   });
+
+  it("answers a failure nobody planned for as a problem: retry later if it was the database, a 500 if not", async () => {
+    const failingWith = (error: Error) =>
+      createServerApi(
+        database.db,
+        {
+          now: () => nowMs,
+          newId: () => {
+            throw error;
+          },
+          random: () => 0,
+          signTicket: signDemoTicket,
+        },
+        { webhookSecret: "whsec_server_api" },
+      );
+    const reserve = (api: ReturnType<typeof createServerApi>) =>
+      api.handle(
+        new Request(`${ORIGIN}/api/holds`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] }),
+        }),
+      );
+    const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
+    const busy = await reserve(failingWith(deadlock));
+    expect(busy.status).toBe(503);
+    expect(busy.headers.get("Retry-After")).toBe("2");
+    expect(busy.headers.get("Content-Type")).toContain("application/problem+json");
+    expect(await busy.json()).toMatchObject({ code: "service_unavailable" });
+
+    const bug = await reserve(failingWith(new TypeError("undefined is not a function")));
+    expect(bug.status).toBe(500);
+    expect(await bug.json()).toMatchObject({ code: "internal_error" });
+  });
 });

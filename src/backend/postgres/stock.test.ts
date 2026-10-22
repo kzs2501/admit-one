@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, isNull, sql } from "drizzle-orm";
-import { getEvent } from "@/core/catalog";
+import { getEvent, getSeatPlan } from "@/core/catalog";
+import { seatSelectionProblem } from "@/backend/domain/inventory";
 import type { Result } from "@/backend/domain/errors";
 import { createPostgresBackend, type PostgresBackend } from "./backend";
 import { SERVER_SETTINGS } from "./records";
 import { inventory, seatClaims } from "./schema";
+import { unavailableSeatIds } from "./stock";
 import { createTestDatabase } from "./testing/database";
 import { freeSeatPair } from "./testing/seats";
 import { signDemoTicket } from "@/core/demo-ticket-key";
@@ -56,6 +58,30 @@ async function stockOf(tierId: string) {
 
 const freePair = () => freeSeatPair(database.db, CONCERT, new Date(nowMs));
 
+/**
+ * Five free seats at the start of a block, whose two ends can each be held alone, but
+ * not both: together they'd leave the middle seat stranded.
+ */
+async function strandableRun(): Promise<string[]> {
+  const plan = getSeatPlan(CONCERT);
+  const unavailable = await unavailableSeatIds(database.db, CONCERT, new Date(nowMs));
+  for (const block of plan.sections.flatMap((section) => section.rows).flatMap((row) => row.blocks)) {
+    const run = block.slice(0, 5);
+    if (run.length < 5 || run.some((seat) => unavailable.has(seat.id))) continue;
+    const [first, second, , fourth, fifth] = run;
+    if (!first || !second || !fourth || !fifth) continue;
+    const isAloneFine =
+      !seatSelectionProblem(plan, unavailable, [first, second]) &&
+      !seatSelectionProblem(plan, unavailable, [fourth, fifth]);
+    const isTogetherStranding = seatSelectionProblem(plan, new Set([...unavailable, first.id, second.id]), [
+      fourth,
+      fifth,
+    ]);
+    if (isAloneFine && isTogetherStranding) return run.map((seat) => seat.id);
+  }
+  throw new Error("No five free seats to strand one of");
+}
+
 describe("holding stock on Postgres", () => {
   it("lets exactly 10 of 50 buyers hold the last 10 tickets, at the same moment", async () => {
     const results = await Promise.all(
@@ -97,6 +123,42 @@ describe("holding stock on Postgres", () => {
 });
 
 describe("expiry stays lazy", () => {
+  it("never strands a seat between two buyers who choose at the same moment", async () => {
+    for (let round = 0; round < 5; round++) {
+      const run = await strandableRun();
+      const results = await Promise.all([
+        backend.createHold({ eventSlug: CONCERT, seatIds: run.slice(0, 2) }),
+        backend.createHold({ eventSlug: CONCERT, seatIds: run.slice(3, 5) }),
+      ]);
+      expect(outcomes(results)).toEqual({ held: 1, refusals: ["single_seat_gap"] });
+    }
+  });
+
+  it("under contention across two tiers, in either order, with holds being swept, every buyer gets an answer", async () => {
+    const WORKSHOP = "fss-workshop";
+    await database.db.execute(sql`UPDATE inventory SET sold = 0 WHERE tier_id IN (${GENERAL}, ${WORKSHOP})`);
+    const both = (first: string, second: string) => [
+      { tierId: first, quantity: 1 },
+      { tierId: second, quantity: 1 },
+    ];
+    // Holds that will have run out, for the next round to sweep.
+    await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        backend.createHold({ eventSlug: SUMMIT, items: i % 2 ? both(GENERAL, WORKSHOP) : both(WORKSHOP, GENERAL) }),
+      ),
+    );
+    nowMs += SERVER_SETTINGS.holdDurationMs + 1;
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, i) =>
+        backend.createHold({ eventSlug: SUMMIT, items: i % 2 ? both(GENERAL, WORKSHOP) : both(WORKSHOP, GENERAL) }),
+      ),
+    );
+    expect(results.every((result) => result.ok || result.error.code === "sold_out")).toBe(true);
+    const [general, workshop] = await Promise.all([stockOf(GENERAL), stockOf(WORKSHOP)]);
+    expect(general.held).toBe(outcomes(results).held);
+    expect(workshop.held).toBe(outcomes(results).held);
+  });
+
   it("counts an expired hold as gone at once, and releases its tickets in the next hold", async () => {
     expect((await backend.createHold({ eventSlug: SUMMIT, items: [{ tierId: GENERAL, quantity: 10 }] })).ok).toBe(true);
     nowMs += SERVER_SETTINGS.holdDurationMs;

@@ -144,13 +144,18 @@ export const payments = pgTable(
  * Idempotency-Keys, claimed before the work starts. A row with no status is a request
  * still in flight; a status and body are the answer, replayed to retries for 24 hours.
  */
-export const idempotencyKeys = pgTable("idempotency_keys", {
-  key: text("key").primaryKey(),
-  fingerprint: text("fingerprint").notNull(),
-  status: integer("status"),
-  body: jsonb("body").$type<JsonValue>(),
-  createdAt: at("created_at").notNull(),
-});
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    key: text("key").primaryKey(),
+    fingerprint: text("fingerprint").notNull(),
+    status: integer("status"),
+    body: jsonb("body").$type<JsonValue>(),
+    createdAt: at("created_at").notNull(),
+  },
+  // Keys past their 24 hours are purged by age, so the purge doesn't read every key.
+  (table) => [index("idempotency_keys_created_at").on(table.createdAt)],
+);
 
 /**
  * The simulated provider's outbox: each event it will send, when, and whether it has.

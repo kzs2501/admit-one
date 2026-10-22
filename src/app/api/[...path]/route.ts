@@ -17,7 +17,17 @@ async function handle(request: NextRequest): Promise<Response> {
   }
   // Loaded only in server mode, so the sandbox's build never touches a database.
   const { getServerApi } = await import("@/backend/server");
-  const api = await getServerApi();
+  let api: Awaited<ReturnType<typeof getServerApi>>;
+  try {
+    api = await getServerApi();
+  } catch (error) {
+    // Misconfigured, or the database is out of reach: logged, and said as a problem.
+    console.error("[server] Couldn't start the server API", error);
+    return Response.json(
+      { title: "Busy for a moment", status: 503, detail: "The server is starting up or unwell. Try again soon." },
+      { status: 503, headers: { "Content-Type": "application/problem+json", "Retry-After": "5" } },
+    );
+  }
   const response = await api.handle(request);
   const followUp = api.followUp(request, response);
   if (followUp) after(followUp);

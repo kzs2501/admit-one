@@ -15,7 +15,7 @@ import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
-import { connect, type Database } from "./postgres/db";
+import { connect, sqlStateOf, type Database } from "./postgres/db";
 import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
@@ -59,6 +59,39 @@ const startsPayment = (request: Request) =>
   request.method === "POST" &&
   (routeTest(API_ROUTES.createPayment)(request) || routeTest(API_ROUTES.confirmChallenge)(request));
 
+/** Retry-After, in seconds, for a request the database couldn't take just now. */
+const RETRY_AFTER_SECONDS = 2;
+
+/**
+ * Failures worth trying again: a deadlock or serialisation conflict that outlasted its
+ * retries, a lost or refused connection, a database out of connections or shutting down.
+ */
+function isTransient(error: unknown) {
+  const code = sqlStateOf(error) ?? "";
+  return (
+    ["40P01", "40001", "53300"].includes(code) ||
+    code.startsWith("08") ||
+    code.startsWith("57P") ||
+    ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "CONNECTION_CLOSED", "CONNECT_TIMEOUT"].includes(code)
+  );
+}
+
+/** An error nobody planned for, as a problem: a 503 to retry if it was the database, a 500 if not. */
+function unexpectedReply(error: unknown, request: Request, kit: Kit) {
+  console.error(`[server] ${request.method} ${new URL(request.url).pathname} failed`, error);
+  if (!isTransient(error)) {
+    return kit.problemReply(
+      { code: "internal_error", detail: "The server ran into a problem it didn’t expect." },
+      request,
+    );
+  }
+  const problem = kit.problemReply(
+    { code: "service_unavailable", detail: "The database couldn’t take this request just now. Try again." },
+    request,
+  );
+  return { ...problem, headers: { "Retry-After": String(RETRY_AFTER_SECONDS) } };
+}
+
 const logDeliveryError = (error: unknown) => {
   console.error("[webhooks] Couldn't deliver the webhooks that are due", error);
 };
@@ -91,8 +124,14 @@ export function createServerApi(
   ];
 
   async function respond(request: Request): Promise<Response> {
-    const response = await getResponse(handlers, request);
-    return response ?? kit.send(request, kit.problemReply({ code: "not_found", detail: "No such endpoint." }, request));
+    try {
+      const response = await getResponse(handlers, request);
+      return (
+        response ?? kit.send(request, kit.problemReply({ code: "not_found", detail: "No such endpoint." }, request))
+      );
+    } catch (error) {
+      return kit.send(request, unexpectedReply(error, request, kit));
+    }
   }
 
   /** The simulated provider sends what's due; returns how many it sent. */

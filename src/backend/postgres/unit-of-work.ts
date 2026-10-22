@@ -7,7 +7,7 @@
  */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BackendContext } from "@/backend/domain/context";
-import type { Database } from "./db";
+import { withRetries, type Database } from "./db";
 import {
   contextWith,
   holdRecordOf,
@@ -125,7 +125,7 @@ export function withHold<T>(
   reference: HoldReference,
   run: (context: BackendContext, records: HoldRecords) => T,
 ): Promise<T | null> {
-  return db.transaction((tx) => withHoldIn(tx, deps, reference, run));
+  return withRetries(() => db.transaction((tx) => withHoldIn(tx, deps, reference, run)));
 }
 
 /** The same, inside a transaction already open, so its writes commit with the caller's. */

@@ -17,7 +17,7 @@ import { fail, ok } from "@/backend/domain/errors";
 import type { OutboxItem } from "@/backend/domain/state";
 import { deliverDue } from "@/backend/domain/webhooks";
 import { API_ROUTES, WEBHOOK_SIGNATURE_HEADER } from "@/contract/routes";
-import type { Database } from "./db";
+import { withRetries, type Database } from "./db";
 import { signWebhook, verifyWebhook, type ProviderWebhook } from "./provider";
 import type { ServerDeps } from "./records";
 import { providerEvents, webhookEvents } from "./schema";
@@ -47,22 +47,24 @@ function outboxItemOf(event: ProviderWebhook, deps: ServerDeps): OutboxItem {
  */
 export async function receiveWebhook(db: Database, deps: ServerDeps, event: ProviderWebhook): Promise<WebhookOutcome> {
   try {
-    return await db.transaction(async (tx) => {
-      const [first] = await tx
-        .insert(webhookEvents)
-        .values({ eventId: event.id, type: event.type, receivedAt: new Date(deps.now()) })
-        .onConflictDoNothing()
-        .returning({ eventId: webhookEvents.eventId });
-      if (!first) return "duplicate";
-      const processed = await withHoldIn(tx, deps, { paymentId: event.data.paymentId }, (context) => {
-        context.state.outbox.push(outboxItemOf(event, deps));
-        deliverDue(context);
-        return "processed" as const;
-      });
-      // Undo the dedupe row too: nothing was done, so nothing is marked done.
-      if (!processed) tx.rollback();
-      return "processed";
-    });
+    return await withRetries(() =>
+      db.transaction(async (tx) => {
+        const [first] = await tx
+          .insert(webhookEvents)
+          .values({ eventId: event.id, type: event.type, receivedAt: new Date(deps.now()) })
+          .onConflictDoNothing()
+          .returning({ eventId: webhookEvents.eventId });
+        if (!first) return "duplicate";
+        const processed = await withHoldIn(tx, deps, { paymentId: event.data.paymentId }, (context) => {
+          context.state.outbox.push(outboxItemOf(event, deps));
+          deliverDue(context);
+          return "processed" as const;
+        });
+        // Undo the dedupe row too: nothing was done, so nothing is marked done.
+        if (!processed) tx.rollback();
+        return "processed";
+      }),
+    );
   } catch (error) {
     if (error instanceof TransactionRollbackError) return "unknown-payment";
     throw error;

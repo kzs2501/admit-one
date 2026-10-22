@@ -1,3 +1,4 @@
+import type { IdempotencyClaim } from "@/backend/idempotency-store";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { TEST_CARDS } from "@/backend/domain/payments";
@@ -126,6 +127,10 @@ describe("payments on Postgres", () => {
 
 describe("Idempotency-Keys on Postgres", () => {
   const answer = { fingerprint: "abc", status: 202, body: { ok: true } };
+  const tokenOf = (claim: IdempotencyClaim) => {
+    if (claim.kind !== "claimed") throw new Error(`Expected the key to be claimed, not ${claim.kind}`);
+    return claim.token;
+  };
 
   it("gives a key to exactly one of several requests that arrive with it at once", async () => {
     const claims = await Promise.all(Array.from({ length: 8 }, () => backend.idempotency.claim("key-race", "abc")));
@@ -134,13 +139,11 @@ describe("Idempotency-Keys on Postgres", () => {
   });
 
   it("replays the stored answer once the request finishes, and frees a released key", async () => {
-    await backend.idempotency.claim("key-done", "abc");
-    await backend.idempotency.complete("key-done", answer);
+    await backend.idempotency.complete("key-done", tokenOf(await backend.idempotency.claim("key-done", "abc")), answer);
     expect(await backend.idempotency.claim("key-done", "abc")).toMatchObject({ kind: "stored", record: answer });
 
-    await backend.idempotency.claim("key-released", "abc");
-    await backend.idempotency.release("key-released");
-    expect(await backend.idempotency.claim("key-released", "abc")).toEqual({ kind: "claimed" });
+    await backend.idempotency.release("key-released", tokenOf(await backend.idempotency.claim("key-released", "abc")));
+    expect(await backend.idempotency.claim("key-released", "abc")).toMatchObject({ kind: "claimed" });
   });
 
   it("lets a key whose request died with its process be claimed again, after a minute", async () => {
@@ -148,7 +151,22 @@ describe("Idempotency-Keys on Postgres", () => {
     nowMs += ABANDONED_AFTER_MS - 1;
     expect(await backend.idempotency.claim("key-abandoned", "abc")).toMatchObject({ kind: "in-flight" });
     nowMs += 1;
-    expect(await backend.idempotency.claim("key-abandoned", "abc")).toEqual({ kind: "claimed" });
+    expect(await backend.idempotency.claim("key-abandoned", "abc")).toMatchObject({ kind: "claimed" });
+  });
+
+  it("doesn't let a request that was given up on overwrite, or give back, the claim that replaced it", async () => {
+    const slow = tokenOf(await backend.idempotency.claim("key-slow", "abc"));
+    nowMs += ABANDONED_AFTER_MS;
+    const retry = tokenOf(await backend.idempotency.claim("key-slow", "abc"));
+    // The slow request finishes at last: it must not take over the retry's claim.
+    await backend.idempotency.complete("key-slow", slow, { ...answer, body: { from: "slow" } });
+    await backend.idempotency.release("key-slow", slow);
+    expect(await backend.idempotency.claim("key-slow", "abc")).toMatchObject({ kind: "in-flight" });
+    await backend.idempotency.complete("key-slow", retry, { ...answer, body: { from: "retry" } });
+    expect(await backend.idempotency.claim("key-slow", "abc")).toMatchObject({
+      kind: "stored",
+      record: { body: { from: "retry" } },
+    });
   });
 
   it("treats an expired key as new even before the purge reaches it", async () => {
@@ -159,15 +177,14 @@ describe("Idempotency-Keys on Postgres", () => {
       FROM generate_series(1, 150) AS n`);
     // The purge takes 100 at a time; whichever these are, each is claimable.
     for (const n of [1, 75, 150]) {
-      expect(await backend.idempotency.claim(`key-expired-${String(n)}`, "xyz")).toEqual({ kind: "claimed" });
+      expect(await backend.idempotency.claim(`key-expired-${String(n)}`, "xyz")).toMatchObject({ kind: "claimed" });
     }
   });
 
   it("forgets keys after 24 hours", async () => {
-    await backend.idempotency.claim("key-old", "abc");
-    await backend.idempotency.complete("key-old", answer);
+    await backend.idempotency.complete("key-old", tokenOf(await backend.idempotency.claim("key-old", "abc")), answer);
     nowMs += IDEMPOTENCY_KEY_TTL_MS;
-    expect(await backend.idempotency.claim("key-old", "abc")).toEqual({ kind: "claimed" });
+    expect(await backend.idempotency.claim("key-old", "abc")).toMatchObject({ kind: "claimed" });
     const [row] = await database.db.execute<{ count: number }>(
       sql`SELECT count(*)::int AS count FROM idempotency_keys WHERE key = 'key-old'`,
     );

@@ -30,7 +30,8 @@ export function createIdempotencyStore(db: Database, deps: ServerDeps) {
       .values({ key, fingerprint, createdAt: now })
       .onConflictDoNothing()
       .returning({ key: idempotencyKeys.key });
-    if (claimed) return { kind: "claimed" };
+    // The claim's creation time is its version, and so its token.
+    if (claimed) return { kind: "claimed", token: now.toISOString() };
 
     const [row] = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, key));
     if (!row) return claim(key, fingerprint); // released a moment ago: try again
@@ -55,18 +56,22 @@ export function createIdempotencyStore(db: Database, deps: ServerDeps) {
         // The creation time is the version: if another request reclaimed it first, this matches nothing.
         .where(and(eq(idempotencyKeys.key, key), eq(idempotencyKeys.createdAt, row.createdAt)))
         .returning({ key: idempotencyKeys.key });
-      if (taken) return { kind: "claimed" };
+      if (taken) return { kind: "claimed", token: now.toISOString() };
     }
     return { kind: "in-flight", fingerprint: row.fingerprint };
   }
 
+  /** This claim of the key, and no later one. */
+  const ownClaim = (key: string, token: string) =>
+    and(eq(idempotencyKeys.key, key), eq(idempotencyKeys.createdAt, new Date(token)));
+
   return {
     claim,
-    complete: async (key, { status, body }) => {
-      await db.update(idempotencyKeys).set({ status, body }).where(eq(idempotencyKeys.key, key));
+    complete: async (key, token, { status, body }) => {
+      await db.update(idempotencyKeys).set({ status, body }).where(ownClaim(key, token));
     },
-    release: async (key) => {
-      await db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.key, key), isNull(idempotencyKeys.status)));
+    release: async (key, token) => {
+      await db.delete(idempotencyKeys).where(and(ownClaim(key, token), isNull(idempotencyKeys.status)));
     },
   } satisfies IdempotencyStore;
 }

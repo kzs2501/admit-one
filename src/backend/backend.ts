@@ -94,8 +94,9 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
   };
 
   const isLive = (record: IdempotencyRecord) => deps.now() - record.createdAtMs < IDEMPOTENCY_KEY_TTL_MS;
-  /** Idempotency-Keys whose request is still being handled, with that request's fingerprint. */
-  const keysInFlight = new Map<string, string>();
+  /** Idempotency-Keys whose request is still being handled: that request's fingerprint, and its claim's token. */
+  const keysInFlight = new Map<string, { fingerprint: string; token: string }>();
+  let claimCount = 0;
 
   const notify = () => {
     version += 1;
@@ -259,11 +260,14 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
         const record = context.state.idempotency[key];
         if (record && isLive(record)) return { kind: "stored", record };
         const inFlight = keysInFlight.get(key);
-        if (inFlight !== undefined) return { kind: "in-flight", fingerprint: inFlight };
-        keysInFlight.set(key, fingerprint);
-        return { kind: "claimed" };
+        if (inFlight !== undefined) return { kind: "in-flight", fingerprint: inFlight.fingerprint };
+        claimCount += 1;
+        const token = String(claimCount);
+        keysInFlight.set(key, { fingerprint, token });
+        return { kind: "claimed", token };
       },
-      complete: (key: string, record: Omit<IdempotencyRecord, "createdAtMs">) => {
+      complete: (key: string, token: string, record: Omit<IdempotencyRecord, "createdAtMs">) => {
+        if (keysInFlight.get(key)?.token !== token) return;
         keysInFlight.delete(key);
         command(() => {
           // Saving is also when expired keys are dropped, so the store can't grow forever.
@@ -271,8 +275,8 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
           context.state.idempotency = Object.fromEntries([...live, [key, { ...record, createdAtMs: deps.now() }]]);
         });
       },
-      release: (key: string) => {
-        keysInFlight.delete(key);
+      release: (key: string, token: string) => {
+        if (keysInFlight.get(key)?.token === token) keysInFlight.delete(key);
       },
     } satisfies IdempotencyStore,
 

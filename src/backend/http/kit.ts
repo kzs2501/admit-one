@@ -141,13 +141,13 @@ export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptio
     try {
       const { reply, isAttempted } = await attempt(body);
       if (isAttempted) {
-        await backend.idempotency.complete(storedKey, { fingerprint, ...reply });
+        await backend.idempotency.complete(storedKey, claim.token, { fingerprint, ...reply });
       } else {
-        await backend.idempotency.release(storedKey);
+        await backend.idempotency.release(storedKey, claim.token);
       }
       return reply;
     } catch (error) {
-      await backend.idempotency.release(storedKey);
+      await backend.idempotency.release(storedKey, claim.token);
       throw error;
     }
   }

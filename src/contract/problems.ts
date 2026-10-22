@@ -35,6 +35,8 @@ const plainProblemCodeSchema = z.enum([
   "refund_failed",
   "invalid_signature",
   "not_in_server_mode",
+  "service_unavailable",
+  "internal_error",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -190,6 +192,18 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "The refund couldn’t start",
     description:
       "The payment provider refused to start the refund, so nothing was refunded and the order is unchanged. It’s safe to try again later.",
+  },
+  service_unavailable: {
+    status: 503,
+    title: "Busy for a moment",
+    description:
+      "The server couldn’t finish the request just now: its database was busy or out of reach. Nothing was changed, so it’s safe to send the same request again after the `Retry-After` header’s seconds.",
+  },
+  internal_error: {
+    status: 500,
+    title: "Something went wrong on our side",
+    description:
+      "The server ran into a problem it didn’t expect, and has logged it. Nothing was changed. If it keeps happening, it’s a bug to report.",
   },
   forbidden: {
     status: 403,
