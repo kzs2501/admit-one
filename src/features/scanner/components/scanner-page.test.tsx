@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { signDemoTicket } from "@/core/demo-ticket-key";
@@ -32,6 +32,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   Reflect.deleteProperty(navigator, "mediaDevices");
+  Reflect.deleteProperty(document, "hidden");
+  localStorage.clear();
 });
 
 async function scanPhoto(text: string) {
@@ -84,6 +86,81 @@ describe("the door scanner", () => {
     expect(screen.getByText("This scanner can’t check tickets yet")).toBeInTheDocument();
     await scanPhoto(signDemoTicket(claims("AO-PAGE-4")));
     expect(await screen.findByText("It’s signed with a key this scanner doesn’t trust.")).toBeInTheDocument();
+  });
+
+  /** A camera stream whose one track can be stopped, or end by itself. */
+  function fakeCamera() {
+    const listeners = new Map<string, () => void>();
+    const track = {
+      stop: vi.fn(),
+      addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+    };
+    const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
+    return { stream, track, end: () => listeners.get("ended")?.() };
+  }
+
+  function stubCamera(getUserMedia: () => Promise<unknown>) {
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
+  }
+
+  function setHidden(isHidden: boolean) {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => isHidden });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }
+
+  it("lets go of a camera that arrives after the page has gone", async () => {
+    const camera = fakeCamera();
+    let grant: (stream: unknown) => void = () => undefined;
+    stubCamera(() => new Promise((resolve) => (grant = resolve)));
+    const { unmount } = render(<ScannerPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Start the camera" }));
+    // The permission prompt is still open when the page goes.
+    unmount();
+    await act(async () => {
+      grant(camera.stream);
+      await Promise.resolve();
+    });
+    expect(camera.track.stop).toHaveBeenCalled();
+  });
+
+  it("turns the camera off while the page is hidden, and back on when it's shown", async () => {
+    const first = fakeCamera();
+    const second = fakeCamera();
+    const getUserMedia = vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream);
+    stubCamera(getUserMedia);
+    render(<ScannerPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Start the camera" }));
+    expect(await screen.findByLabelText("Camera view")).toBeInTheDocument();
+    act(() => {
+      setHidden(true);
+    });
+    expect(first.track.stop).toHaveBeenCalled();
+    act(() => {
+      setHidden(false);
+    });
+    expect(await screen.findByLabelText("Camera view")).toBeInTheDocument();
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it("says when the camera stops by itself", async () => {
+    const camera = fakeCamera();
+    stubCamera(() => Promise.resolve(camera.stream));
+    render(<ScannerPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Start the camera" }));
+    await screen.findByLabelText("Camera view");
+    act(() => {
+      camera.end();
+    });
+    expect(await screen.findByText("The camera stopped")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start the camera" })).toBeInTheDocument();
+  });
+
+  it("remembers the door's event on this device", async () => {
+    const { unmount } = render(<ScannerPage />);
+    await userEvent.selectOptions(screen.getByLabelText("Event at this door"), "Monsoon Strings");
+    unmount();
+    render(<ScannerPage />);
+    expect(screen.getByLabelText("Event at this door")).toHaveValue("monsoon-strings");
   });
 
   it("explains a blocked camera, and offers the photo instead", async () => {

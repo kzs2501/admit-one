@@ -9,11 +9,14 @@ const GONE_MS = 1_500;
 /**
  * Reads the camera's frames while it's on, and calls `onCode` once for each code that
  * comes into view. One frame at a time: the next waits until the last has been read.
+ * When `resetKey` changes (the door's event), it starts over, so a ticket still in
+ * view is checked for the new event.
  */
 export function useFrameScanner(
   video: RefObject<HTMLVideoElement | null>,
   reader: QrReader | null,
   onCode: (code: string) => void,
+  resetKey = "",
 ) {
   const handleCode = useEffectEvent(onCode);
   useEffect(() => {
@@ -43,5 +46,5 @@ export function useFrameScanner(
       isActive = false;
       clearTimeout(timer);
     };
-  }, [video, reader]);
+  }, [video, reader, resetKey]);
 }

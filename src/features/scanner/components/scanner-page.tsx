@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useRef, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { CATALOG, getEvent } from "@/core/catalog";
 import type { TicketKeyring } from "@/core/ticket-token";
 import { DOOR_KEYRING } from "@/lib/ticket-keys";
 import { useCamera, type CameraState } from "@/features/scanner/hooks/use-camera";
+import { useDoorEvent } from "@/features/scanner/hooks/use-door-event";
 import { useDoor } from "@/features/scanner/hooks/use-door";
 import { useFrameScanner } from "@/features/scanner/hooks/use-frame-scanner";
 import { useQrReader } from "@/features/scanner/hooks/use-qr-reader";
@@ -22,6 +23,10 @@ const CAMERA_NOTICES: Partial<Record<CameraState["kind"], { title: string; body:
     title: "The camera didn’t start",
     body: "Another app may be using it. Close that and try again, or scan a photo instead.",
   },
+  lost: {
+    title: "The camera stopped",
+    body: "It may have been disconnected, or taken by another app. Start it again, or scan a photo instead.",
+  },
 };
 
 const ticketsLetIn = (count: number) => `${String(count)} ${count === 1 ? "ticket" : "tickets"} let in`;
@@ -32,7 +37,7 @@ const ticketsLetIn = (count: number) => `${String(count)} ${count === 1 ? "ticke
  * tickets it has let in, all on this device, so it works with no connection at all.
  */
 export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyring }) {
-  const [eventSlug, setEventSlug] = useState(CATALOG[0]?.slug ?? "");
+  const [eventSlug, setEventSlug] = useDoorEvent();
   const event = getEvent(eventSlug);
   const door = useDoor(eventSlug, keyring);
   const camera = useCamera();
@@ -47,7 +52,12 @@ export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyrin
     },
     [stream],
   );
-  useFrameScanner(video, stream && reader.kind === "ready" ? reader.reader : null, (code) => void door.scan(code));
+  useFrameScanner(
+    video,
+    stream && reader.kind === "ready" ? reader.reader : null,
+    (code) => void door.scan(code),
+    eventSlug,
+  );
 
   async function scanPhoto(change: ChangeEvent<HTMLInputElement>) {
     const file = change.target.files?.[0];
@@ -123,7 +133,7 @@ export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyrin
         ) : (
           <div className="space-y-3">
             <Button
-              isBusy={camera.state.kind === "starting"}
+              isBusy={camera.state.kind === "starting" || camera.state.kind === "paused"}
               onClick={() => void camera.start()}
               className="w-full sm:w-auto"
             >

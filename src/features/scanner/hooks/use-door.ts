@@ -46,11 +46,13 @@ export function useDoor(eventSlug: string, keyring: TicketKeyring) {
     async (code: string) => {
       const check = checkTicket(code, eventSlug, keyring);
       const memory = check.ok ? await recordScan(eventSlug, check.claims.code, Date.now()) : null;
-      // The door may have switched events while the log answered.
-      if (currentEvent.current !== eventSlug) return;
+      // Shown even if the door switched events while the log answered: the scan has been
+      // recorded, so whoever is at the door must see what it said.
       const outcome = doorOutcome(check, memory);
       show(outcome);
-      if (outcome.kind === "admitted") setAdmitted(await countAdmitted(eventSlug));
+      if (outcome.kind !== "admitted") return;
+      const count = await countAdmitted(eventSlug);
+      if (currentEvent.current === eventSlug) setAdmitted(count);
     },
     [eventSlug, keyring, show],
   );
