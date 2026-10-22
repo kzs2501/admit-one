@@ -73,6 +73,22 @@ test("turns away a changed ticket, one for another event, and a code that isn't 
   await expect(door.result).toContainText("This isn’t an admit-one ticket.");
 });
 
+test("reached by its link from the shop, the door still has its own headers, and reads codes", async ({ page }) => {
+  const photo = await photoOfCode(page, signDemoTicket(ticketClaims({ code: "AO-LINK-1" })));
+  await page.goto("/");
+  await page.getByRole("link", { name: "Door scanner" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Door scanner" })).toBeVisible();
+  // A full load, so the page's document came with the scanner's own policy.
+  expect(await page.evaluate(() => new URL(performance.getEntriesByType("navigation")[0]?.name ?? "").pathname)).toBe(
+    "/scan",
+  );
+  const door = new Door(page);
+  await page.getByLabel("Event at this door").selectOption({ label: STUDIO.name });
+  await expect(door.photo).toBeEnabled();
+  await door.scan(photo);
+  await expect(door.result).toContainText("Admitted");
+});
+
 test("works with no network, once it has been opened online", async ({ page, context }) => {
   const photo = await photoOfCode(page, signDemoTicket(ticketClaims({ code: "AO-OFFLINE-1" })));
   const door = new Door(page);

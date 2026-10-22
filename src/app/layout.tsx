@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { DocumentBoundary } from "./document-boundary";
 import { fontVariables } from "./fonts";
 import { Providers } from "./providers";
 import { WebVitals } from "./web-vitals";
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${fontVariables} antialiased`}>
       <body className="flex min-h-dvh flex-col">
         <WebVitals />
+        <DocumentBoundary />
         <a
           href="#main"
           className="fixed top-3 left-3 z-50 -translate-y-20 rounded-md bg-ink px-4 py-2 text-sm text-paper focus:translate-y-0"
@@ -88,9 +90,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 {isServerMode ? "The backend runs on a server, on Postgres." : "The backend runs in your browser."}
               </p>
               <p>
-                <Link className="underline underline-offset-4 hover:text-ink" href="/scan">
+                {/* A plain link: the scanner's page has security headers of its own, which only a full load brings. */}
+                <a className="underline underline-offset-4 hover:text-ink" href="/scan">
                   Door scanner
-                </Link>{" "}
+                </a>{" "}
                 · Built by{" "}
                 <a className="underline underline-offset-4 hover:text-ink" href={SITE.authorUrl}>
                   {SITE.author}
