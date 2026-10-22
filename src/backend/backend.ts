@@ -39,7 +39,7 @@ import {
   type PaymentInput,
   type UpiAppDecision,
 } from "./domain/payments";
-import { createInitialState, type IdempotencyRecord, type LogKind, type ServerState } from "./domain/state";
+import { createInitialState, type IdempotencyRecord, type LogKind, type ServerState, own } from "./domain/state";
 import type { IdempotencyClaim, IdempotencyStore } from "./idempotency-store";
 import {
   toEventView,
@@ -257,7 +257,7 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
      */
     idempotency: {
       claim: (key: string, fingerprint: string): IdempotencyClaim => {
-        const record = context.state.idempotency[key];
+        const record = own(context.state.idempotency, key);
         if (record && isLive(record)) return { kind: "stored", record };
         const inFlight = keysInFlight.get(key);
         if (inFlight !== undefined) return { kind: "in-flight", fingerprint: inFlight.fingerprint };

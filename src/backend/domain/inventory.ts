@@ -4,6 +4,7 @@
  * "release" it, so there's no window where a dead hold still blocks a buyer, and
  * reads never write.
  */
+import { own } from "./state";
 import { CATALOG, findEvent, findTier, type EventInfo } from "@/core/catalog";
 import { findSingleSeatGaps, formatSeatList, seatLabel, type Seat } from "@/core/seating";
 import type { LineItem } from "@/core/ticketing";
@@ -223,7 +224,10 @@ function holdByTiers(context: BackendContext, event: EventInfo, items: LineItem[
     return ok(insertHold(context, event.slug, items, seats));
   }
 
-  for (const { tierId, quantity } of items) {
+  // Per tier, in case a tier is named twice (the contract refuses that too).
+  const wanted = new Map<string, number>();
+  for (const { tierId, quantity } of items) wanted.set(tierId, (wanted.get(tierId) ?? 0) + quantity);
+  for (const [tierId, quantity] of wanted) {
     const left = availableQuantity(context, tierId);
     if (left < quantity) return fail(soldOut(tierId, left));
   }
@@ -298,7 +302,7 @@ export function createHold(context: BackendContext, command: CreateHoldCommand):
 }
 
 export function findHold(context: BackendContext, holdId: string): Result<HoldRecord> {
-  const hold = context.state.holds[holdId];
+  const hold = own(context.state.holds, holdId);
   return hold ? ok(hold) : fail({ code: "not_found", detail: "That reservation doesn’t exist." });
 }
 

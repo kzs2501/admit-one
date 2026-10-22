@@ -4,6 +4,7 @@
  * them) and are processed idempotently by event id — providers deliver at least once,
  * so duplicates are normal, not errors.
  */
+import { own } from "./state";
 import type { BackendContext } from "./context";
 import { findHistoricalOrder } from "./history";
 import { findLiveSale } from "./reporting";
@@ -72,7 +73,7 @@ function claimPayment(
   { eventId, type, enqueuedAtMs, ...event }: OutboxItem & { paymentId: string },
 ) {
   const { state } = context;
-  const payment = state.payments[event.paymentId];
+  const payment = own(state.payments, event.paymentId);
   const order = payment ? state.orders[payment.orderId] : undefined;
   if (!payment || !order) {
     context.log("warn", `Webhook ${eventId} refers to an unknown payment; ignored.`);
@@ -148,7 +149,7 @@ function processPaymentFailed(
  */
 function processRefundSucceeded(context: BackendContext, { eventId, refundId }: { eventId: string; refundId: string }) {
   const { state } = context;
-  const refund = state.refunds[refundId];
+  const refund = own(state.refunds, refundId);
   if (refund?.status !== "pending") {
     context.log("warn", `refund.succeeded ${eventId} for a refund that isn't pending; ignored.`);
     return;

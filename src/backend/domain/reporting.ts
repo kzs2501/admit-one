@@ -8,6 +8,7 @@
  * opaque, and they're bound to their query: a token used with other filters is refused
  * rather than silently giving the wrong rows.
  */
+import { own } from "./state";
 import { z } from "@/core/zod";
 import type { OrderBy, OrderSortField } from "@/contract/queries";
 import { findEvent, getEvent } from "@/core/catalog";
@@ -305,7 +306,7 @@ export interface OrganiserOrder extends OrderRow {
 export function findOrganiserOrder(context: BackendContext, account: Account, orderId: string): Result<OrganiserOrder> {
   const notFound = fail({ code: "not_found", detail: "That order doesn’t exist." });
   const historical = findHistoricalOrder(orderId);
-  const sandboxOrder = context.state.orders[orderId];
+  const sandboxOrder = own(context.state.orders, orderId);
   const liveSale = findLiveSale(context, orderId);
   const eventSlug =
     historical?.eventSlug ?? sandboxOrder?.eventSlug ?? (liveSale && findTier(liveSale.tierId)?.event.slug);

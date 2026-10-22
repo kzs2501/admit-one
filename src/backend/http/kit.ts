@@ -34,13 +34,35 @@ export const anyOrigin = (route: string) => `*${route}`;
 
 export const pathOf = (request: Request) => new URL(request.url).pathname;
 
-export async function readJson(request: Request): Promise<unknown> {
+/** More than any request to this API needs: a bigger body isn't read. */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+const isTooLarge = (request: Request) => Number(request.headers.get("Content-Length") ?? "0") > MAX_BODY_BYTES;
+
+/** A request's body as text, unless it's over `MAX_BODY_BYTES` (then null). */
+export async function readText(request: Request): Promise<string | null> {
+  if (isTooLarge(request)) return null;
+  const text = await request.text();
+  return new TextEncoder().encode(text).length > MAX_BODY_BYTES ? null : text;
+}
+
+type JsonBody = { ok: true; value: unknown } | { ok: false };
+
+/** A request's JSON body (undefined if it isn't JSON), unless it's too large to read. */
+export async function readJson(request: Request): Promise<JsonBody> {
+  const text = await readText(request);
+  if (text === null) return { ok: false };
   try {
-    return await request.json();
+    return { ok: true, value: JSON.parse(text) as unknown };
   } catch {
-    return undefined;
+    return { ok: true, value: undefined };
   }
 }
+
+const TOO_LARGE = {
+  code: "payload_too_large",
+  detail: `The request body is over ${String(MAX_BODY_BYTES / 1024)} KB.`,
+} as const;
 
 export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptions, "sleep" | "random">) {
   const latency = (extraMs = 0) => {
@@ -84,7 +106,9 @@ export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptio
     request: Request,
     schemaFor: Schema | ((body: unknown) => Schema),
   ): Promise<{ ok: true; value: z.output<Schema> } | { ok: false; reply: Reply }> {
-    const body = await readJson(request);
+    const read = await readJson(request);
+    if (!read.ok) return { ok: false, reply: problemReply(TOO_LARGE, request) };
+    const body = read.value;
     const schema = typeof schemaFor === "function" ? schemaFor(body) : schemaFor;
     const parsed = schema.safeParse(body);
     if (parsed.success) return { ok: true, value: parsed.data };
@@ -112,7 +136,9 @@ export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptio
         request,
       );
     }
-    const body = await readJson(request);
+    const read = await readJson(request);
+    if (!read.ok) return problemReply(TOO_LARGE, request);
+    const body = read.value;
     const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
     const storedKey = scope ? `${scope}:${key}` : key;
     // Claim the key before doing anything, so a retry that arrives mid-request can't

@@ -123,6 +123,48 @@ export function describeBuyerContract(backendName: string, createHarness: () => 
       expect(soldOut).toMatchObject({ tierId: WORKSHOP, available: 0 });
     });
 
+    it("refuses a tier named twice, a name too long for a ticket, and a body too big to read", async () => {
+      await expectProblem(
+        await post("/api/holds", {
+          eventSlug: "frontend-systems-summit",
+          items: [
+            { tierId: "fss-general", quantity: 2 },
+            { tierId: "fss-general", quantity: 2 },
+          ],
+        }),
+        "invalid_request",
+      );
+      const details = await hold();
+      await expectProblem(
+        await post("/api/orders", {
+          holdId: details.hold.id,
+          attendees: [{ name: "A".repeat(101), email: "asha@example.com" }],
+          addOns: {},
+        }),
+        "invalid_request",
+      );
+      await expectProblem(
+        await post("/api/holds", { eventSlug: "frontend-systems-summit", padding: "x".repeat(70 * 1024) }),
+        "payload_too_large",
+      );
+    });
+
+    it("finds nothing under ids that are names on every JavaScript object", async () => {
+      for (const id of ["constructor", "__proto__", "toString"]) {
+        await expectProblem(await call(`/api/holds/${id}`), "not_found");
+        await expectProblem(await call(`/api/orders/${id}`), "not_found");
+        await expectProblem(
+          await post("/api/orders", {
+            holdId: id,
+            attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
+            addOns: {},
+          }),
+          "not_found",
+        );
+        await expectProblem(await post(`/api/orders/${id}/payments`, card(), newKey()), "not_found");
+      }
+    });
+
     it("creates an order for a hold once, then updates the same one", async () => {
       const created = await order();
       const updated = await post("/api/orders", {

@@ -8,7 +8,7 @@
 import { http } from "msw/http";
 import type { Result } from "@/backend/domain/errors";
 import { API_ROUTES, WEBHOOK_SIGNATURE_HEADER } from "@/contract/routes";
-import { anyOrigin, type Kit } from "./kit";
+import { anyOrigin, readText, type Kit } from "./kit";
 
 export interface WebhookReceiverPort {
   receive: (rawBody: string, signature: string | null) => Promise<Result<string>>;
@@ -17,7 +17,14 @@ export interface WebhookReceiverPort {
 export function createWebhookHandlers(receiver: WebhookReceiverPort, { problemReply, send }: Kit) {
   return [
     http.post(anyOrigin(API_ROUTES.providerWebhook), async ({ request }) => {
-      const result = await receiver.receive(await request.text(), request.headers.get(WEBHOOK_SIGNATURE_HEADER));
+      const rawBody = await readText(request);
+      if (rawBody === null) {
+        return send(
+          request,
+          problemReply({ code: "payload_too_large", detail: "The webhook body is over 64 KB." }, request),
+        );
+      }
+      const result = await receiver.receive(rawBody, request.headers.get(WEBHOOK_SIGNATURE_HEADER));
       return send(
         request,
         result.ok

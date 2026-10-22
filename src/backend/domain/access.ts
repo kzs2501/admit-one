@@ -4,6 +4,7 @@
  * out. What an account may then see or do is `can()` from core, the same rule the
  * dashboard uses to decide what to show.
  */
+import { own } from "./state";
 import { CATALOG, findEvent, type EventInfo } from "@/core/catalog";
 import { can, findAccount, type Account, type Permission } from "@/core/organisations";
 import type { BackendContext } from "./context";
@@ -25,7 +26,7 @@ export function signIn(context: BackendContext, accountId: string): Result<{ tok
 
 /** The account a token belongs to, if it's a live session. */
 export function authenticate(context: BackendContext, token: string | null): Account | null {
-  const session = token === null ? undefined : context.state.sessions[token];
+  const session = token === null ? undefined : own(context.state.sessions, token);
   if (!session || context.deps.now() >= session.expiresAtMs) return null;
   return findAccount(session.accountId) ?? null;
 }

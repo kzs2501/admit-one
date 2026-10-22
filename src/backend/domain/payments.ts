@@ -5,6 +5,7 @@
  * Every attempted payment returns its payment, whatever the bank said; errors are
  * reserved for requests that couldn't be attempted at all.
  */
+import { own } from "./state";
 import type { CardDetails } from "@/core/schemas";
 import type { BackendContext } from "./context";
 import { isOrderOpen, isPaymentInFlight, resolvePayment, setOrderStatus, settleExpiry } from "./orders";
@@ -110,7 +111,7 @@ function requestUpiPayment(context: BackendContext, order: OrderRecord): Payment
 }
 
 export function createPayment(context: BackendContext, orderId: string, input: PaymentInput): Result<PaymentAttempt> {
-  const order = context.state.orders[orderId];
+  const order = own(context.state.orders, orderId);
   if (!order) return fail({ code: "not_found", detail: "That order doesn’t exist." });
   settleExpiry(context, order);
   if (order.status === "expired") {
@@ -134,7 +135,7 @@ export function confirmChallenge(
   paymentId: string,
   decision: ChallengeDecision,
 ): Result<PaymentAttempt> {
-  const payment = context.state.payments[paymentId];
+  const payment = own(context.state.payments, paymentId);
   if (!payment) return fail({ code: "not_found", detail: "That payment doesn’t exist." });
   const order = context.state.orders[payment.orderId];
   if (!order || payment.method !== "card" || payment.status !== "requires_action") {
@@ -163,7 +164,7 @@ export function respondInUpiApp(
   paymentId: string,
   decision: UpiAppDecision,
 ): Result<PaymentAttempt> {
-  const payment = context.state.payments[paymentId];
+  const payment = own(context.state.payments, paymentId);
   if (!payment) return fail({ code: "not_found", detail: "That payment doesn’t exist." });
   const order = context.state.orders[payment.orderId];
   if (!order || payment.method !== "upi" || resolvePayment(context, payment).status !== "requires_action") {
@@ -190,7 +191,7 @@ export function respondInUpiApp(
  * Cancelling twice is harmless, and answers the same.
  */
 export function cancelPayment(context: BackendContext, paymentId: string): Result<PaymentAttempt> {
-  const payment = context.state.payments[paymentId];
+  const payment = own(context.state.payments, paymentId);
   const order = payment ? context.state.orders[payment.orderId] : undefined;
   if (!payment || !order) return fail({ code: "not_found", detail: "That payment doesn’t exist." });
   settleExpiry(context, order);

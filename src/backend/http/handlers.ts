@@ -82,7 +82,9 @@ export function createBuyerHandlers(
   // What the "connection drops" preset loses. The work has already happened; only the
   // answer goes missing — the case that makes retrying a payment dangerous without a key.
   const ordersWithLostPayment = new Set<string>();
+  /** Status checks per order, kept only while a preset drops some, and never more than this many orders. */
   const statusCheckCounts = new Map<string, number>();
+  const COUNTED_ORDERS_LIMIT = 1_000;
   const lostResponse = (request: Request) => {
     backend.log("warn", `${request.method} ${pathOf(request)} → the response was lost on the way back.`);
     return HttpResponse.error();
@@ -180,9 +182,13 @@ export function createBuyerHandlers(
 
     http.get<{ orderId: string }>(anyOrigin(API_ROUTES.getOrder), async ({ params, request }) => {
       await latency();
-      const checkCount = (statusCheckCounts.get(params.orderId) ?? 0) + 1;
-      statusCheckCounts.set(params.orderId, checkCount);
-      if (checkCount > 1 && checkCount <= 1 + backend.chaos().droppedStatusChecks) return lostResponse(request);
+      const { droppedStatusChecks } = backend.chaos();
+      if (droppedStatusChecks > 0) {
+        if (statusCheckCounts.size >= COUNTED_ORDERS_LIMIT) statusCheckCounts.clear();
+        const checkCount = (statusCheckCounts.get(params.orderId) ?? 0) + 1;
+        statusCheckCounts.set(params.orderId, checkCount);
+        if (checkCount > 1 && checkCount <= 1 + droppedStatusChecks) return lostResponse(request);
+      }
       return send(request, resultReply(await backend.getOrder(params.orderId), request, toOrderDto));
     }),
 

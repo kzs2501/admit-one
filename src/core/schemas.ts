@@ -16,6 +16,9 @@ export const lineItemsSchema = z
   .min(1, "Choose at least one ticket.")
   .refine((items) => items.reduce((total, item) => total + item.quantity, 0) <= MAX_TICKETS_PER_ORDER, {
     message: `You can reserve up to ${MAX_TICKETS_PER_ORDER} tickets at a time.`,
+  })
+  .refine((items) => new Set(items.map((item) => item.tierId)).size === items.length, {
+    message: "Name each ticket type once, with how many of it.",
   });
 
 /** Particular seats, for an event with reserved seating: 1–6 of them, each once. */
@@ -25,9 +28,18 @@ export const seatIdsSchema = z
   .max(MAX_TICKETS_PER_ORDER, `You can reserve up to ${MAX_TICKETS_PER_ORDER} seats at a time.`)
   .refine((seatIds) => new Set(seatIds).size === seatIds.length, { message: "Each seat can be chosen once." });
 
+/** Long enough for any real name; short enough to fit in a ticket's QR code. */
+export const MAX_NAME_LENGTH = 100;
+/** The longest an email address can be (RFC 5321). */
+const MAX_EMAIL_LENGTH = 254;
+
 export const attendeeSchema = z.object({
-  name: z.string().trim().min(2, "Enter the attendee’s full name."),
-  email: z.email("Enter a valid email address.").trim(),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Enter the attendee’s full name.")
+    .max(MAX_NAME_LENGTH, `Keep the name to ${String(MAX_NAME_LENGTH)} characters.`),
+  email: z.email("Enter a valid email address.").trim().max(MAX_EMAIL_LENGTH, "That email address is too long."),
 });
 
 export type Attendee = z.output<typeof attendeeSchema>;
@@ -67,7 +79,11 @@ export const cardSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{3,4}$/, "3 or 4 digits."),
-  name: z.string().trim().min(2, "Enter the name on the card."),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Enter the name on the card.")
+    .max(MAX_NAME_LENGTH, `Keep the name to ${String(MAX_NAME_LENGTH)} characters.`),
 });
 
 /** What the card form holds. */

@@ -228,6 +228,14 @@ export type LogKind = (typeof LOG_KINDS)[number];
 export type LogEntry = z.infer<typeof logEntrySchema>;
 export type ServerState = z.infer<typeof serverStateSchema>;
 
+/**
+ * The record under a key that came from a request. State maps are plain objects, so
+ * `holds["constructor"]` would find Object; this finds only what was stored.
+ */
+export function own<T>(records: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(records, key) ? records[key] : undefined;
+}
+
 export const createInitialState = (presetId: ServerState["presetId"], createdAtMs: number): ServerState => ({
   version: STATE_VERSION,
   createdAtMs,

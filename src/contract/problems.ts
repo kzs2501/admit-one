@@ -37,6 +37,8 @@ const plainProblemCodeSchema = z.enum([
   "not_in_server_mode",
   "service_unavailable",
   "internal_error",
+  "payload_too_large",
+  "payment_method_unavailable",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -192,6 +194,18 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "The refund couldn’t start",
     description:
       "The payment provider refused to start the refund, so nothing was refunded and the order is unchanged. It’s safe to try again later.",
+  },
+  payload_too_large: {
+    status: 413,
+    title: "Request too large",
+    description:
+      "The request body is over 64 KB, more than any request to this API needs. Nothing was read or changed.",
+  },
+  payment_method_unavailable: {
+    status: 422,
+    title: "Payment method not available",
+    description:
+      "This server doesn’t take that payment method. Paying by UPI needs a real payment provider, so server mode takes cards; the sandbox demo simulates UPI.",
   },
   service_unavailable: {
     status: 503,

@@ -8,6 +8,7 @@
  * exactly, and reads never write. The people ahead are simulated: in this sandbox
  * you're the only real buyer.
  */
+import { own } from "./state";
 import { findEvent } from "@/core/catalog";
 import type { QueueStatus } from "@/core/statuses";
 import type { BackendContext } from "./context";
@@ -89,7 +90,7 @@ export function joinQueue(
 }
 
 export function findQueueEntry(context: BackendContext, token: string): Result<QueueEntryRecord> {
-  const entry = context.state.queueEntries[token];
+  const entry = own(context.state.queueEntries, token);
   return entry ? ok(entry) : fail({ code: "not_found", detail: "That place in the queue doesn’t exist." });
 }
 
@@ -103,7 +104,7 @@ export function admissionProblem(
   queueToken: string | null,
 ): DomainError | null {
   if (!context.chaos().waitingRoom) return null;
-  const entry = queueToken ? context.state.queueEntries[queueToken] : undefined;
+  const entry = queueToken ? own(context.state.queueEntries, queueToken) : undefined;
   const required = (detail: string): DomainError => ({ code: "queue_required", detail, eventSlug });
   if (entry?.eventSlug !== eventSlug) {
     return required("This sale has a queue. Join it, and you can reserve when it’s your turn.");

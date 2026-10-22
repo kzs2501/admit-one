@@ -2,6 +2,7 @@
  * Orders: one per hold, created or updated as the buyer reviews, moved through the
  * order state machine, and fulfilled with tickets once paid.
  */
+import { own } from "./state";
 import { getEvent } from "@/core/catalog";
 import { seatLabel } from "@/core/seating";
 import { priceOrder } from "@/core/pricing";
@@ -145,7 +146,7 @@ export function upsertOrder(
   context: BackendContext,
   { holdId, attendees, addOns }: UpsertOrderCommand,
 ): Result<{ order: OrderRecord; isCreated: boolean }> {
-  const hold = context.state.holds[holdId];
+  const hold = own(context.state.holds, holdId);
   if (!hold) return fail({ code: "not_found", detail: "That reservation doesn’t exist." });
   if (hold.isConverted) return fail({ code: "already_completed", detail: "This order is already complete." });
 
@@ -207,6 +208,6 @@ export function upsertOrder(
 }
 
 export function findOrder(context: BackendContext, orderId: string): Result<OrderRecord> {
-  const order = context.state.orders[orderId];
+  const order = own(context.state.orders, orderId);
   return order ? ok(order) : fail({ code: "not_found", detail: "That order doesn’t exist." });
 }

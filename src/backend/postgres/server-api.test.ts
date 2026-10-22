@@ -133,4 +133,42 @@ describe("the server API", () => {
     expect(bug.status).toBe(500);
     expect(await bug.json()).toMatchObject({ code: "internal_error" });
   });
+
+  it("refuses UPI, which needs a real provider, and takes cards", async () => {
+    const api = createServerApi(
+      database.db,
+      {
+        now: () => nowMs,
+        newId: (prefix) => `${prefix}_${String(++idCount)}`,
+        random: () => 0,
+        signTicket: signDemoTicket,
+      },
+      { webhookSecret: "whsec_server_api" },
+    );
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      api.handle(
+        new Request(ORIGIN + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify(body),
+        }),
+      );
+    const held = (await (
+      await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] })
+    ).json()) as { hold: { id: string } };
+    const order = (await (
+      await post("/api/orders", {
+        holdId: held.hold.id,
+        attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
+        addOns: {},
+      })
+    ).json()) as { id: string };
+    const upi = await post(
+      `/api/orders/${order.id}/payments`,
+      { method: "upi" },
+      { [IDEMPOTENCY_KEY_HEADER]: "upi-1" },
+    );
+    expect(upi.status).toBe(422);
+    expect(await upi.json()).toMatchObject({ code: "payment_method_unavailable" });
+  });
 });
