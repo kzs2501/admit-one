@@ -61,6 +61,7 @@ async function loadHoldRecords(db: Queryable, holdId: string, { isLocked }: { is
     hold: holdRecordOf(holdRow),
     orders: orderRows.map(orderRecordOf),
     payments: paymentRows.map(paymentRecordOf),
+    isSwept: holdRow.status === "expired",
   } satisfies HoldRecords;
 }
 
@@ -69,7 +70,7 @@ async function persist(tx: Transaction, context: BackendContext, holdId: string)
   const { state } = context;
   const hold = state.holds[holdId];
   if (hold) {
-    await tx
+    const updated = await tx
       .update(holds)
       .set({
         isExtended: hold.isExtended,
@@ -77,7 +78,10 @@ async function persist(tx: Transaction, context: BackendContext, holdId: string)
         orderId: hold.orderId,
         ...(hold.isConverted ? { status: "converted" as const } : {}),
       })
-      .where(eq(holds.id, holdId));
+      // Only an unswept hold becomes a sale: a swept one's stock and seats are gone.
+      .where(hold.isConverted ? and(eq(holds.id, holdId), eq(holds.status, "active")) : eq(holds.id, holdId))
+      .returning({ id: holds.id });
+    if (updated.length === 0) throw new Error(`Hold ${holdId} was swept before it could become a sale.`);
   }
   for (const order of Object.values(state.orders)) {
     const row = orderRowOf(order);

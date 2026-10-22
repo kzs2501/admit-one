@@ -46,6 +46,11 @@ describe("the server's configuration", () => {
     expect(kidOf(config.signTicket(CLAIMS))).toBe(DEMO_TICKET_KEY_ID);
   });
 
+  it("turns the scheduler's delivery endpoint on only with CRON_SECRET", () => {
+    expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS }).deliverySecret).toBeNull();
+    expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS, CRON_SECRET: "cron" }).deliverySecret).toBe("cron");
+  });
+
   it("refuses a key id tokens can't carry, at start-up rather than at the first ticket", () => {
     expect(() => serverConfigFrom({ NODE_ENV: "production", ...SECRETS, TICKET_KEY_ID: "Server 1" })).toThrow(
       "TICKET_KEY_ID",

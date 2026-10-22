@@ -188,6 +188,42 @@ export function describeBuyerContract(backendName: string, createHarness: () => 
       }
     });
 
+    it("keeps the tickets of a payment confirmed in time, however late its webhook is delivered", async () => {
+      const { id } = await order();
+      await post(`/api/orders/${id}/payments`, card(), newKey());
+      // Nobody looks at the order for a long while, so the webhook goes out late.
+      api.advance(HOLD_MS * 3);
+      await api.settle();
+      const settled = orderDtoSchema.parse(await (await call(`/api/orders/${id}`)).json());
+      expect(settled).toMatchObject({ status: "fulfilled", payment: { status: "succeeded" } });
+      expect(settled.tickets).toHaveLength(1);
+    });
+
+    it("refunds a payment confirmed in time if, by its late webhook, its tickets went to someone else", async () => {
+      const event = eventDtoSchema.parse(await (await call("/api/events/frontend-systems-summit")).json());
+      const left = event.tiers.find((tier) => tier.id === WORKSHOP)?.available ?? 0;
+      if (left === 0) throw new Error("The workshop tier should have tickets left");
+      const mine = await hold(left, "frontend-systems-summit", WORKSHOP);
+      const ordered = await post("/api/orders", {
+        holdId: mine.hold.id,
+        attendees: Array.from({ length: left }, (_, i) => ({
+          name: `Guest ${String(i + 1)}`,
+          email: `guest${String(i + 1)}@example.com`,
+        })),
+        addOns: {},
+      });
+      const { id } = orderDtoSchema.parse(await ordered.json());
+      await post(`/api/orders/${id}/payments`, card(), newKey());
+      // The hold runs out before the webhook is delivered, and another buyer takes the tickets.
+      api.advance(HOLD_MS * 3);
+      await hold(left, "frontend-systems-summit", WORKSHOP);
+      await api.settle();
+      const settled = orderDtoSchema.parse(await (await call(`/api/orders/${id}`)).json());
+      expect(settled).toMatchObject({ status: "refunded", payment: { status: "refunded" } });
+      const after = eventDtoSchema.parse(await (await call("/api/events/frontend-systems-summit")).json());
+      expect(after.tiers.find((tier) => tier.id === WORKSHOP)?.available).toBe(0);
+    });
+
     it("refuses an order for a hold that has run out", async () => {
       const details = await hold();
       api.advance(HOLD_MS);

@@ -3,7 +3,7 @@
  * signing its tickets throws) is tried again later; it never fails a buyer's read.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createServerApi } from "@/backend/server";
+import { createServerApi, DELIVERY_ENDPOINT } from "@/backend/server";
 import { TEST_CARDS } from "@/backend/domain/payments";
 import { signDemoTicket } from "@/core/demo-ticket-key";
 import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
@@ -74,5 +74,29 @@ describe("the server API", () => {
     isSigningBroken = false;
     nowMs += 1_000;
     expect(await (await readOrder(orderId)).json()).toMatchObject({ status: "fulfilled" });
+  });
+
+  it("lets a scheduler deliver what's due, with its secret, and nobody else", async () => {
+    const deps = {
+      now: () => nowMs,
+      newId: (prefix: string) => `${prefix}_${String(++idCount)}`,
+      random: () => 0,
+      signTicket: signDemoTicket,
+    };
+    const ask = (api: ReturnType<typeof createServerApi>, authorization?: string) =>
+      api.handle(
+        new Request(ORIGIN + DELIVERY_ENDPOINT, { headers: authorization ? { Authorization: authorization } : {} }),
+      );
+    const off = createServerApi(database.db, deps, { webhookSecret: "whsec_server_api" });
+    expect((await ask(off, "Bearer anything")).status).toBe(404);
+
+    const on = createServerApi(database.db, deps, { webhookSecret: "whsec_server_api", deliverySecret: "cron-secret" });
+    const refused = await ask(on, "Bearer not-the-secret");
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get("WWW-Authenticate")).toContain("Bearer");
+    expect((await ask(on)).status).toBe(401);
+    const allowed = await ask(on, "Bearer cron-secret");
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toHaveProperty("delivered");
   });
 });

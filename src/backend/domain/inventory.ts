@@ -49,6 +49,23 @@ export function unavailableSeatIds(context: BackendContext, event: ReservedEvent
   return unavailable;
 }
 
+/**
+ * Whether a hold has its tickets, in the sandbox: while it's live, yes; once it has run
+ * out they're back on sale, so only if nobody has taken them since.
+ */
+export function hasItsTicketsInSandbox(context: BackendContext, hold: HoldRecord): boolean {
+  if (isHoldLive(hold, context.deps.now())) return true;
+  const event = findEvent(hold.eventSlug);
+  if (hold.isConverted || !event) return false;
+  if (isReservedEvent(event)) {
+    const unavailable = unavailableSeatIds(context, event);
+    return hold.seatIds.every((seatId) => !unavailable.has(seatId));
+  }
+  const wanted = new Map<string, number>();
+  for (const { tierId, quantity } of hold.items) wanted.set(tierId, (wanted.get(tierId) ?? 0) + quantity);
+  return [...wanted].every(([tierId, quantity]) => availableQuantity(context, tierId) >= quantity);
+}
+
 /** Tickets left in a tier: its free seats, or capacity − baseline sold − sold here − tickets in live holds. */
 export function availableQuantity(context: BackendContext, tierId: string): number {
   const found = findTier(tierId);

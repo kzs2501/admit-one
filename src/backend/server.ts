@@ -7,7 +7,7 @@
  * so both modes parse, refuse and reply identically. It's one function behind `handle`,
  * replaceable by any router that takes a `Request` and gives a `Response`.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { getResponse } from "msw";
 import { http } from "msw/http";
 import { API_ROUTES } from "@/contract/routes";
@@ -63,7 +63,24 @@ const logDeliveryError = (error: unknown) => {
   console.error("[webhooks] Couldn't deliver the webhooks that are due", error);
 };
 
-export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret }: { webhookSecret: string }) {
+/**
+ * Where a scheduler asks for due webhooks to be sent, so a payment's webhook goes out
+ * even when nobody reads the order (a closed tab). Reads and the follow-up after a
+ * payment are the quick paths; this is the backstop.
+ */
+export const DELIVERY_ENDPOINT = "/api/internal/deliver";
+
+/** The bearer token matches the secret: compared as digests, so in constant time whatever the lengths. */
+function isAuthorised(request: Request, secret: string) {
+  const digest = (text: string) => createHash("sha256").update(text).digest();
+  return timingSafeEqual(digest(request.headers.get("Authorization") ?? ""), digest(`Bearer ${secret}`));
+}
+
+export function createServerApi(
+  db: Database,
+  deps: ServerDeps,
+  { webhookSecret, deliverySecret = null }: { webhookSecret: string; deliverySecret?: string | null },
+) {
   const backend = createPostgresBackend(db, deps);
   const options = { sleep: () => Promise.resolve(), random: deps.random, now: deps.now };
   const kit = createKit(backend, options);
@@ -82,8 +99,25 @@ export function createServerApi(db: Database, deps: ServerDeps, { webhookSecret 
   const deliverDueWebhooks = () =>
     sendDueWebhooks(db, deps, { secret: webhookSecret, send: respond, origin: INTERNAL_ORIGIN });
 
+  /** The scheduler's endpoint: off without a secret, and only for whoever holds it. */
+  async function deliverOnSchedule(request: Request): Promise<Response> {
+    if (deliverySecret === null || request.method !== "GET") {
+      return kit.send(request, kit.problemReply({ code: "not_found", detail: "No such endpoint." }, request));
+    }
+    if (!isAuthorised(request, deliverySecret)) {
+      const problem = kit.problemReply(
+        { code: "unauthenticated", detail: "This endpoint is for the scheduler." },
+        request,
+      );
+      // RFC 9110: a 401 says how to authenticate.
+      return kit.send(request, { ...problem, headers: { "WWW-Authenticate": 'Bearer realm="admit-one"' } });
+    }
+    return kit.send(request, { status: 200, body: { delivered: await deliverDueWebhooks() } });
+  }
+
   return {
     async handle(request: Request): Promise<Response> {
+      if (new URL(request.url).pathname === DELIVERY_ENDPOINT) return deliverOnSchedule(request);
       // Webhooks go out when due, and at the latest when the buyer next looks: there's
       // no timer on a serverless function, so correctness never waits for one. A
       // delivery that fails is tried again later; it never fails the buyer's read.
@@ -127,7 +161,7 @@ export function getServerApi(): Promise<ServerApi> {
         random: Math.random,
         signTicket: config.signTicket,
       },
-      { webhookSecret: config.webhookSecret },
+      { webhookSecret: config.webhookSecret, deliverySecret: config.deliverySecret },
     );
   })().catch((error: unknown) => {
     serverApi = null;

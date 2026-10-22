@@ -31,7 +31,8 @@ function outboxItemOf(event: ProviderWebhook, deps: ServerDeps): OutboxItem {
     deliveryId: deps.newId("dlv"),
     eventId: event.id,
     enqueuedAtMs: event.created * 1000,
-    deliverAtMs: deps.now(),
+    // When the provider confirmed it, which is what the domain judges the hold by.
+    deliverAtMs: event.created * 1000,
     paymentId: event.data.paymentId,
   };
   return event.type === "payment.succeeded"
@@ -105,7 +106,8 @@ async function deliver(event: ProviderEventRow, secret: string, send: Send, orig
   const body = JSON.stringify({
     id: event.eventId,
     type: event.type,
-    created: Math.floor(event.enqueuedAt.getTime() / 1000),
+    // When it happened: the provider confirmed it at the moment it fell due.
+    created: Math.floor(event.deliverAt.getTime() / 1000),
     data: { paymentId: event.paymentId, ...(event.failureCode ? { failureCode: event.failureCode } : {}) },
   });
   try {
@@ -142,7 +144,11 @@ export async function sendDueWebhooks(
     .where(
       and(
         isNull(providerEvents.deliveredAt),
-        lte(providerEvents.deliverAt, now),
+        // Due: never tried and past its time, or past the time set for its next try.
+        or(
+          and(isNull(providerEvents.nextAttemptAt), lte(providerEvents.deliverAt, now)),
+          lte(providerEvents.nextAttemptAt, now),
+        ),
         lt(providerEvents.attempts, MAX_DELIVERY_ATTEMPTS),
         or(isNull(providerEvents.leaseUntil), lte(providerEvents.leaseUntil, now)),
       ),
@@ -172,7 +178,7 @@ export async function sendDueWebhooks(
         .set({
           attempts: event.attempts + 1,
           lastError: failure.slice(0, 500),
-          deliverAt: new Date(deps.now() + retryDelayMs(event.attempts)),
+          nextAttemptAt: new Date(deps.now() + retryDelayMs(event.attempts)),
           leaseUntil: null,
         })
         .where(eq(providerEvents.deliveryId, event.deliveryId));

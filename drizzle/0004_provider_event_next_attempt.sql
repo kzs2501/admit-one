@@ -1,0 +1,1 @@
+ALTER TABLE "provider_events" ADD COLUMN "next_attempt_at" timestamp with time zone;

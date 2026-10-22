@@ -29,6 +29,13 @@
       "when": 1792681355265,
       "tag": "0003_provider_event_retries",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792681910523,
+      "tag": "0004_provider_event_next_attempt",
+      "breakpoints": true
     }
   ]
 }

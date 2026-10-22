@@ -87,8 +87,18 @@ function claimPayment(
   return { payment, order };
 }
 
-/** The webhook, not the browser's redirect, is the source of truth for whether a payment happened. */
-function processPaymentSucceeded(context: BackendContext, payment: PaymentRecord, order: OrderRecord) {
+/**
+ * The webhook, not the browser's redirect, is the source of truth for whether a payment
+ * happened. It's judged by when the payment happened (`occurredAtMs`), not when its
+ * webhook happened to be delivered: a payment confirmed while its hold was live keeps
+ * its tickets, if the hold still has them.
+ */
+function processPaymentSucceeded(
+  context: BackendContext,
+  payment: PaymentRecord,
+  order: OrderRecord,
+  occurredAtMs: number,
+) {
   const { state } = context;
   payment.status = "succeeded";
 
@@ -96,7 +106,7 @@ function processPaymentSucceeded(context: BackendContext, payment: PaymentRecord
   setOrderStatus(context, order, "paid");
 
   const hold = state.holds[order.holdId];
-  if (hold && isHoldLive(hold, context.deps.now())) {
+  if (hold && isHoldLive(hold, occurredAtMs) && context.hasItsTickets(hold)) {
     hold.isConverted = true;
     for (const { tierId, quantity } of hold.items) state.sold[tierId] = (state.sold[tierId] ?? 0) + quantity;
     state.soldSeatIds.push(...hold.seatIds);
@@ -198,8 +208,10 @@ export function deliverDue(context: BackendContext): number {
     }
     const claimed = claimPayment(context, delivery);
     if (!claimed) continue;
-    if (delivery.type === "payment.succeeded") processPaymentSucceeded(context, claimed.payment, claimed.order);
-    else processPaymentFailed(context, claimed.payment, claimed.order, delivery);
+    // The provider confirmed it when it fell due; it may be delivered later.
+    if (delivery.type === "payment.succeeded") {
+      processPaymentSucceeded(context, claimed.payment, claimed.order, delivery.deliverAtMs);
+    } else processPaymentFailed(context, claimed.payment, claimed.order, delivery);
   }
   return due.length;
 }

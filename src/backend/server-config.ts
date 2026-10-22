@@ -17,6 +17,8 @@ export interface ServerConfig {
   databaseUrl: string;
   webhookSecret: string;
   signTicket: (claims: TicketClaims) => string;
+  /** Lets a scheduler call the delivery endpoint (`CRON_SECRET`); without it, the endpoint is off. */
+  deliverySecret: string | null;
 }
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -46,5 +48,6 @@ export function serverConfigFrom(env: Environment): ServerConfig {
     databaseUrl: setting(env, "DATABASE_URL") ?? LOCAL_DATABASE_URL,
     webhookSecret: setting(env, "WEBHOOK_SECRET") ?? LOCAL_WEBHOOK_SECRET,
     signTicket: key ? (claims) => signTicket(claims, key) : signDemoTicket,
+    deliverySecret: setting(env, "CRON_SECRET") ?? null,
   };
 }

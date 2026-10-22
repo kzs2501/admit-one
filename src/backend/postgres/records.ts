@@ -117,6 +117,8 @@ export interface HoldRecords {
   hold: HoldRecord;
   orders: OrderRecord[];
   payments: PaymentRecord[];
+  /** Swept: run out, and its tickets given back by a later hold's sweep (`stock.ts`). */
+  isSwept?: boolean;
 }
 
 /** The sandbox's context, holding only the given records: enough for its rules and views to run on. */
@@ -135,5 +137,8 @@ export function contextWith(deps: ServerDeps, records: Partial<HoldRecords> = {}
     },
     chaos: () => SERVER_SETTINGS,
     log: () => undefined,
+    // A hold here keeps its tickets, counted as held, until a sweep gives them back,
+    // whatever this process's clock says: so it has them exactly while it's unswept.
+    hasItsTickets: (hold) => hold.id === records.hold?.id && !hold.isConverted && records.isSwept !== true,
   };
 }

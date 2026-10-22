@@ -9,7 +9,7 @@ import { problemSchema } from "@/contract/problems";
 import { createPostgresBackend, type PostgresBackend } from "./backend";
 import { signWebhook, SIGNATURE_TOLERANCE_MS } from "./provider";
 import { SERVER_SETTINGS } from "./records";
-import { inventory, providerEvents, seatClaims, webhookEvents } from "./schema";
+import { holds, inventory, providerEvents, seatClaims, webhookEvents } from "./schema";
 import { createTestDatabase } from "./testing/database";
 import { freeSeatPair } from "./testing/seats";
 import { createWebhookReceiver, MAX_DELIVERY_ATTEMPTS, sendDueWebhooks } from "./webhooks";
@@ -179,10 +179,35 @@ describe("the simulated provider's webhooks", () => {
     expect((await eventFor(paymentId)).deliveredAt).toBeNull();
   });
 
-  it("refunds a payment confirmed after its hold ran out, and sells nothing", async () => {
+  it("never makes a swept hold a sale, even on a server whose clock is behind", async () => {
+    const paidAt = nowMs;
     const { orderId } = await paidOrder();
     const before = await soldOf("osc-session");
+    // The hold runs out, and the next buyer's hold sweeps it, giving its ticket back.
     nowMs += SERVER_SETTINGS.holdDurationMs * 2;
+    const next = await backend.createHold({ eventSlug: STUDIO, items: [{ tierId: "osc-session", quantity: 1 }] });
+    if (!next.ok) throw new Error(next.error.detail);
+    const afterSweep = await soldOf("osc-session");
+    // A server whose clock is behind delivers the webhook, believing the hold still live.
+    nowMs = paidAt + SERVER_SETTINGS.webhookDelayMs + 1_000;
+    await sendDue();
+    expect(await backend.getOrder(orderId)).toMatchObject({ ok: true, value: { status: "refunded" } });
+    expect(await soldOf("osc-session")).toEqual(afterSweep);
+    expect(afterSweep.sold).toBe(before.sold);
+    nowMs += SERVER_SETTINGS.holdDurationMs * 2;
+  });
+
+  it("refunds a payment confirmed after its hold ran out, and sells nothing", async () => {
+    const { orderId, paymentId, holdId } = await paidOrder();
+    const before = await soldOf("osc-session");
+    // The provider takes its time: it confirms only after the hold has run out.
+    const [hold] = await database.db.select().from(holds).where(eq(holds.id, holdId));
+    const confirmedAt = new Date((hold?.expiresAt.getTime() ?? nowMs) + 1_000);
+    await database.db
+      .update(providerEvents)
+      .set({ deliverAt: confirmedAt })
+      .where(eq(providerEvents.paymentId, paymentId));
+    nowMs = confirmedAt.getTime() + 1_000;
     await sendDue();
     const order = await backend.getOrder(orderId);
     expect(order).toMatchObject({ ok: true, value: { status: "refunded" } });

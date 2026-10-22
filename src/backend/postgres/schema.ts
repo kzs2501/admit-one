@@ -169,6 +169,8 @@ export const providerEvents = pgTable(
     deliveredAt: at("delivered_at"),
     /** Failed deliveries so far; each failure puts the next try further off. */
     attempts: integer("attempts").notNull().default(0),
+    /** When to try again after a failure. `deliver_at` stays when the provider confirmed. */
+    nextAttemptAt: at("next_attempt_at"),
     lastError: text("last_error"),
     /** A sender has the event to itself until then, so another doesn't send it too. */
     leaseUntil: at("lease_until"),

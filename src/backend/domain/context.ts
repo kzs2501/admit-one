@@ -1,6 +1,6 @@
 import type { ChaosConfig } from "@/backend/chaos/presets";
 import type { TicketClaims } from "@/core/ticket-token";
-import type { LogKind, ServerState } from "./state";
+import type { HoldRecord, LogKind, ServerState } from "./state";
 
 /** What the outside world provides — injected, so every rule runs on a fake clock in tests. */
 export interface Deps {
@@ -22,4 +22,10 @@ export interface BackendContext {
   readonly deps: Deps;
   chaos: () => ChaosConfig;
   log: (kind: LogKind, message: string) => void;
+  /**
+   * Whether a hold still has its tickets, so a payment for it can still become a sale.
+   * Storage answers this: the sandbox's holds give their tickets back the moment they
+   * run out (lazy expiry), the server's keep them until another hold sweeps them up.
+   */
+  hasItsTickets: (hold: HoldRecord) => boolean;
 }

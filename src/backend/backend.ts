@@ -23,6 +23,7 @@ import {
   createHold,
   findHold,
   findSeatAvailability,
+  hasItsTicketsInSandbox,
   runCrowdTick,
   type CreateHoldCommand,
 } from "./domain/inventory";
@@ -83,6 +84,7 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     state: initialState,
     deps,
     chaos: () => getPreset(context.state.presetId).config,
+    hasItsTickets: (hold) => hasItsTicketsInSandbox(context, hold),
     log(kind: LogKind, message: string) {
       const { state } = context;
       state.logSequence += 1;
