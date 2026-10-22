@@ -39,6 +39,7 @@ const plainProblemCodeSchema = z.enum([
   "internal_error",
   "payload_too_large",
   "payment_method_unavailable",
+  "backend_restarting",
 ]);
 
 export const problemSchema = z.discriminatedUnion("code", [
@@ -206,6 +207,12 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     title: "Payment method not available",
     description:
       "This server doesn’t take that payment method. Paying by UPI needs a real payment provider, so server mode takes cards; the sandbox demo simulates UPI.",
+  },
+  backend_restarting: {
+    status: 503,
+    title: "The demo’s backend is starting again",
+    description:
+      "The sandbox demo’s backend runs in a service worker in your browser, and the browser had stopped it. The page starts it again and sends the request once more, so you shouldn’t see this; if you do, reload the page.",
   },
   service_unavailable: {
     status: 503,

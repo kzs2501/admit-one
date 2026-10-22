@@ -53,6 +53,14 @@ export async function startBackend(worker: WorkerLocation): Promise<void> {
   }
 }
 
+/** Start the in-browser backend again, when the browser stopped its service worker. */
+export async function restartBackend(worker: WorkerLocation): Promise<void> {
+  if (typeof window !== "undefined") {
+    const { restartWorker } = await import("./runtime/worker");
+    await restartWorker(worker);
+  }
+}
+
 export async function getSandboxControl(): Promise<SandboxControl> {
   const { getSandbox } = await import("./runtime/sandbox");
   const sandbox = getSandbox();

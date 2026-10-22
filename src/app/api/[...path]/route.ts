@@ -1,4 +1,5 @@
 import { after, type NextRequest } from "next/server";
+import { PROBLEM_CATALOG, PROBLEM_CONTENT_TYPE } from "@/contract/problems";
 import { isServerMode } from "@/lib/backend-mode";
 
 /**
@@ -10,9 +11,20 @@ export const dynamic = "force-dynamic";
 
 async function handle(request: NextRequest): Promise<Response> {
   if (!isServerMode) {
+    // The sandbox's API runs in the browser's service worker. A request gets here when
+    // that worker isn't answering it (the browser stopped it, and it restarted without
+    // knowing the page): said as a problem the page recovers from, by starting it again.
+    const { status, title } = PROBLEM_CATALOG.backend_restarting;
     return Response.json(
-      { title: "Not found", status: 404, detail: "This build's API runs in the browser." },
-      { status: 404, headers: { "Content-Type": "application/problem+json" } },
+      {
+        type: new URL("/problems/backend-restarting", request.url).href,
+        title,
+        status,
+        detail: "The sandbox’s backend wasn’t answering in this browser. The page starts it again.",
+        instance: request.url,
+        code: "backend_restarting",
+      },
+      { status, headers: { "Content-Type": PROBLEM_CONTENT_TYPE, "Cache-Control": "no-store" } },
     );
   }
   // Loaded only in server mode, so the sandbox's build never touches a database.

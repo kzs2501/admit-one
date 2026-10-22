@@ -120,6 +120,17 @@ test("the sandbox's mock backend sees the API, and nothing else", async ({ page,
   expect(seen).toEqual(["/api/events"]);
 });
 
+test("the sandbox's API comes back after the browser stops its service worker", async ({ page, buyer }) => {
+  await page.goto("/");
+  await waitUntilReadyOffline(page);
+  // What the browser does to an idle worker, or one behind a tab in the background.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("ServiceWorker.enable");
+  await cdp.send("ServiceWorker.stopAllWorkers");
+  await buyer.reserve(/Open Studio/, "Two-hour session", 1);
+  await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
+});
+
 test("the service worker is checked for a new version on every load", { tag: "@both" }, async ({ request }) => {
   for (const path of ["/sw.js", "/mockServiceWorker.js"]) {
     const response = await request.get(path);

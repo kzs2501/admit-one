@@ -66,16 +66,51 @@ export class NetworkError extends Error {
 }
 
 let readiness: Promise<unknown> = Promise.resolve();
+let recovery: (() => Promise<unknown>) | null = null;
+let recovering: Promise<unknown> | null = null;
 
 /** Hold every request until `ready` settles. Set once, at startup. */
 export function setApiReadiness(ready: Promise<unknown>) {
   readiness = ready;
 }
 
+/**
+ * How to bring the API back when an answer says it has gone away
+ * (`backend_restarting`): the sandbox starts its service worker again. Set once, at
+ * startup. Requests that fail together wait for one recovery.
+ */
+export function setApiRecovery(recover: (() => Promise<unknown>) | null) {
+  recovery = recover;
+}
+
+function recover() {
+  if (!recovery) return null;
+  recovering ??= recovery().finally(() => {
+    recovering = null;
+  });
+  return recovering;
+}
+
 export async function request<Schema extends z.ZodType>(
   path: string,
   schema: Schema,
   init: RequestInit = {},
+): Promise<z.output<Schema>> {
+  try {
+    return await requestOnce(path, schema, init);
+  } catch (error) {
+    // Nothing was done (the answer came from a stub), so sending it again is safe, once.
+    const recovered = error instanceof ApiError && error.problem.code === "backend_restarting" ? recover() : null;
+    if (!recovered) throw error;
+    await recovered;
+    return requestOnce(path, schema, init);
+  }
+}
+
+async function requestOnce<Schema extends z.ZodType>(
+  path: string,
+  schema: Schema,
+  init: RequestInit,
 ): Promise<z.output<Schema>> {
   await readiness;
   let response: Response;

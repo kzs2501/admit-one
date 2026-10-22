@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw/http";
 import { setupServer } from "msw/node";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
-import { apiClient, ApiError, NetworkError, parseRetryAfter, problemOf } from "./api-client";
+import { apiClient, ApiError, NetworkError, parseRetryAfter, problemOf, setApiRecovery } from "./api-client";
 
 const network = setupServer();
 
@@ -130,5 +130,47 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter(null, NOW)).toBeNull();
     expect(parseRetryAfter("soon", NOW)).toBeNull();
     expect(parseRetryAfter("-5", NOW)).toBeNull();
+  });
+});
+
+describe("when the sandbox's backend has gone away", () => {
+  const restarting = () =>
+    HttpResponse.json(
+      {
+        type: "http://admit-one.test/problems/backend-restarting",
+        title: "The demo’s backend is starting again",
+        status: 503,
+        detail: "The sandbox’s backend wasn’t answering in this browser.",
+        code: "backend_restarting",
+      },
+      { status: 503, headers: { "Content-Type": PROBLEM_CONTENT_TYPE } },
+    );
+
+  afterEach(() => {
+    setApiRecovery(null);
+  });
+
+  it("starts it again, once for requests that fail together, and sends each request again", async () => {
+    let isUp = false;
+    network.use(http.get("*/api/events", () => (isUp ? HttpResponse.json([]) : restarting())));
+    let recoveries = 0;
+    setApiRecovery(() => {
+      recoveries += 1;
+      isUp = true;
+      return Promise.resolve();
+    });
+    expect(await Promise.all([apiClient.listEvents(), apiClient.listEvents()])).toEqual([[], []]);
+    expect(recoveries).toBe(1);
+  });
+
+  it("tries only once, then says what happened", async () => {
+    network.use(http.get("*/api/events", restarting));
+    setApiRecovery(() => Promise.resolve());
+    await expect(apiClient.listEvents()).rejects.toMatchObject({ problem: { code: "backend_restarting" } });
+  });
+
+  it("without a way to recover, says what happened", async () => {
+    network.use(http.get("*/api/events", restarting));
+    await expect(apiClient.listEvents()).rejects.toBeInstanceOf(ApiError);
   });
 });
