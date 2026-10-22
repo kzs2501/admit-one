@@ -112,10 +112,14 @@ function isAuthorised(request: Request, secret: string) {
 export function createServerApi(
   db: Database,
   deps: ServerDeps,
-  { webhookSecret, deliverySecret = null }: { webhookSecret: string; deliverySecret?: string | null },
+  {
+    webhookSecret,
+    deliverySecret = null,
+    fingerprintSecret = null,
+  }: { webhookSecret: string; deliverySecret?: string | null; fingerprintSecret?: string | null },
 ) {
   const backend = createPostgresBackend(db, deps);
-  const options = { sleep: () => Promise.resolve(), random: deps.random, now: deps.now };
+  const options = { sleep: () => Promise.resolve(), random: deps.random, now: deps.now, fingerprintSecret };
   const kit = createKit(backend, options);
   const handlers = [
     ...createBuyerHandlers(backend, options, kit),
@@ -200,7 +204,11 @@ export function getServerApi(): Promise<ServerApi> {
         random: Math.random,
         signTicket: config.signTicket,
       },
-      { webhookSecret: config.webhookSecret, deliverySecret: config.deliverySecret },
+      {
+        webhookSecret: config.webhookSecret,
+        deliverySecret: config.deliverySecret,
+        fingerprintSecret: config.fingerprintSecret,
+      },
     );
   })().catch((error: unknown) => {
     serverApi = null;

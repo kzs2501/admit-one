@@ -19,13 +19,14 @@ const SECRETS = {
   DATABASE_URL: "postgres://db.example/admit",
   WEBHOOK_SECRET: "whsec_live",
   TICKET_SIGNING_KEY: "VgjR3ifEFNcI1PdhTvaCo_-w09pHOzQ9pGr8xhm6i-Q",
+  FINGERPRINT_SECRET: "fingerprint_live",
 };
 const kidOf = (token: string) => token.split(".")[1];
 
 describe("the server's configuration", () => {
   it.each(["production", "staging", undefined])("needs every secret when NODE_ENV is %s", (nodeEnv) => {
     expect(() => serverConfigFrom({ NODE_ENV: nodeEnv })).toThrow(
-      "needs DATABASE_URL, WEBHOOK_SECRET, TICKET_SIGNING_KEY",
+      "needs DATABASE_URL, WEBHOOK_SECRET, TICKET_SIGNING_KEY, FINGERPRINT_SECRET",
     );
     expect(() => serverConfigFrom({ NODE_ENV: nodeEnv, ...SECRETS, WEBHOOK_SECRET: "" })).toThrow("WEBHOOK_SECRET");
   });

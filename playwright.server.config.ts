@@ -42,6 +42,7 @@ export default defineConfig<object, ServerModeOptions>({
       // A key for these tests only, so tickets are signed as in production, on CI and off it.
       TICKET_SIGNING_KEY: "VgjR3ifEFNcI1PdhTvaCo_-w09pHOzQ9pGr8xhm6i-Q",
       TICKET_KEY_ID: "e2e-1",
+      FINGERPRINT_SECRET: "fingerprint_e2e",
       ...(process.env["DATABASE_SERVER_URL"] ? {} : { PG_PORT: "54329" }),
     },
   },

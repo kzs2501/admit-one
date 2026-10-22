@@ -19,6 +19,8 @@ export interface HandlerOptions {
   random: () => number;
   /** The adapter's clock, for rate limiting. */
   now: () => number;
+  /** The server's key for request fingerprints (`idempotency.ts`); the sandbox has none. */
+  fingerprintSecret?: string | null;
 }
 
 /** A response before it's sent: a status, a JSON body (a DTO or a problem), and any extra headers. */
@@ -64,7 +66,10 @@ const TOO_LARGE = {
   detail: `The request body is over ${String(MAX_BODY_BYTES / 1024)} KB.`,
 } as const;
 
-export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptions, "sleep" | "random">) {
+export function createKit(
+  backend: KitPort,
+  { sleep, random, fingerprintSecret = null }: Pick<HandlerOptions, "sleep" | "random" | "fingerprintSecret">,
+) {
   const latency = (extraMs = 0) => {
     const [minMs, maxMs] = backend.chaos().latencyRangeMs;
     return sleep(minMs + random() * (maxMs - minMs) + extraMs);
@@ -139,7 +144,7 @@ export function createKit(backend: KitPort, { sleep, random }: Pick<HandlerOptio
     const read = await readJson(request);
     if (!read.ok) return problemReply(TOO_LARGE, request);
     const body = read.value;
-    const fingerprint = await fingerprintRequest(request.method, pathOf(request), body);
+    const fingerprint = await fingerprintRequest(request.method, pathOf(request), body, fingerprintSecret);
     const storedKey = scope ? `${scope}:${key}` : key;
     // Claim the key before doing anything, so a retry that arrives mid-request can't
     // start the same work again.

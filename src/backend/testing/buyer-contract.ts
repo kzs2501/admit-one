@@ -189,8 +189,10 @@ export function describeBuyerContract(backendName: string, createHarness: () => 
       expect(firstBody.payment.status).toBe("processing");
       const retry = await post(`/api/orders/${id}/payments`, card(), key);
       expect(paymentResultDtoSchema.parse(await retry.json()).payment.id).toBe(firstBody.payment.id);
+      // Another request with the same key: a different name on the card. (The CVC isn't
+      // compared: it's never kept, in any form.)
       await expectProblem(
-        await post(`/api/orders/${id}/payments`, { ...card(), cvc: "999" }, key),
+        await post(`/api/orders/${id}/payments`, { ...card(), name: "Someone Else" }, key),
         "idempotency_key_reused",
       );
     });

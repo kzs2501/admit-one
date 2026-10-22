@@ -32,9 +32,24 @@ describe("fingerprintRequest", () => {
 
   it("changes with any parameter, not just the last four digits", async () => {
     const original = await fingerprint(card);
-    for (const changed of [{ expiry: "11 / 29" }, { cvc: "999" }, { name: "Someone Else" }]) {
+    for (const changed of [{ number: "4000 0000 0000 0002" }, { expiry: "11 / 29" }, { name: "Someone Else" }]) {
       expect(await fingerprint({ ...card, ...changed })).not.toBe(original);
     }
     expect(await fingerprint(card, "/api/orders/ord_2/payments")).not.toBe(original);
+  });
+
+  it("leaves the CVC out entirely: PCI DSS allows no form of it to be kept", async () => {
+    expect(await fingerprint({ ...card, cvc: "999" })).toBe(await fingerprint(card));
+    const withoutCvc = Object.fromEntries(Object.entries(card).filter(([key]) => key !== "cvc"));
+    expect(await fingerprint(withoutCvc)).toBe(await fingerprint(card));
+  });
+
+  it("on the server, is an HMAC under its secret, so the hash can't be searched without it", async () => {
+    const keyed = (secret: string) => fingerprintRequest("POST", "/api/orders/ord_1/payments", card, secret);
+    const plain = await fingerprint(card);
+    expect(await keyed("secret-a")).toMatch(/^[0-9a-f]{64}$/);
+    expect(await keyed("secret-a")).not.toBe(plain);
+    expect(await keyed("secret-a")).not.toBe(await keyed("secret-b"));
+    expect(await keyed("secret-a")).toBe(await keyed("secret-a"));
   });
 });

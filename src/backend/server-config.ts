@@ -2,7 +2,8 @@
  * What the server backend needs from its environment, read once when it starts. In
  * development and in tests, anything unset falls back to a local default. Anywhere
  * else, a missing setting stops the server, so a deployment can never run with a
- * known webhook secret or sign tickets with the public demo key.
+ * known webhook secret, sign tickets with the public demo key, or hash requests with a
+ * key anyone can read here.
  */
 import { signDemoTicket } from "@/core/demo-ticket-key";
 import {
@@ -19,13 +20,16 @@ export interface ServerConfig {
   signTicket: (claims: TicketClaims) => string;
   /** Lets a scheduler call the delivery endpoint (`CRON_SECRET`); without it, the endpoint is off. */
   deliverySecret: string | null;
+  /** Keys the hash Idempotency-Keys compare requests by (`http/idempotency.ts`). */
+  fingerprintSecret: string;
 }
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
 const LOCAL_DATABASE_URL = "postgres://admit@localhost:54329/admit_one";
 const LOCAL_WEBHOOK_SECRET = "whsec_development_only";
-const REQUIRED = ["DATABASE_URL", "WEBHOOK_SECRET", "TICKET_SIGNING_KEY"] as const;
+const LOCAL_FINGERPRINT_SECRET = "fingerprint_development_only";
+const REQUIRED = ["DATABASE_URL", "WEBHOOK_SECRET", "TICKET_SIGNING_KEY", "FINGERPRINT_SECRET"] as const;
 
 /** An empty setting is an unset one. */
 const setting = (env: Environment, name: string) => (env[name] === "" ? undefined : env[name]);
@@ -49,5 +53,6 @@ export function serverConfigFrom(env: Environment): ServerConfig {
     webhookSecret: setting(env, "WEBHOOK_SECRET") ?? LOCAL_WEBHOOK_SECRET,
     signTicket: key ? (claims) => signTicket(claims, key) : signDemoTicket,
     deliverySecret: setting(env, "CRON_SECRET") ?? null,
+    fingerprintSecret: setting(env, "FINGERPRINT_SECRET") ?? LOCAL_FINGERPRINT_SECRET,
   };
 }
