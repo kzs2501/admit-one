@@ -10,8 +10,9 @@
  * - `mocking=1` then imports MSW's worker, which answers `/api/*` for the sandbox.
  *
  * The order of listeners matters. MSW answers every request from a page it controls,
- * so this worker's listeners are added first, and they stop the event before MSW's on
- * the requests they own. See ADR 019.
+ * so this worker's listeners are added first: they stop the event before MSW's on the
+ * requests they own, and on everything that isn't the API, which MSW has no answer
+ * for. See ADR 019.
  */
 const params = new URL(self.location.href).searchParams;
 const OFFLINE = params.get("offline") === "1";
@@ -23,6 +24,11 @@ const PAGES = `admit-one-pages-${VERSION}`;
 const ASSETS = `admit-one-assets-${VERSION}`;
 /** Pages that work with no network. */
 const OFFLINE_PAGES = ["/tickets", "/scan"];
+/**
+ * Cached on every device once a page has loaded: anyone who buys here may need their
+ * tickets offline. The door scanner is cached only on a device that has opened it.
+ */
+const PRECACHED_FOR_EVERYONE = ["/tickets"];
 /** Files named by their content or version, so a cached copy is never stale. */
 const isImmutable = (url) => url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/vendor/");
 /** Those are kept up to this many, oldest first out, so old builds don't pile up. */
@@ -58,24 +64,34 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== PREPARE_OFFLINE) return;
   event.stopImmediatePropagation();
-  if (OFFLINE) event.waitUntil(Promise.all([prepareOffline(), keep(event.source, event.data.urls)]));
+  if (!OFFLINE) return;
+  const from = event.source ? new URL(event.source.url).pathname : null;
+  const pages = OFFLINE_PAGES.includes(from) ? [...new Set([...PRECACHED_FOR_EVERYONE, from])] : PRECACHED_FOR_EVERYONE;
+  event.waitUntil(Promise.all([prepareOffline(pages), keep(event.source, event.data.urls)]));
 });
 
 self.addEventListener("fetch", (event) => {
-  if (!OFFLINE) return;
   const { request } = event;
   const url = new URL(request.url);
+  const isSameOrigin = url.origin === self.location.origin;
   // DevTools' "only-if-cached" requests can't be fetched from here; leave them alone.
-  if (request.method !== "GET" || url.origin !== self.location.origin) return;
-  if (request.cache === "only-if-cached" && request.mode !== "same-origin") return;
-
-  if (request.mode === "navigate") {
-    event.stopImmediatePropagation();
-    event.respondWith(OFFLINE_PAGES.includes(url.pathname) ? offlinePage(event, url.pathname) : anyPage(event));
-  } else if (isImmutable(url)) {
-    event.stopImmediatePropagation();
-    event.respondWith(asset(event));
+  const isFetchable = !(request.cache === "only-if-cached" && request.mode !== "same-origin");
+  if (OFFLINE && isFetchable && request.method === "GET" && isSameOrigin) {
+    if (request.mode === "navigate") {
+      event.stopImmediatePropagation();
+      event.respondWith(OFFLINE_PAGES.includes(url.pathname) ? offlinePage(event, url.pathname) : anyPage(event));
+      return;
+    }
+    if (isImmutable(url)) {
+      event.stopImmediatePropagation();
+      event.respondWith(asset(event));
+      return;
+    }
   }
+  // MSW answers only the API; every request it sees costs a round trip to the page, and
+  // one made while it has lost track of its pages (a restarted worker) would fall
+  // through. Everything else goes to the network as if there were no worker.
+  if (MOCKING && !(isSameOrigin && url.pathname.startsWith("/api/"))) event.stopImmediatePropagation();
 });
 
 // After this worker's listeners, so they run first.
@@ -93,7 +109,11 @@ async function offlinePage(event, path) {
   const cache = await caches.open(PAGES);
   const network = (async () => {
     const response = (await event.preloadResponse) ?? (await fetch(event.request));
-    if (response.ok && response.type === "basic") await cache.put(path, response.clone());
+    // Cached beside the answer, not before it: a write that fails (a full disk) can't
+    // cost the page, and the page doesn't wait for the write.
+    if (response.ok && response.type === "basic") {
+      event.waitUntil(cache.put(path, response.clone()).catch(() => undefined));
+    }
     return response;
   })();
   event.waitUntil(network.catch(() => undefined));
@@ -129,29 +149,37 @@ async function fromOfflinePage(event) {
   return client ? OFFLINE_PAGES.includes(new URL(client.url).pathname) : false;
 }
 
-let prepared = null;
+/** Each page being, or already, cached in this worker's life, so it's fetched once. */
+const prepared = new Map();
 
-/** Cache the offline pages and every asset their HTML names, once per worker start. */
-function prepareOffline() {
-  prepared ??= (async () => {
-    const [pages, assets] = await Promise.all([caches.open(PAGES), caches.open(ASSETS)]);
-    for (const path of OFFLINE_PAGES) {
-      const response = await fetch(path, { priority: "low" });
-      if (!response.ok) throw new Error(`${path} answered ${String(response.status)}`);
-      const html = await response.clone().text();
-      // Putting an asset again moves it to the back of the queue `trim` empties.
-      for (const href of assetsNamedIn(html)) {
-        const asset = await fetch(href, { priority: "low" });
-        if (asset.ok) await assets.put(href, asset);
+/** Cache these offline pages and every asset their HTML names, once per worker start. */
+function prepareOffline(paths) {
+  return Promise.all(
+    paths.map((path) => {
+      if (!prepared.has(path)) {
+        const preparing = cachePage(path).catch((error) => {
+          prepared.delete(path);
+          console.warn(`[sw] Couldn't prepare ${path} for offline`, error);
+        });
+        prepared.set(path, preparing);
       }
-      await pages.put(path, response);
-    }
-    await trim(assets);
-  })().catch((error) => {
-    prepared = null;
-    console.warn("[sw] Couldn't prepare the offline pages", error);
-  });
-  return prepared;
+      return prepared.get(path);
+    }),
+  );
+}
+
+async function cachePage(path) {
+  const [pages, assets] = await Promise.all([caches.open(PAGES), caches.open(ASSETS)]);
+  const response = await fetch(path, { priority: "low" });
+  if (!response.ok) throw new Error(`${path} answered ${String(response.status)}`);
+  const html = await response.clone().text();
+  // Putting an asset again moves it to the back of the queue `trim` empties.
+  for (const href of assetsNamedIn(html)) {
+    const asset = await fetch(href, { priority: "low" });
+    if (asset.ok) await assets.put(href, asset);
+  }
+  await pages.put(path, response);
+  await trim(assets);
 }
 
 /**
