@@ -25,18 +25,20 @@ const withRow = (data: OrderPages | undefined, orderId: string, change: Partial<
  * and its row in every cached table page say "Refund pending" at once. If the request
  * fails, each goes back to what it was and the page says why. Either way, the order is
  * re-read afterwards, so the screen ends up with the server's word. The idempotency key
- * is kept for a retry after a lost connection, so a retry can't refund twice.
+ * is kept for a retry after a lost connection, so a retry can't refund twice; a retry
+ * with another reason is another request, with its own key (the server refuses a
+ * second refund of the same order either way).
  */
 export function useRefund(order: OrganiserOrderDto, { onFailed }: { onFailed: (message: string) => void }) {
   const queryClient = useQueryClient();
-  const attemptKey = useRef<string | null>(null);
+  const attempt = useRef<{ key: string; reason: RefundReason } | null>(null);
   const orderKey = organiserQueries.order(order.id).queryKey;
   const listsKey = organiserQueries.ordersAll();
 
   return useMutation({
     mutationFn: (reason: RefundReason) => {
-      attemptKey.current ??= mintIdempotencyKey();
-      return organiserApi.requestRefund(order.id, reason, attemptKey.current);
+      if (attempt.current?.reason !== reason) attempt.current = { key: mintIdempotencyKey(), reason };
+      return organiserApi.requestRefund(order.id, reason, attempt.current.key);
     },
     onMutate: async () => {
       // Anything in flight would land on top of the optimistic state: stop it first.
@@ -59,11 +61,11 @@ export function useRefund(order: OrganiserOrderDto, { onFailed }: { onFailed: (m
         );
         return;
       }
-      attemptKey.current = null; // the server answered: a new attempt is a new request
+      attempt.current = null; // the server answered: a new attempt is a new request
       onFailed(problemOf(error)?.detail ?? "The refund couldn’t start.");
     },
     onSuccess: (result) => {
-      attemptKey.current = null;
+      attempt.current = null;
       queryClient.setQueryData(orderKey, result.order);
     },
     onSettled: () => {

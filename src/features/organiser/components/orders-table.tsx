@@ -133,9 +133,15 @@ export function OrdersTable({
 }) {
   const captionId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const focusedIndex = useRef<number | null>(null);
-  const table = useTable({ features, columns, data: rows });
+  // The focused row is kept by order id, not position: a sort or a filter moves it, or
+  // takes it away, and an index would then point at another row, or past the end.
+  const focusedRowId = useRef<string | null>(null);
+  const table = useTable({ features, columns, data: rows, getRowId: (row) => row.id });
   const tableRows = table.getRowModel().rows;
+  const focusedIndex = () => {
+    const index = focusedRowId.current === null ? -1 : tableRows.findIndex((row) => row.id === focusedRowId.current);
+    return index === -1 ? null : index;
+  };
 
   // useVirtualizer returns new functions each render, so the React Compiler can't memoise
   // around it. This app doesn't use the compiler; the table re-renders when the virtualiser asks.
@@ -146,7 +152,7 @@ export function OrdersTable({
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
     getItemKey: (index) => tableRows[index]?.id ?? index,
-    rangeExtractor: (range) => withFocusedRow(defaultRangeExtractor(range), focusedIndex.current),
+    rangeExtractor: (range) => withFocusedRow(defaultRangeExtractor(range), focusedIndex()),
   });
   const drawn = virtualizer.getVirtualItems();
   const lastDrawn = drawn.at(-1)?.index ?? 0;
@@ -215,8 +221,13 @@ export function OrdersTable({
         </thead>
         <tbody
           onFocus={(focus) => {
-            const index = (focus.target as HTMLElement).closest("tr")?.dataset["index"];
-            focusedIndex.current = index === undefined ? null : Number(index);
+            focusedRowId.current = (focus.target as HTMLElement).closest("tr")?.dataset["rowId"] ?? null;
+          }}
+          onBlur={(blur) => {
+            // Focus left the rows: none needs keeping drawn out of view any more.
+            if (!(blur.relatedTarget instanceof Node && blur.currentTarget.contains(blur.relatedTarget))) {
+              focusedRowId.current = null;
+            }
           }}
         >
           {drawn.flatMap((item) => {
@@ -228,6 +239,7 @@ export function OrdersTable({
               <tr
                 key={row.id}
                 data-index={item.index}
+                data-row-id={row.id}
                 aria-rowindex={item.index + 2}
                 className="border-t border-line"
                 style={{ height: ROW_HEIGHT }}

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderRowDto } from "@/contract/dto";
@@ -28,6 +28,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const table = (rows: readonly OrderRowDto[], onSort = vi.fn()) => (
+  <OrdersTable
+    isUpdating={false}
+    rows={rows}
+    totalSize={rows.length}
+    orderBy={DEFAULT_ORDER_BY}
+    onSort={onSort}
+    hasNextPage={false}
+    isFetchingNextPage={false}
+    fetchNextPage={vi.fn()}
+  />
+);
+
 function setup() {
   const onSort = vi.fn();
   render(
@@ -44,6 +57,8 @@ function setup() {
   );
   return { onSort, user: userEvent.setup() };
 }
+
+const rowOf = (orderId: string) => screen.getByRole("link", { name: orderId }).closest("tr");
 
 describe("OrdersTable", () => {
   it("tells assistive tech how many rows there are, and where each drawn one sits", () => {
@@ -68,5 +83,30 @@ describe("OrdersTable", () => {
   it("links each order to its page", () => {
     setup();
     expect(screen.getByRole("link", { name: "ord_h00001" })).toHaveAttribute("href", "/organiser/orders/ord_h00001");
+  });
+
+  it("stays up when the focused row is filtered away", () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => order(i + 1));
+    const { rerender } = render(table(thirty));
+    act(() => {
+      screen.getByRole("link", { name: "ord_h00015" }).focus();
+    });
+
+    // A search narrows thirty rows to three: the focused one isn't among them.
+    rerender(table(thirty.slice(0, 3)));
+    expect(screen.getAllByRole("link")).toHaveLength(3);
+  });
+
+  it("keeps each order on its own row when the sort changes, so focus stays with it", () => {
+    const five = Array.from({ length: 5 }, (_, i) => order(i + 1));
+    const { rerender } = render(table(five));
+    const first = rowOf("ord_h00001");
+    act(() => {
+      screen.getByRole("link", { name: "ord_h00001" }).focus();
+    });
+
+    rerender(table(five.toReversed()));
+    expect(rowOf("ord_h00001")).toBe(first);
+    expect(screen.getByRole("link", { name: "ord_h00001" })).toHaveFocus();
   });
 });

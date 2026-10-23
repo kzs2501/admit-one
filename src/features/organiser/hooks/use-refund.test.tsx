@@ -93,4 +93,20 @@ describe("useRefund", () => {
     expect(keys[2]).not.toBe(keys[1]); // after the server's answer, a new attempt is a new request
     expect(onFailed).toHaveBeenNthCalledWith(1, expect.stringMatching(/^The connection dropped/));
   });
+
+  it("gives a retry with another reason its own key, which the same key would have been refused", async () => {
+    const requestRefund = vi
+      .spyOn(organiserApi, "requestRefund")
+      .mockRejectedValueOnce(new NetworkError("Couldn’t reach the server."))
+      .mockRejectedValueOnce(new NetworkError("Couldn’t reach the server."));
+    const { result } = setup();
+    await act(async () => {
+      await result.current.mutateAsync("other").catch(() => undefined);
+    });
+    await act(async () => {
+      await result.current.mutateAsync("event_changed").catch(() => undefined);
+    });
+    const [first, second] = requestRefund.mock.calls.map((call) => call[2]);
+    expect(second).not.toBe(first);
+  });
 });

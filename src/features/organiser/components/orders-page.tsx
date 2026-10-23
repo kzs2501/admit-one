@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useEffectEvent, useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ORDER_STATUSES } from "@/core/statuses";
-import type { OrderFilters } from "@/contract/queries";
+import { MAX_ORDER_SEARCH_LENGTH, type OrderFilters } from "@/contract/queries";
 import { formatCount } from "@/lib/format";
 import { organiserApi } from "@/lib/organiser-api";
 import { organiserQueries } from "@/lib/queries";
@@ -27,7 +27,12 @@ const STATUS_LABELS: Record<(typeof ORDER_STATUSES)[number], string> = {
 /** Typing waits this long before it searches, so every keystroke isn't a request. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) => void }) {
+/**
+ * The search box. `value` is the search the URL holds, trimmed; what's typed waits for
+ * a pause before it becomes the search. A space at either end isn't a new search, and
+ * the parent re-rendering doesn't restart the wait.
+ */
+export function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) => void }) {
   const [typed, setTyped] = useState(value);
   const [lastValue, setLastValue] = useState(value);
   // Back or a cleared filter changes the URL: show what it now says.
@@ -35,15 +40,16 @@ function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) =
     setLastValue(value);
     setTyped(value);
   }
+  const search = useEffectEvent(onSearch);
   useEffect(() => {
-    if (typed === value) return;
+    if (typed.trim() === value) return;
     const timer = setTimeout(() => {
-      onSearch(typed);
+      search(typed);
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [typed, value, onSearch]);
+  }, [typed, value]);
   return (
     <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm">
       <span className="text-ink-2">Search</span>
@@ -54,6 +60,7 @@ function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) =
           setTyped(change.target.value);
         }}
         placeholder="Order id, name or email"
+        maxLength={MAX_ORDER_SEARCH_LENGTH}
         className="min-h-10 rounded-lg border border-line bg-card px-3"
       />
     </label>
@@ -225,9 +232,9 @@ export function OrdersPage() {
               ? "Updating…"
               : `${formatCount(list.totalSize)} ${list.totalSize === 1 ? "order" : "orders"}`}
         </p>
-        {list.hasNewOrders && (
+        {list.newOrders && (
           <Button type="button" variant="secondary" onClick={list.showNewOrders} className="min-h-9 px-3">
-            Orders have changed — show the latest
+            {list.newOrders === "changed" ? "Orders have changed" : "Orders may have changed"} — show the latest
           </Button>
         )}
       </div>

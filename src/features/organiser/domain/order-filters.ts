@@ -8,6 +8,7 @@ import { z } from "@/core/zod";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/core/statuses";
 import {
   DEFAULT_ORDER_BY,
+  MAX_ORDER_SEARCH_LENGTH,
   orderBySchema,
   writeOrderSearchParams,
   type OrderBy,
@@ -34,7 +35,7 @@ export function filtersFromSearchParams(params: URLSearchParams): OrderFilters {
     method: parsed(z.enum(PAYMENT_METHODS), value("method")),
     from: areDatesInOrder ? from : undefined,
     to: areDatesInOrder ? to : undefined,
-    q: parsed(z.string().trim().min(1).max(100), value("q")),
+    q: parsed(z.string().trim().min(1).max(MAX_ORDER_SEARCH_LENGTH), value("q")),
     orderBy: parsed(orderBySchema, value("orderBy")) ?? DEFAULT_ORDER_BY,
   };
 }

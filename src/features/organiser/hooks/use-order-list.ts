@@ -24,7 +24,9 @@ export function useOrderList(filters: OrderFilters) {
   const [seen, setSeen] = useState({ key, version: changes.latest });
   // A new set of filters loads fresh rows, so it starts from what's known now.
   if (seen.key !== key) setSeen({ key, version: changes.latest });
-  const lastChange = filters.event ? (changes.byEvent[filters.event] ?? 0) : changes.latest;
+  const lastChange = filters.event
+    ? (changes.byEvent[filters.event] ?? 0)
+    : Math.max(0, ...Object.values(changes.byEvent));
 
   return {
     rows,
@@ -37,7 +39,8 @@ export function useOrderList(filters: OrderFilters) {
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     fetchNextPage: () => void query.fetchNextPage(),
-    hasNewOrders: lastChange > seen.version,
+    /** Rows have changed since they loaded, or may have, while updates were down. */
+    newOrders: lastChange > seen.version ? "changed" : changes.caughtUpAt > seen.version ? "maybe" : null,
     showNewOrders: () => {
       setSeen({ key, version: changes.latest });
       void queryClient.resetQueries({ queryKey: options.queryKey });

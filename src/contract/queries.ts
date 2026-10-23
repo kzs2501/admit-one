@@ -34,6 +34,9 @@ export const orderBySchema = z
     };
   });
 
+/** The longest search the orders table takes. */
+export const MAX_ORDER_SEARCH_LENGTH = 100;
+
 const orderFiltersShape = {
   event: z.string().min(1).optional(),
   status: z.array(z.enum(ORDER_STATUSES)).default([]),
@@ -41,7 +44,7 @@ const orderFiltersShape = {
   /** Calendar days in the organisation's time zone, inclusive. */
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
-  q: z.string().trim().min(1).max(100).optional(),
+  q: z.string().trim().min(1).max(MAX_ORDER_SEARCH_LENGTH).optional(),
   orderBy: orderBySchema.optional().transform((orderBy) => orderBy ?? DEFAULT_ORDER_BY),
 };
 

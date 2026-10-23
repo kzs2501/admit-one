@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { ordersChangedEventSchema } from "@/contract/dto";
 import { API_ROUTES, buildApiPath } from "@/contract/routes";
 import { readEventStream, StreamError } from "@/lib/event-stream";
@@ -17,6 +17,17 @@ export const REFRESH_AT_MOST_EVERY_MS = 1_000;
 export const FALLBACK_POLL_MS = 15_000;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_CAP_MS = 30_000;
+
+const ORDERS_LISTS = organiserQueries.ordersAll();
+const isOrdersList = (queryKey: QueryKey) => ORDERS_LISTS.every((part, i) => queryKey[i] === part);
+
+const parseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * How long to wait before reconnecting: "full jitter" (AWS Architecture Blog,
@@ -37,9 +48,10 @@ interface LiveUpdates {
   /**
    * Changes counted as they arrive: `latest` goes up with each one, and each event
    * remembers the count at its last change. A view that noted `latest` when it loaded
-   * can tell whether anything it shows has changed since.
+   * can tell whether anything it shows has changed since. `caughtUpAt` is the count
+   * when the stream last reopened after a gap: anything may have changed unseen then.
    */
-  changes: { latest: number; byEvent: Readonly<Record<string, number>> };
+  changes: { latest: number; byEvent: Readonly<Record<string, number>>; caughtUpAt: number };
 }
 
 const LiveUpdatesContext = createContext<LiveUpdates | null>(null);
@@ -60,7 +72,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [isPaused, setIsPaused] = useState(false);
   const [connection, setConnection] = useState<Exclude<LiveStatus, "paused">>("connecting");
-  const [changes, setChanges] = useState<LiveUpdates["changes"]>({ latest: 0, byEvent: {} });
+  const [changes, setChanges] = useState<LiveUpdates["changes"]>({ latest: 0, byEvent: {}, caughtUpAt: 0 });
   const lastRefreshAt = useRef(0);
   // Whether the stream has been open before: any later opening — after a drop, or after
   // a pause — may have missed changes, so it catches up on everything.
@@ -81,9 +93,10 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: organiserQueries.orderAll() });
       const slugs = [...pending];
       pending.clear();
-      setChanges(({ latest, byEvent }) => ({
+      setChanges(({ latest, byEvent, caughtUpAt }) => ({
         latest: latest + 1,
         byEvent: { ...byEvent, ...Object.fromEntries(slugs.map((slug) => [slug, latest + 1])) },
+        caughtUpAt,
       }));
     };
     const changed = (slugs: readonly string[]) => {
@@ -100,14 +113,23 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
           signal: controller.signal,
           onOpen: () => {
             setConnection("live");
-            // Changes may have been missed while it was down or paused: catch up on everything.
-            if (hasConnectedBefore.current) void queryClient.invalidateQueries({ queryKey: organiserQueries.all() });
+            // Changes may have been missed while it was down or paused: catch up on what's
+            // on screen. The orders table is told instead, and offers the latest rows,
+            // as it does for a change it hears about, rather than moving them.
+            if (hasConnectedBefore.current) {
+              void queryClient.invalidateQueries({
+                queryKey: organiserQueries.all(),
+                predicate: (query) => !isOrdersList(query.queryKey),
+              });
+              setChanges((current) => ({ ...current, latest: current.latest + 1, caughtUpAt: current.latest + 1 }));
+            }
             hasConnectedBefore.current = true;
             attempt = 0;
           },
           onEvent: (event) => {
             if (event.type !== "ordersChanged") return;
-            const parsed = ordersChangedEventSchema.safeParse(JSON.parse(event.data));
+            // A garbled event is skipped, not thrown into the stream, which would drop it.
+            const parsed = ordersChangedEventSchema.safeParse(parseJson(event.data));
             if (parsed.success) changed(parsed.data.eventSlugs);
           },
         });
