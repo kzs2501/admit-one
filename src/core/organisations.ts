@@ -6,9 +6,13 @@
  * All organisations and people are fictional.
  */
 
+/**
+ * Each organisation is paid out in one currency and sells every event in it, so its
+ * revenue is one sum (the catalogue's tests hold every event to it).
+ */
 export const ORGANISATIONS = [
-  { id: "lakeside-live", name: "Lakeside Live", timeZone: "Asia/Kolkata" },
-  { id: "rangmanch-arts", name: "Rangmanch Arts", timeZone: "Asia/Kolkata" },
+  { id: "lakeside-live", name: "Lakeside Live", timeZone: "Asia/Kolkata", currency: "INR" },
+  { id: "rangmanch-arts", name: "Rangmanch Arts", timeZone: "Asia/Kolkata", currency: "INR" },
 ] as const;
 
 export type Organisation = (typeof ORGANISATIONS)[number];

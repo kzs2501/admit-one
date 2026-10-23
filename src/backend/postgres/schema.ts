@@ -5,7 +5,7 @@
  * Times are stored as `timestamptz` and always come from the app's clock, never the
  * database's `now()`, so tests on a fake clock behave exactly as the sandbox's do.
  */
-import { sql } from "drizzle-orm";
+import { sql, type SQLWrapper } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -19,10 +19,21 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { Amounts } from "@/core/pricing";
+import { HOLD_STATUSES, ORDER_STATUSES, PAYMENT_METHODS, PAYMENT_STATUSES } from "@/core/statuses";
 import type { LineItem } from "@/core/ticketing";
 import type { JsonValue, OrderRecord } from "@/backend/domain/state";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+/**
+ * A column's own vocabulary, held by the database too: a status the code doesn't know
+ * can't be written, by a bug or by hand. The values are the app's own constants, so
+ * they're written into the constraint as they are (DDL takes no parameters).
+ */
+const isOneOf = (column: SQLWrapper, values: readonly string[]) =>
+  sql`${column} IN (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
+
+const SEAT_CLAIM_STATUSES = ["held", "sold"] as const;
 
 /**
  * Tickets of each general-admission tier. `sold` includes those sold before the demo;
@@ -58,9 +69,7 @@ export const holds = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
-    status: text("status", { enum: ["active", "converted", "expired"] })
-      .notNull()
-      .default("active"),
+    status: text("status", { enum: HOLD_STATUSES }).notNull().default("active"),
     /** Payment start may extend a hold once, so a buyer mid-payment isn't cut off. */
     isExtended: boolean("is_extended").notNull().default(false),
     orderId: text("order_id"),
@@ -71,6 +80,7 @@ export const holds = pgTable(
     index("holds_active_by_expiry")
       .on(table.expiresAt)
       .where(sql`${table.status} = 'active'`),
+    check("holds_status_known", isOneOf(table.status, HOLD_STATUSES)),
   ],
 );
 
@@ -88,7 +98,7 @@ export const seatClaims = pgTable(
     seatId: text("seat_id").notNull(),
     /** Null for seats sold before the demo. */
     holdId: text("hold_id").references(() => holds.id),
-    status: text("status", { enum: ["held", "sold"] }).notNull(),
+    status: text("status", { enum: SEAT_CLAIM_STATUSES }).notNull(),
     claimedAt: at("claimed_at").notNull(),
     releasedAt: at("released_at"),
   },
@@ -97,28 +107,33 @@ export const seatClaims = pgTable(
       .on(table.eventSlug, table.seatId)
       .where(sql`${table.releasedAt} IS NULL`),
     index("seat_claims_by_hold").on(table.holdId),
+    check("seat_claims_status_known", isOneOf(table.status, SEAT_CLAIM_STATUSES)),
   ],
 );
 
 /** An order, one per hold. Its smaller parts are JSON, kept whole, as the order is. */
-export const orders = pgTable("orders", {
-  id: text("id").primaryKey(),
-  holdId: text("hold_id")
-    .notNull()
-    .unique()
-    .references(() => holds.id),
-  eventSlug: text("event_slug").notNull(),
-  items: jsonb("items").$type<LineItem[]>().notNull(),
-  attendees: jsonb("attendees").$type<OrderRecord["attendees"]>().notNull(),
-  addOns: jsonb("add_ons").$type<Record<string, number>>().notNull(),
-  amounts: jsonb("amounts").$type<Amounts>().notNull(),
-  status: text("status").$type<OrderRecord["status"]>().notNull(),
-  statusReason: text("status_reason"),
-  tickets: jsonb("tickets").$type<OrderRecord["tickets"]>().notNull(),
-  paymentId: text("payment_id"),
-  createdAt: at("created_at").notNull(),
-  updatedAt: at("updated_at").notNull(),
-});
+export const orders = pgTable(
+  "orders",
+  {
+    id: text("id").primaryKey(),
+    holdId: text("hold_id")
+      .notNull()
+      .unique()
+      .references(() => holds.id),
+    eventSlug: text("event_slug").notNull(),
+    items: jsonb("items").$type<LineItem[]>().notNull(),
+    attendees: jsonb("attendees").$type<OrderRecord["attendees"]>().notNull(),
+    addOns: jsonb("add_ons").$type<Record<string, number>>().notNull(),
+    amounts: jsonb("amounts").$type<Amounts>().notNull(),
+    status: text("status").$type<OrderRecord["status"]>().notNull(),
+    statusReason: text("status_reason"),
+    tickets: jsonb("tickets").$type<OrderRecord["tickets"]>().notNull(),
+    paymentId: text("payment_id"),
+    createdAt: at("created_at").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [check("orders_status_known", isOneOf(table.status, ORDER_STATUSES))],
+);
 
 /** Every payment attempt: by card (with its last four digits) or by UPI (with when the request runs out). */
 export const payments = pgTable(
@@ -128,7 +143,7 @@ export const payments = pgTable(
     orderId: text("order_id")
       .notNull()
       .references(() => orders.id),
-    method: text("method", { enum: ["card", "upi"] }).notNull(),
+    method: text("method", { enum: PAYMENT_METHODS }).notNull(),
     amountMinor: integer("amount_minor").notNull(),
     status: text("status").notNull(),
     failureCode: text("failure_code"),
@@ -137,7 +152,11 @@ export const payments = pgTable(
     webhookLagMs: integer("webhook_lag_ms"),
     createdAt: at("created_at").notNull(),
   },
-  (table) => [index("payments_by_order").on(table.orderId)],
+  (table) => [
+    index("payments_by_order").on(table.orderId),
+    check("payments_status_known", isOneOf(table.status, PAYMENT_STATUSES)),
+    check("payments_method_known", isOneOf(table.method, PAYMENT_METHODS)),
+  ],
 );
 
 /**

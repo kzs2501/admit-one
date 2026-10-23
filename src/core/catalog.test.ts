@@ -15,6 +15,14 @@ describe("catalogue", () => {
     for (const event of CATALOG) expect(organisationIds).toContain(event.organiserId);
   });
 
+  it("sells every event in its organiser's currency, so the organiser's revenue is one sum", () => {
+    for (const event of CATALOG) {
+      expect(ORGANISATIONS.find((organisation) => organisation.id === event.organiserId)?.currency).toBe(
+        event.currency,
+      );
+    }
+  });
+
   it("finds events by slug, and throws only from getEvent", () => {
     expect(findEvent("night-market-jazz")?.name).toBe("Night Market Jazz");
     expect(findEvent("nope")).toBeUndefined();

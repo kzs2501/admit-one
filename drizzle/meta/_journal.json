@@ -43,6 +43,13 @@
       "when": 1792688514638,
       "tag": "0005_idempotency_key_age",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792752699731,
+      "tag": "0006_status_checks",
+      "breakpoints": true
     }
   ]
 }

@@ -87,7 +87,7 @@ export function salesMetrics(context: BackendContext, account: Account, eventSlu
   const slugs = new Set(events.map((event) => event.slug));
   const rows = visibleRows(context, account, "orders:read").filter((row) => slugs.has(row.eventSlug));
   const paid = rows.filter((row) => PAID_STATUSES.includes(row.status));
-  const { timeZone } = getOrganisation(account.organisationId);
+  const { timeZone, currency } = getOrganisation(account.organisationId);
 
   const grossMinor = paid.reduce((sum, row) => sum + row.amounts.totalMinor, 0);
   const refundedMinor = paid
@@ -126,7 +126,7 @@ export function salesMetrics(context: BackendContext, account: Account, eventSlu
   const lags = paid.flatMap((row) => (row.webhookLagMs === null ? [] : [row.webhookLagMs])).sort((a, b) => a - b);
 
   return ok({
-    currency: events[0]?.currency ?? "INR",
+    currency,
     timeZone,
     revenue: { grossMinor, refundedMinor, netMinor: grossMinor - refundedMinor },
     tickets: {
