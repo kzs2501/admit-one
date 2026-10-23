@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_ORDER_SEARCH_LENGTH } from "@/contract/queries";
-import { SearchBox } from "./orders-page";
+import { DOWNLOAD_URL_LIFETIME_MS, saveFile, SearchBox } from "./orders-page";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -45,5 +45,25 @@ describe("SearchBox", () => {
   it("takes no more than the API does", () => {
     render(<SearchBox value="" onSearch={vi.fn()} />);
     expect(screen.getByRole("searchbox")).toHaveAttribute("maxlength", String(MAX_ORDER_SEARCH_LENGTH));
+  });
+});
+
+describe("saveFile", () => {
+  it("keeps the file's URL until the download has had time to read it", () => {
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL: () => "blob:orders", revokeObjectURL }); // jsdom has neither
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    saveFile({ blob: new Blob(["order_id\r\n"]), filename: "orders.csv" });
+    expect(click).toHaveBeenCalledOnce();
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(DOWNLOAD_URL_LIFETIME_MS);
+    });
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:orders");
+    click.mockRestore();
   });
 });

@@ -16,6 +16,7 @@ import { organiserQueries, shouldShowQueryError } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { Notice } from "@/components/ui/notice";
 import { Spinner } from "@/components/ui/spinner";
+import { pollIntervalFor, useLiveUpdates } from "@/features/organiser/hooks/use-live-updates";
 import { RefundAction } from "./refund-action";
 
 const STATUS_LABELS: Record<OrganiserOrderDto["status"], string> = {
@@ -49,7 +50,14 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
 
 /** One order as its organiser sees it. Another organiser's isn't found — not even confirmed to exist. */
 export function OrderDetail({ orderId }: { orderId: string }) {
-  const query = useQuery(organiserQueries.order(orderId));
+  // Re-read on every change while the stream is live; polled, as the overview is, while
+  // it's down. An order that isn't there won't appear, so it isn't asked for again.
+  const { status } = useLiveUpdates();
+  const query = useQuery({
+    ...organiserQueries.order(orderId),
+    refetchInterval: (current) =>
+      problemOf(current.state.error)?.code === "not_found" ? false : pollIntervalFor(status),
+  });
   const account = useQuery(organiserQueries.account());
   const canRefund = account.data?.permissions.includes("orders:refund") ?? false;
   const order = query.data;

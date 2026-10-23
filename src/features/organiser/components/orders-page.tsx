@@ -167,8 +167,15 @@ function Filters({
   );
 }
 
+/**
+ * How long a download's object URL is kept. The click only starts the download, and
+ * some browsers still read the URL after it returns, so revoking on the next tick can
+ * cancel the file; FileSaver.js waits 40 s for the same reason.
+ */
+export const DOWNLOAD_URL_LIFETIME_MS = 60_000;
+
 /** Save a file the browser was handed, under the name the server gave it. */
-function saveFile({ blob, filename }: { blob: Blob; filename: string }) {
+export function saveFile({ blob, filename }: { blob: Blob; filename: string }) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -176,7 +183,7 @@ function saveFile({ blob, filename }: { blob: Blob; filename: string }) {
   link.click();
   setTimeout(() => {
     URL.revokeObjectURL(url);
-  }, 0);
+  }, DOWNLOAD_URL_LIFETIME_MS);
 }
 
 /** Every order the account may see, filtered and sorted on the server, with the filters in the URL. */
