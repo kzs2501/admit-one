@@ -30,7 +30,13 @@ test("flash sale: join the queue, keep your place through a refresh, and reserve
   await page.goto("/");
   await sandbox.choosePreset("Flash sale");
   await joinTheQueue(page);
-  expect(await peopleAhead(page)).toBe(40_000);
+  // You join behind 40,000, as the server recorded, and the page counts down from there
+  // a whole batch at a time: by the time it's read, a batch may have gone in already.
+  const [entry] = Object.values((await sandbox.state()).queueEntries);
+  expect(entry?.aheadAtJoin).toBe(40_000);
+  const shown = await peopleAhead(page);
+  expect(shown).toBeLessThanOrEqual(40_000);
+  expect((40_000 - shown) % (entry?.admittedPerBatch ?? 1)).toBe(0);
 
   // The line moves a batch at a time; a refresh keeps the place it had reached.
   await expect.poll(() => peopleAhead(page), { timeout: 10_000 }).toBeLessThan(40_000);

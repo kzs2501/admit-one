@@ -61,7 +61,10 @@ test("the table is whole though virtualised: sorted by the server, loading as it
   await organiser.openOrders();
   const table = page.getByRole("table");
   await expect(table).toHaveAttribute("aria-rowcount", String(lakesideOrders.length + 1));
-  expect(await table.locator("tbody tr[data-index]").count()).toBeLessThan(60);
+  // Some rows are drawn, not all: a window onto the list, not the list, and not nothing.
+  const drawn = await table.locator("tbody tr[data-index]").count();
+  expect(drawn).toBeGreaterThan(5);
+  expect(drawn).toBeLessThan(60);
 
   await page.getByRole("button", { name: "Total" }).click();
   await expect(page).toHaveURL(/orderBy=totalMinor\+desc/);
@@ -140,6 +143,11 @@ test("when the provider refuses, the refund rolls back and says why", async ({ p
   await expect(page.locator(":focus")).toContainText("The refund didn’t go through");
   await expect(organiser.orderStatus).toHaveText("Fulfilled");
   await expect(page.getByRole("button", { name: "Refund…" })).toBeVisible();
+
+  // Nothing was refunded, and no ticket was voided at the door.
+  const state = await sandbox.state();
+  expect(state.refunds).toEqual({});
+  expect(state.voidedTickets).toEqual({});
 });
 
 test("each account sees only its organisation's orders, and only what its role allows", async ({ page, organiser }) => {
@@ -235,36 +243,36 @@ test.describe("accessibility", () => {
   });
 });
 
-test("responsiveness: filtering and sorting stay under 200 ms with the CPU slowed four times", async ({
-  page,
-  organiser,
-  browserName,
-}) => {
-  test.skip(browserName !== "chromium", "CPU throttling needs the Chrome DevTools Protocol");
-  await organiser.signInAs(/Nandini Rao/);
-  await organiser.openOrders();
-  await expect(organiser.orderCount).toBeVisible();
-  await page.evaluate(() => {
-    const durations: number[] = [];
-    window.interactionDurations = durations;
-    const options: PerformanceObserverInit & { durationThreshold: number } = { type: "event", durationThreshold: 16 };
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) durations.push(entry.duration);
-    }).observe(options);
-  });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-  for (const status of ["Fulfilled", "Refunded", "Expired"]) {
-    await page.getByRole("checkbox", { name: status }).click();
-    await expect(page.getByRole("checkbox", { name: status })).toBeChecked();
-  }
-  await page.getByRole("button", { name: "Total" }).click();
-  await expect(page.getByRole("columnheader", { name: /Total/ })).toHaveAttribute("aria-sort", "descending");
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
-  const longest = Math.max(0, ...(await page.evaluate(() => window.interactionDurations ?? [])));
-  test.info().annotations.push({ type: "longest interaction", description: `${String(Math.round(longest))} ms` });
-  expect(longest).toBeLessThan(200);
-});
+test(
+  "responsiveness: filtering and sorting stay under 200 ms with the CPU slowed four times",
+  { tag: "@perf" },
+  async ({ page, organiser, browserName }) => {
+    test.skip(browserName !== "chromium", "CPU throttling needs the Chrome DevTools Protocol");
+    await organiser.signInAs(/Nandini Rao/);
+    await organiser.openOrders();
+    await expect(organiser.orderCount).toBeVisible();
+    await page.evaluate(() => {
+      const durations: number[] = [];
+      window.interactionDurations = durations;
+      const options: PerformanceObserverInit & { durationThreshold: number } = { type: "event", durationThreshold: 16 };
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) durations.push(entry.duration);
+      }).observe(options);
+    });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    for (const status of ["Fulfilled", "Refunded", "Expired"]) {
+      await page.getByRole("checkbox", { name: status }).click();
+      await expect(page.getByRole("checkbox", { name: status })).toBeChecked();
+    }
+    await page.getByRole("button", { name: "Total" }).click();
+    await expect(page.getByRole("columnheader", { name: /Total/ })).toHaveAttribute("aria-sort", "descending");
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    const longest = Math.max(0, ...(await page.evaluate(() => window.interactionDurations ?? [])));
+    test.info().annotations.push({ type: "longest interaction", description: `${String(Math.round(longest))} ms` });
+    expect(longest).toBeLessThan(200);
+  },
+);
 
 test("buyers' pages never load the dashboard's table libraries", async ({ page }) => {
   const scripts: Promise<string>[] = [];

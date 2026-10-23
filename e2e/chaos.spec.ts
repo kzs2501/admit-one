@@ -46,6 +46,15 @@ test("3-D Secure: failing lets you retry, approving completes the order", async 
   await buyer.pay();
   await challenge.getByRole("button", { name: "Approve" }).click();
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+
+  // The failed check and the approved one are two attempts: one failed, one paid.
+  const state = await sandbox.state();
+  const payments = Object.values(state.payments).map(({ status, failureCode }) => [status, failureCode]);
+  expect(payments.sort()).toEqual([
+    ["failed", "authentication_failed"],
+    ["succeeded", null],
+  ]);
+  expect(Object.values(state.orders)[0]?.status).toBe("fulfilled");
 });
 
 test("3-D Secure with the hold nearly gone: the payment extends it, and the challenge stays", async ({
@@ -74,6 +83,11 @@ test("3-D Secure with the hold nearly gone: the payment extends it, and the chal
   await expect(challenge).toBeVisible();
   await challenge.getByRole("button", { name: "Approve" }).click();
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+
+  // Extended once, by the payment, and paid in time: tickets, not a refund.
+  const state = await sandbox.state();
+  expect(Object.values(state.holds).map((hold) => [hold.isConverted, hold.isExtended])).toEqual([[true, true]]);
+  expect(Object.values(state.payments).map((payment) => payment.status)).toEqual(["succeeded"]);
 });
 
 test("a 3-D Secure check closed with Escape comes back when you pay again", async ({ page, buyer, sandbox }) => {
@@ -90,6 +104,10 @@ test("a 3-D Secure check closed with Escape comes back when you pay again", asyn
   await expect(challenge).toBeVisible();
   await challenge.getByRole("button", { name: "Approve" }).click();
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+
+  // Paying again was the same attempt, answered again, not a second charge.
+  const payments = Object.values((await sandbox.state()).payments);
+  expect(payments.map((payment) => payment.status)).toEqual(["succeeded"]);
 });
 
 test("3-D Secure survives a refresh mid-challenge", async ({ page, buyer, sandbox }) => {
@@ -100,6 +118,9 @@ test("3-D Secure survives a refresh mid-challenge", async ({ page, buyer, sandbo
   await page.reload();
   await page.getByRole("dialog", { name: "Confirm it’s you" }).getByRole("button", { name: "Approve" }).click();
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+
+  const payments = Object.values((await sandbox.state()).payments);
+  expect(payments.map((payment) => payment.status)).toEqual(["succeeded"]);
 });
 
 test("slow network: a double click reserves once and pays once", async ({ page, buyer, sandbox }) => {
@@ -181,6 +202,11 @@ test("webhook delayed: confirming, a reassuring note, then tickets", async ({ pa
   await expect(page.getByRole("heading", { name: "Confirming your payment…" })).toBeVisible();
   await expect(page.getByText("This is taking longer than usual.")).toBeVisible({ timeout: 12_000 });
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 20_000 });
+
+  // The tickets came from the webhook, once it was delivered: nothing is left waiting.
+  const state = await sandbox.state();
+  expect(Object.values(state.orders)[0]?.status).toBe("fulfilled");
+  expect(state.outbox).toHaveLength(0);
 });
 
 test("a refresh while confirming resumes: the webhook waits in the persisted outbox", async ({

@@ -26,7 +26,22 @@ export default defineConfig({
     reuseExistingServer: false,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /camera\.spec\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /camera\.spec\.ts/,
+      grepInvert: /@perf/,
+    },
+    // Responsiveness budgets, never retried: a budget missed once is a failure, not a
+    // flake. `npm run test:e2e` leaves them out, and `test:e2e:perf` runs them on their
+    // own, so other tests aren't competing for the CPU while they measure.
+    {
+      name: "perf",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /camera\.spec\.ts/,
+      grep: /@perf/,
+      retries: 0,
+    },
     // The door scanner's camera: Chromium's fake camera plays a feed with a ticket in it.
     // Launch flags are the browser's, so the camera test has a project of its own, and
     // full Chromium: the headless shell Playwright runs by default has no camera at all.

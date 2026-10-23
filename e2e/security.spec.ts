@@ -3,6 +3,7 @@
  * nothing a buyer does trips it.
  */
 import type { Page } from "@playwright/test";
+import { STUDIO, withoutNativeDetector } from "./door";
 import { expect, test } from "./fixtures";
 
 declare global {
@@ -69,3 +70,32 @@ test(
     expect(violatedDirective).toBe("connect-src");
   },
 );
+
+test("the wallet, the door and the dashboard stay within their policies too", async ({ page, buyer, organiser }) => {
+  // The door reads with its WebAssembly reader, as in Safari and Firefox: the one thing
+  // only its own, looser policy allows.
+  await withoutNativeDetector(page);
+  const violations = await collectViolations(page);
+  await page.goto("/");
+  await buyer.goToPayment(1);
+  await buyer.pay();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+
+  await page.goto("/tickets");
+  const code = page.getByRole("img", { name: "Code to scan at the door, for Guest 1" });
+  const photo = { name: "ticket.png", mimeType: "image/png", buffer: await code.screenshot() };
+
+  await page.goto("/scan");
+  await page.getByLabel("Event at this door").selectOption({ label: STUDIO.name });
+  const photoInput = page.getByLabel("Or scan a photo of a ticket");
+  await expect(photoInput).toBeEnabled();
+  await photoInput.setInputFiles(photo);
+  await expect(page.getByRole("status", { name: "Last scan" })).toContainText("Admitted");
+
+  // The dashboard: its live stream, its charts and the virtualised table.
+  await organiser.signInAs(/Nandini Rao/);
+  await expect(organiser.liveStatus).toHaveText("Live");
+  await organiser.openOrders();
+  await expect(page.getByRole("table")).toBeVisible();
+  expect(violations).toEqual([]);
+});

@@ -129,31 +129,31 @@ test.describe("seat map accessibility", () => {
   });
 });
 
-test("responsiveness: choosing seats stays under 200 ms with the CPU slowed four times", async ({
-  page,
-  sandbox,
-  browserName,
-}) => {
-  test.skip(browserName !== "chromium", "CPU throttling needs the Chrome DevTools Protocol");
-  await openMap(page);
-  const { seats } = await sandbox.freeSeatRun(SLUG, 2);
-  await page.evaluate(() => {
-    const durations: number[] = [];
-    window.interactionDurations = durations;
-    // Event Timing: how long each interaction took, from input to the next paint.
-    const options: PerformanceObserverInit & { durationThreshold: number } = { type: "event", durationThreshold: 16 };
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) durations.push(entry.duration);
-    }).observe(options);
-  });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-  for (let i = 0; i < 10; i++) {
-    for (const seat of seats) await seatCell(page, seat).click();
-  }
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
-  const durations = await page.evaluate(() => window.interactionDurations ?? []);
-  const longest = Math.max(0, ...durations);
-  test.info().annotations.push({ type: "longest interaction", description: `${Math.round(longest)} ms` });
-  expect(longest).toBeLessThan(200);
-});
+test(
+  "responsiveness: choosing seats stays under 200 ms with the CPU slowed four times",
+  { tag: "@perf" },
+  async ({ page, sandbox, browserName }) => {
+    test.skip(browserName !== "chromium", "CPU throttling needs the Chrome DevTools Protocol");
+    await openMap(page);
+    const { seats } = await sandbox.freeSeatRun(SLUG, 2);
+    await page.evaluate(() => {
+      const durations: number[] = [];
+      window.interactionDurations = durations;
+      // Event Timing: how long each interaction took, from input to the next paint.
+      const options: PerformanceObserverInit & { durationThreshold: number } = { type: "event", durationThreshold: 16 };
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) durations.push(entry.duration);
+      }).observe(options);
+    });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    for (let i = 0; i < 10; i++) {
+      for (const seat of seats) await seatCell(page, seat).click();
+    }
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    const durations = await page.evaluate(() => window.interactionDurations ?? []);
+    const longest = Math.max(0, ...durations);
+    test.info().annotations.push({ type: "longest interaction", description: `${Math.round(longest)} ms` });
+    expect(longest).toBeLessThan(200);
+  },
+);

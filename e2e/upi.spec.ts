@@ -56,6 +56,13 @@ test("declined by the bank after the buyer approves: the webhook says so", async
   await buyer.phone.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("UPI payment declined", { timeout: 10_000 });
   await expect(page).toHaveURL(/\/payment$/);
+
+  // Approved on the phone, declined by the bank: the server says so too, and sold nothing.
+  const state = await sandbox.state();
+  expect(Object.values(state.payments).map(({ status, failureCode }) => [status, failureCode])).toEqual([
+    ["failed", "upi_declined"],
+  ]);
+  expect(Object.values(state.orders).map((order) => order.status)).not.toContain("fulfilled");
 });
 
 test("a request nobody approves runs out; asking again starts a new one", async ({ page, buyer, sandbox }) => {
