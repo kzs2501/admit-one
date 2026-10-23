@@ -87,6 +87,23 @@ if none is running.
   `node -e 'const k=require("crypto").generateKeyPairSync("ed25519").privateKey.export({format:"jwk"});console.log("TICKET_SIGNING_KEY="+k.d+"\nNEXT_PUBLIC_TICKET_PUBLIC_KEY="+k.x)'`.
   The first is a secret, for the server; the second is public, built into the scanner.
 
+## Server mode's settings
+
+In development and tests the server has a stand-in for each of these. In production
+(`NODE_ENV=production`) it refuses to start without the required ones, and says which
+are missing ([ADR 018](docs/decisions/018-server-mode.md)).
+
+| Variable                                                     | Needed                   | What it is                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_BACKEND=server`                                 | at build                 | Builds the app against the server rather than the sandbox                                                                                                                                                                                                      |
+| `DATABASE_URL`                                               | yes                      | Postgres; migrate it with `npm run db:migrate`                                                                                                                                                                                                                 |
+| `WEBHOOK_SECRET`                                             | yes                      | Signs and checks the payment provider's webhooks                                                                                                                                                                                                               |
+| `TICKET_SIGNING_KEY`                                         | yes                      | The Ed25519 key tickets are signed with (made above)                                                                                                                                                                                                           |
+| `NEXT_PUBLIC_TICKET_PUBLIC_KEY`, `NEXT_PUBLIC_TICKET_KEY_ID` | at build                 | The scanner's copy of the public key, and its id                                                                                                                                                                                                               |
+| `TICKET_KEY_ID`                                              | no (`server-1`)          | The key id written into tickets; checked at start-up                                                                                                                                                                                                           |
+| `FINGERPRINT_SECRET`                                         | yes                      | Any long random string: the key for the HMAC that tells a retried payment from a reused Idempotency-Key. What's stored is that keyed hash of the request, CVC left out, which PCI DSS allows; a plain hash of a card number can be reversed by trying them all |
+| `CRON_SECRET`                                                | for scheduled deliveries | Turns on `GET /api/internal/deliver`, for a scheduler to call every minute or so with `Authorization: Bearer <secret>`                                                                                                                                         |
+
 ## How code is written here
 
 Read [docs/architecture.md](docs/architecture.md) for the layers and the dependency

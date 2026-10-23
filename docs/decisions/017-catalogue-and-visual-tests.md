@@ -81,14 +81,17 @@ in both themes, or caught a style change that moved something by a pixel.
   So each test also waits for:
   - Storybook's render phase to finish, which includes the play function. This is
     Storybook's internal state, read in one place (`visual/story.ts`).
-  - The preview's idle probe (`data-story-idle`) to stay true for two frames: no query
-    or mutation in flight.
+  - The preview's idle probe (`data-story-idle`) to be true at two frames in a row: no
+    query or mutation in flight. (Until 2026-10-23 it looked only at the second frame,
+    so a request that started and finished in between got through.)
 - **Missing baselines** are written locally for review, and fail CI.
 
 ## Consequences
 
-- **84 stories,** each a Vitest test, and **206 screenshots** (84 per theme, plus 38
-  screens at 375 px). A one-pixel style change fails with a diff in the report.
+- **98 stories,** each a Vitest test, and **210 screenshots** so far (85 per theme, plus
+  40 screens at 375 px). The 13 newest stories' baselines are still to be made in the
+  image, where they can only be made. A one-pixel style change fails with a diff in the
+  report.
 - **It found two bugs in its first week:**
   - **Focus rings that `outline-none` didn't remove.** Headings focused from code (so
     screen readers announce them) showed a ring. The global `:focus-visible` rule was

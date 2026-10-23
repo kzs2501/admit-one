@@ -1,6 +1,8 @@
 # 016 — Refunds: an idempotent request, settled by webhook, shown optimistically
 
-**Status:** Accepted
+**Status:** Accepted. Amended 2026-10-23: the door learns of refunds from a void list
+([019](019-offline-tickets-and-door-scanner.md)); a retry with another reason is a new
+request.
 
 ## Context
 
@@ -20,7 +22,11 @@ didn't happen.
   `pending`. The provider's `refund.succeeded` webhook settles it, through the same
   deduplicated outbox as payments ([004](004-payments-and-webhooks.md)).
 - **Settlement voids the tickets and puts them back on sale.** The order goes
-  `fulfilled → refunded` and its tickets stop working.
+  `fulfilled → refunded`. Its tickets are kept, marked void, rather than deleted: a
+  ticket is a signed token that works offline, so it stops working only where the
+  check knows of the refund. Door scanners download each event's voided codes while
+  online, and the buyer's wallet marks the tickets refunded
+  ([019](019-offline-tickets-and-door-scanner.md)).
   - For a sandbox order, its sales come off.
   - For an order from the generated history, the tickets or seats are recorded as
     returned, so availability and the metrics agree.
@@ -39,7 +45,9 @@ didn't happen.
     why;
   - either way, the order is re-read for the server's word.
 - **Each attempt has its own key.** A lost connection keeps it, so trying again can't
-  refund twice; an answer from the server ends it.
+  refund twice; an answer from the server ends it. Trying again with another reason is
+  another request, with a key of its own: the server refuses a reused key with a
+  different body, and it refuses a second refund of the order either way.
 - **Confirmation is a native `<dialog>`,** giving the amount, the buyer, what happens
   to their tickets, and a reason. When the button that opened it disappears (the refund
   is pending), focus moves to the message that replaced it.
@@ -48,8 +56,9 @@ didn't happen.
 
 ## Consequences
 
-- A refund can't happen twice, can't be shown before it's real, and can't leave
-  tickets both refunded and valid.
+- A refund can't happen twice, and can't be shown before it's real.
+- **A refunded ticket gets in at a door that hasn't synced since.** The door says how
+  old its list is, or that it has none ([019](019-offline-tickets-and-door-scanner.md)).
 - **GST:** refunding a taxed sale needs a credit note (CGST Act §34). The sandbox
   issues no invoices, so it issues no credit notes, and says so.
 - **Out of scope:**

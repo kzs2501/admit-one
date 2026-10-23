@@ -1,6 +1,7 @@
 # 018 — Server mode: the same API on Postgres, with a simulated provider's signed webhooks
 
-**Status:** Accepted
+**Status:** Accepted. Amended 2026-10-23, after a review: secrets at start-up, delivery
+with retries, payments judged when they happened, one lock order, and limits on input.
 
 ## Context
 
@@ -50,6 +51,19 @@ the in-browser demo.
   in flight gets `409 idempotency_key_in_use` (the IETF Idempotency-Key draft); a key
   left in flight by a process that died can be claimed again after a minute, and the
   order's own state still refuses a second charge.
+- **An idempotency claim is owned.** The claim carries a token (when it was made), and
+  completing or releasing it matches the key and the token. A process whose claim went
+  stale and was taken by another can't then overwrite the other's answer.
+- **One hold at a time per event, and one lock order.** A hold first takes its event's
+  lock (`pg_advisory_xact_lock`), so the single-seat-gap check and best available see
+  every seat claimed before them. Then it locks the expired holds it sweeps, then all
+  of the event's tiers in id order, the order a payment's conversion takes them too, so
+  the two can't deadlock. A deadlock or serialisation failure that happens anyway
+  is tried again, up to three times; after that the answer is `503
+service_unavailable` with `Retry-After`. Any other database error is a `500
+internal_error` problem, never a bare 500.
+- **Statuses the code knows.** Status columns are text, held to their values by CHECK
+  constraints built from the code's own constants.
 - **Times from the app's clock,** never the database's `now()`, so tests on a fake clock
   behave alike on both backends.
 
@@ -64,10 +78,48 @@ the in-browser demo.
   transaction as its effect, so a duplicate does nothing and a crash can't leave an
   event recorded but not acted on.
 - **Delivered without a timer.** After a payment's response is sent (`next/server`'s
-  `after`), and at the latest when the buyer next reads the order. Delivery is at least
-  once: an event is marked sent only when the endpoint accepts it.
+  `after`, on the payment, 3-D Secure and cancel routes), and at the latest when the
+  buyer next reads the order. Delivery is at least once: an event is marked sent only
+  when the endpoint accepts it.
+- **One delivery at a time, and a failure is retried.** A sender takes due events with
+  `FOR UPDATE SKIP LOCKED` and a 30-second lease, so two senders never deliver one event
+  together. Each delivery is sent on its own: one that fails records its error and is
+  tried again later, doubling from a second up to a minute, ten times at most. A failed
+  delivery never fails the buyer's read that triggered it. Before this, one event that
+  threw broke every order page.
+- **A backstop that doesn't wait for a reader:** `GET /api/internal/deliver`, with
+  `Authorization: Bearer $CRON_SECRET`, compared in constant time. Without the secret
+  the route doesn't exist (404). Something has to call it every minute or so: Vercel's
+  Hobby crons run daily at most, so it's a Pro cron or a scheduled GitHub Action.
+- **Judged when it happened.** A payment confirmed before its hold ran out keeps its
+  tickets, however late the webhook arrives: the event carries the provider's own time,
+  and the hold's life is judged at that moment. The exception is a hold already swept,
+  whose stock may have been sold since; that payment is refunded. Converting a hold is
+  `UPDATE … WHERE status = 'active'`, so a swept hold can't be converted, or its stock
+  released twice.
+- **Retried by the provider.** An event for a payment the server doesn't know answers
+  404 and isn't recorded, so the provider tries again. Signatures may carry several
+  `v1=` values, so the secret can be rotated.
 - **Through the real endpoint,** in-process: every webhook goes through the same
   verification a real provider's would.
+
+**Postgres for development and tests**
+
+**What the server refuses**
+
+- **To start without its secrets.** In production, `DATABASE_URL`, `WEBHOOK_SECRET`,
+  `TICKET_SIGNING_KEY` and `FINGERPRINT_SECRET` are required; the development fallbacks
+  apply only when `NODE_ENV` is `development` or `test`. A `CI` variable used to switch
+  them on too, which hid production-only failures in CI. A start that fails isn't
+  cached, so the next request tries again.
+- **What the contract shouldn't accept.** A tier twice in one hold (the sandbox used to
+  oversell it); names over 100 characters, emails over 254, bodies over 64 KB (`413
+payload_too_large`); an id like `constructor` (a 404, not a 500); and UPI, which waits
+  for a real provider (`422 payment_method_unavailable`).
+- **Card details in the idempotency fingerprint.** The fingerprint that tells a retry
+  from a reused key is an HMAC of the body under `FINGERPRINT_SECRET`, with the CVC left
+  out. PCI DSS allows a keyed hash of a card number, never a stored CVC. The sandbox
+  hashes without a key: its "card numbers" are test numbers in the visitor's own tab.
 
 **Postgres for development and tests**
 
@@ -97,11 +149,21 @@ the in-browser demo.
   concurrently;
 - removing the row lock;
 - removing the seat claims;
-- removing the dedupe or the signature tolerance.
+- removing the dedupe or the signature tolerance;
+- one delivery's failure not caught, so it stops the rest;
+- a payment judged at delivery rather than when it happened;
+- converting a hold without `status = 'active'`;
+- a claim completed without its token;
+- a tier allowed twice in one hold;
+- the CVC in the fingerprint.
 
-**One contract, two backends.** The same ten HTTP contract tests pass on the sandbox
-and on the server, and 18 end-to-end buyer flows, tagged `@both`, pass against a
-server-mode build.
+**Argued, not tested:** the lock order. Deadlocks between mixed-tier holds and the sweep
+didn't reproduce in tests, so the retries are tested directly, and the order is in the
+code's comments.
+
+**One contract, two backends.** The same 14 HTTP contract tests pass on the sandbox and
+on the server, and 22 end-to-end flows, tagged `@both`, pass against a server-mode
+build.
 
 **Still not done:**
 

@@ -174,6 +174,11 @@ Server mode ([ADR 018](decisions/018-server-mode.md)) has made the first of thes
 - **Done: signed webhooks.** HMAC-SHA256 over the raw body, a constant-time compare and
   a five-minute tolerance, from a simulated provider. A real provider's adapter
   (Razorpay, 6b) is next.
+- **Done: delivery that survives a failure.** Each webhook is delivered under a lease,
+  and one that fails is retried with backoff. A scheduler can call a protected endpoint
+  so delivery doesn't wait for a reader.
+- **Done: settings checked at start-up.** In production the server refuses to start
+  without its secrets ([CONTRIBUTING](../CONTRIBUTING.md#server-modes-settings)).
 
 Still to do:
 

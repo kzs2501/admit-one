@@ -1,6 +1,7 @@
 # 019 — Offline tickets and a door scanner
 
-**Status:** Accepted
+**Status:** Accepted. Amended 2026-10-23: refunded tickets are refused from a void list;
+the door is reached by a full page load; the worker caches the door only where it's used.
 
 ## Context
 
@@ -42,10 +43,16 @@ either.
   in the sandbox, `/sw.js?offline=1` in server mode. Development caches nothing.
 - **Its listeners first.** MSW answers every request from a page it controls, so the
   app's listeners are added before it is imported, and stop the event for the requests
-  they own: navigations, the build's hashed assets, and the files in `/vendor/`.
+  they own: navigations, the build's hashed assets, and the files in `/vendor/`. They
+  stop it for everything else that isn't `/api/*` too, which MSW has no answer for, so
+  MSW sees the API alone.
 - **What it caches, and how:**
   - the offline pages (`/tickets`, `/scan`): network first, so a deploy shows at once;
-    the cached copy with no network, or after 3 s on a slow one;
+    the cached copy with no network, or after 3 s on a slow one. The copy is saved
+    beside the response (`waitUntil`), so a full disk can't turn an answer from the
+    network into "you're offline";
+  - `/tickets` on every device that loads the site, since anyone who buys may need
+    their tickets offline; `/scan` only on a device that has opened it;
   - files named by their content or version: cache first, kept only for the offline
     pages, at most 200, oldest out first;
   - any other page, offline: a short page that says so and links to the wallet and the
@@ -72,10 +79,28 @@ either.
 
 - **`/scan`,** for door staff (not indexed; linked from the footer). Pick the event,
   start the camera (on request, never on load, so the permission prompt has a reason),
-  hold up a ticket.
+  hold up a ticket. The device remembers its event.
+- **Its own document.** Headers are per document, so `/scan` is always reached by a
+  full page load: the footer's link is a plain `<a>`, and a client navigation into or
+  out of `/scan` reloads (`DocumentBoundary`). A client-side `<Link>` brought the door
+  in under the shop's policy, with no camera and no wasm, and took the door's looser
+  policy back to the shop. Route groups with two root layouts would also force a full
+  load, but they need an experimental global 404, so the boundary is a guard instead.
+- **The camera stops when it should:** when the page goes, even if the stream arrives
+  after it went; while the tab is hidden; and it says so when the track ends (another
+  app took the camera, or it was unplugged).
 - **A pure decision.** `checkTicket` says not a ticket, a key it doesn't trust, forged,
-  another event's, or valid; then `doorOutcome` asks the device's scan log. The first
-  scan admits; every later one says when that was.
+  another event's, refunded, or valid; then `doorOutcome` asks the device's scan log.
+  The first scan admits; every later one says when that was.
+- **Refunded tickets, from a void list.** A refunded ticket is still signed, so a
+  signature can't say it was refunded. A settled refund voids its tickets on the server
+  (it doesn't delete them), and `GET /api/organiser/events/:slug/door` lists the voided
+  codes, for a signed-in organiser of that event. While online, the door fetches the
+  list for its event every minute, and whenever the connection comes back, and keeps
+  it in IndexedDB, so it holds offline. The page says when refunds were last checked,
+  or that they aren't: no organiser signed in on the device, no list.
+- **The wallet says so too.** While online, `/tickets` asks again about each saved
+  order, and a refunded order's tickets say "Refunded" and show no code.
 - **One transaction per scan.** The scan log reads and writes in one IndexedDB
   transaction, so two tabs can't both let one ticket in.
 - **Fails closed.** The scanner trusts the keys its backend signs with. A production
@@ -107,18 +132,27 @@ either.
 - **The permissions:** another page asking for the camera is refused, and only `/scan`
   has its headers. The buyer's pages never load the reader.
 
+- **Refunds at the door:** buy, refund on the dashboard; the door syncs and refuses the
+  ticket, and the wallet marks it refunded, with no code.
+- **The full page load:** the footer's link to `/scan` gives the camera, and the link
+  back takes it away.
+
 **Mutants caught:** MSW's listener first; no unregister guard; no precache; no
 scan log; any signature; a read-then-write scan log; the page's list of loaded files
-ignored; `/scan` not offline; the scanner's policy on every page.
+ignored; `/scan` not offline; the scanner's policy on every page; no void check; the
+footer's link as a `<Link>`; a stream kept after the page went.
 
-**Kept without a test:** `stopImmediatePropagation`. In Chromium, MSW's listener does
-nothing on a request already answered, so a version without it passes every test. It
-stays because the DOM still runs later listeners, and MSW's could change.
+**`stopImmediatePropagation`, tested late.** The first tests of it passed without it:
+Next had fetched the payloads they watched before the counter was installed. The tests
+now make their own requests once the worker is watched.
 
 **Limits:**
 
 - **Two doors offline** each let a copied ticket in once: one device's log can't see
   another's. Posting scans to the server when online, first scan wins, is the next step.
+- **A refund reaches a door at its next sync.** A door offline since the refund, or
+  with nobody signed in, still lets the ticket in, and says how old its list is. Server
+  mode has no organisers' API yet, so it has no list.
 - **A screenshot is as good as the ticket.** The token is a bearer credential. Codes
   that rotate every few seconds need a secret on the buyer's device, which is out of
   scope here.
