@@ -52,7 +52,8 @@ test("an expired hold offers to reserve the same tickets again, keeping the draf
   await page.getByLabel("Full name").fill("Asha Rao");
   await page.getByLabel(/^Email/).fill("asha@example.com");
   await page.clock.fastForward("05:01");
-  await expect(page.getByRole("heading", { name: "Your reservation expired" })).toBeVisible();
+  // The form, and the field that had focus, are gone: focus goes to what replaced them.
+  await expect(page.getByRole("heading", { name: "Your reservation expired" })).toBeFocused();
   await page.getByRole("button", { name: "Reserve the same tickets again" }).click();
   await expect(page.getByRole("heading", { name: "Who’s coming?" })).toBeVisible();
   await expect(page.getByLabel("Full name")).toHaveValue("Asha Rao");

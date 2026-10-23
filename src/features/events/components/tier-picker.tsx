@@ -107,7 +107,7 @@ export function TierPicker({ slug }: { slug: string }) {
             {soldOutNotice} The numbers above are up to date.
           </Notice>
         )}
-        {retryAtMs !== null && <RetryNotice retryAtMs={retryAtMs} onReady={onRetryReady} />}
+        <RetryNotice retryAtMs={retryAtMs} onReady={onRetryReady} />
         {reserveError && (
           <Notice tone="bad" title="Couldn’t reserve those tickets" role="alert">
             {reserveError.message}

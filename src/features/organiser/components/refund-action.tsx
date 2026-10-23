@@ -63,7 +63,8 @@ export function RefundAction({ order }: { order: OrganiserOrderDto }) {
         </Button>
       )}
       {isPending && (
-        <p ref={started} tabIndex={-1} role="status" className="text-sm text-ink-2 outline-none">
+        // Focused, so it's read; the order's status, which stays mounted, announces the change.
+        <p ref={started} tabIndex={-1} className="text-sm text-ink-2 outline-none">
           Refund started. The order is refunded once the payment provider confirms.
         </p>
       )}

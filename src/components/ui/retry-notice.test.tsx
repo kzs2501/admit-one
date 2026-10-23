@@ -12,22 +12,40 @@ describe("RetryNotice", () => {
 
   it("says the wait once in words, counts it down for eyes, and hands back at zero", () => {
     const onReady = vi.fn();
-    render(<RetryNotice retryAtMs={Date.now() + 13_000} onReady={onReady} />);
-    const notice = screen.getByRole("status");
-    expect(notice).toHaveTextContent("You can try again in 13 seconds.");
-    expect(notice).toHaveTextContent("0:13");
+    const { container } = render(<RetryNotice retryAtMs={Date.now() + 13_000} onReady={onReady} />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("Too many attempts. To keep the sale fair, reserving is limited.");
+    expect(region).toHaveTextContent("You can try again in 13 seconds.");
+    expect(region).not.toHaveTextContent("0:13");
+    expect(container).toHaveTextContent("0:13");
 
     // The clock ticks just after each second boundary, so 5.1 s in, it reads 0:08.
     act(() => {
       vi.advanceTimersByTime(5_100);
     });
-    expect(notice).toHaveTextContent("0:08");
-    expect(notice).toHaveTextContent("You can try again in 13 seconds."); // not re-announced each second
+    expect(container).toHaveTextContent("0:08");
+    expect(region).toHaveTextContent("You can try again in 13 seconds."); // not re-announced each second
     expect(onReady).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(8_000);
     });
     expect(onReady).toHaveBeenCalledOnce();
+  });
+
+  it("is a status region before there's a wait, so the wait is heard when it comes", () => {
+    const { rerender } = render(<RetryNotice retryAtMs={null} onReady={vi.fn()} />);
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(screen.queryByText("Too many attempts")).toBeNull();
+
+    rerender(<RetryNotice retryAtMs={Date.now() + 20_000} onReady={vi.fn()} />);
+    // The same node, now with words in it: that's a change a screen reader reads out.
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("You can try again in 20 seconds.");
+
+    rerender(<RetryNotice retryAtMs={null} onReady={vi.fn()} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toBeEmptyDOMElement();
   });
 });

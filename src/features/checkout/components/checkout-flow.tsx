@@ -49,6 +49,7 @@ export function CheckoutView({
   onExpire: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const expiredHeading = useRef<HTMLHeadingElement>(null);
   const shownStepId = useRef<StepId | null>(null);
 
   // Move focus to the new step's heading, so keyboard and screen-reader users land at
@@ -61,6 +62,12 @@ export function CheckoutView({
     shownStepId.current = readyStepId;
   }, [readyStepId]);
 
+  // A hold that runs out mid-step takes the form away, and the focus that was in it.
+  const isExpired = state.kind === "expired";
+  useEffect(() => {
+    if (isExpired && shownStepId.current) expiredHeading.current?.focus();
+  }, [isExpired]);
+
   switch (state.kind) {
     case "not-found":
       return (
@@ -71,7 +78,7 @@ export function CheckoutView({
     case "load-error":
       return <ErrorState title="Couldn’t load your checkout">Check your connection and try again.</ErrorState>;
     case "expired":
-      return <ExpiredPanel hold={state.hold} event={state.event} step={state.stepId} />;
+      return <ExpiredPanel hold={state.hold} event={state.event} step={state.stepId} headingRef={expiredHeading} />;
     case "loading":
       return (
         <div className="grid min-h-[50vh] place-items-center">

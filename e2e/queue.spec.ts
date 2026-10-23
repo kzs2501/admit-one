@@ -75,9 +75,10 @@ test("too many attempts: the fourth reserve waits out the server's Retry-After, 
 
   await page.getByRole("button", { name: "More: Two-hour session" }).click();
   await reserveButton.click();
+  // Heard once, in words, and seen counting down.
   const notice = page.getByRole("status").filter({ hasText: "Too many attempts" });
-  await expect(notice).toBeVisible();
   await expect(notice).toContainText(/You can try again in \d+ seconds?\./);
+  await expect(page.getByText(/You can try again in \d:\d\d\./)).toBeVisible();
   await expect(reserveButton).toBeDisabled();
 
   // Waiting exactly as long as the server said always works.

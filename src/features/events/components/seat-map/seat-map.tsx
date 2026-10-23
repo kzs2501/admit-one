@@ -14,6 +14,8 @@ import { SeatGrid, type TierLabels } from "./seat-grid";
 import { SeatLegend, type TierKey } from "./seat-legend";
 import { SelectedSeats } from "./selected-seats";
 
+const LOST_SEATS_TITLE = "Someone else just took a seat you chose";
+
 const SEAT_SIZE_OPTIONS = ["small", "medium", "large"] as const;
 type SeatSize = (typeof SEAT_SIZE_OPTIONS)[number];
 
@@ -100,6 +102,11 @@ export function SeatMap({ slug }: { slug: string }) {
     }),
     {},
   ).totalMinor;
+  const { lostSeats } = selection;
+  const lostSeatsMessage =
+    lostSeats.length > 0
+      ? `${formatSeatList(lostSeats)} ${lostSeats.length === 1 ? "is" : "are"} gone; your other seats are still chosen.`
+      : null;
   const chosenCount = selection.seats.length;
   const announcement =
     chosenCount === 0
@@ -133,16 +140,15 @@ export function SeatMap({ slug }: { slug: string }) {
             </button>
           </Notice>
         )}
-        {selection.lostSeats.length > 0 && (
-          <Notice tone="warn" title="Someone else just took a seat you chose" role="status">
-            {formatSeatList(selection.lostSeats)} {selection.lostSeats.length === 1 ? "is" : "are"} gone; your other
-            seats are still chosen.{" "}
+        {lostSeatsMessage && (
+          <Notice tone="warn" title={LOST_SEATS_TITLE}>
+            {lostSeatsMessage}{" "}
             <button type="button" className="underline underline-offset-4" onClick={model.dismissLostSeats}>
               OK
             </button>
           </Notice>
         )}
-        {model.retryAtMs !== null && <RetryNotice retryAtMs={model.retryAtMs} onReady={model.onRetryReady} />}
+        <RetryNotice retryAtMs={model.retryAtMs} onReady={model.onRetryReady} />
         {conflict && (
           <div ref={conflictNotice} tabIndex={-1} className="outline-none">
             <Notice tone="bad" title={conflict.title} role="alert">
@@ -186,8 +192,12 @@ export function SeatMap({ slug }: { slug: string }) {
         />
       </div>
 
+      {/* Live regions are mounted before they speak: one that arrives with its words isn't reliably read. */}
       <p role="status" className="sr-only">
         {announcement}
+      </p>
+      <p role="status" className="sr-only">
+        {lostSeatsMessage && `${LOST_SEATS_TITLE}. ${lostSeatsMessage}`}
       </p>
     </section>
   );

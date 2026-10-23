@@ -1,5 +1,6 @@
 "use client";
 
+import type { RefObject } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,17 @@ import { stepHref, type StepId } from "@/features/checkout/domain/step-registry"
  * carrying over everything the buyer already typed, rather than sending them back to
  * the start.
  */
-export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: EventDto; step: StepId }) {
+export function ExpiredPanel({
+  hold,
+  event,
+  step,
+  headingRef,
+}: {
+  hold: HoldDto;
+  event: EventDto;
+  step: StepId;
+  headingRef?: RefObject<HTMLHeadingElement | null>;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const isSeated = hold.seats.length > 0;
@@ -43,7 +54,7 @@ export function ExpiredPanel({ hold, event, step }: { hold: HoldDto; event: Even
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16 text-center sm:px-8">
-      <h1 tabIndex={-1} className="font-display text-3xl font-semibold tracking-tight">
+      <h1 ref={headingRef} tabIndex={-1} className="font-display text-3xl font-semibold tracking-tight outline-none">
         Your reservation expired
       </h1>
       <p className="mt-3 text-ink-2">

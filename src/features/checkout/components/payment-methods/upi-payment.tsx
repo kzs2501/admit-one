@@ -117,9 +117,7 @@ function PendingRequest({
         >
           Approve {total} in your UPI app
         </h2>
-        <p role="status" className="mt-1 text-sm text-ink-2">
-          Waiting for your approval…
-        </p>
+        <p className="mt-1 text-sm text-ink-2">Waiting for your approval…</p>
       </div>
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">

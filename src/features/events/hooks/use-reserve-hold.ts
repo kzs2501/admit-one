@@ -64,6 +64,8 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
     isReserving: reserve.isPending || isNavigating,
     /** The last failure, problem or not, except a rate limit (that's `retryAtMs`). */
     error: problemOf(reserve.error)?.code === "rate_limited" ? null : reserve.error,
+    /** Forget the last failure, once the buyer has moved on from it. */
+    clearError: reserve.reset,
     /** When reserving may be tried again, after a 429; null when it may now. */
     retryAtMs,
     onRetryReady,

@@ -81,13 +81,23 @@ export function useSeatMap(slug: string, plan: SeatPlan): SeatMapModel {
       : { kind: "loading" };
   const isReady = availability.kind === "ready";
 
+  const { clearError } = hold;
   const toggle = useCallback(
     (seatId: string) => {
       if (!isReady || unavailableSeatIds.has(seatId)) return;
       setConflict(null);
+      clearError();
       dispatch({ type: "toggle", seatId });
     },
-    [isReady, unavailableSeatIds],
+    [isReady, unavailableSeatIds, clearError],
+  );
+
+  // A problem has its own words; a request that never got an answer gets these. One
+  // object per failure, not per render: the map focuses a conflict when a new one comes.
+  const unanswered = hold.error && !problemOf(hold.error) ? hold.error : null;
+  const unansweredConflict = useMemo(
+    () => (unanswered ? { title: "Couldn’t reserve those seats", detail: unanswered.message } : null),
+    [unanswered],
   );
 
   return {
@@ -114,11 +124,6 @@ export function useSeatMap(slug: string, plan: SeatPlan): SeatMapModel {
     isReserving: hold.isReserving,
     retryAtMs: hold.retryAtMs,
     onRetryReady: hold.onRetryReady,
-    // A problem has its own words; a request that never got an answer gets these.
-    conflict:
-      conflict ??
-      (hold.error && !problemOf(hold.error)
-        ? { title: "Couldn’t reserve those seats", detail: hold.error.message }
-        : null),
+    conflict: conflict ?? unansweredConflict,
   };
 }
