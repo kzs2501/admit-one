@@ -8,19 +8,24 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request makes its older run pointless. On main, every run
+# finishes, so each merged commit has its own result.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Actions are pinned by commit, with the tag alongside: a tag can be moved, a commit
+# can't. Dependabot updates both.
 
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0 # commitlint reads the pull request's commits
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -36,39 +41,66 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
-      - run: npx playwright install --with-deps chromium
       - name: Unit tests, with coverage floors
         run: npm run test:coverage
+      - uses: ./.github/actions/playwright
       - name: Every story renders, passes its play function, and has no axe violations
         run: npm run test:stories
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: coverage
           path: coverage
-      - run: npm run build
 
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: ./.github/actions/playwright
+      - uses: ./.github/actions/next-cache
+      - run: npm run build
       - name: Browser tests (every chaos preset, guards, expiry, axe, 375px)
         run: npm run test:e2e
       # On their own, so nothing else competes for the CPU while they measure; no retries.
       - name: Responsiveness budgets (the seat map, the orders table)
         run: npm run test:e2e:perf
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: e2e-reports
+          path: |
+            playwright-report
+            test-results
 
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: ./.github/actions/next-cache
+      - run: npm run build
       - name: Lighthouse budgets
         run: npx lhci autorun
       # The seat map on a mid-range phone. Its performance floor is today's (0.85), not
       # the desktop 0.95: mobile LCP is bound by the app's JavaScript (ADR 010).
       - name: Lighthouse budgets, mobile (seat map)
         run: npm run lhci:mobile
-
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
-          name: reports
-          path: |
-            playwright-report
-            test-results
-            .lighthouseci
+          name: lighthouse-reports
+          path: .lighthouseci
 
   server:
     # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
@@ -76,8 +108,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -85,11 +117,14 @@ jobs:
       - run: npm run db:up
       - name: The server backend against real Postgres (races, webhooks, the shared contract)
         run: npm run test:server
+      - uses: ./.github/actions/next-cache
+        with:
+          dist-dir: .next-server
       - run: npm run build:server
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright
       - name: The buyer's flows against server mode
         run: npm run test:e2e:server
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: server-reports
@@ -101,15 +136,15 @@ jobs:
     # Screenshots only compare on the machine that made them: the same OS, browser build,
     # fonts and CPU architecture. This is Playwright's Linux image on arm64, the same as
     # `npm run test:visual` on an Apple-silicon laptop (ADR 017). A unit test keeps the
-    # tag in step with the installed Playwright.
+    # tag in step with the installed Playwright. The image has its browsers already.
     runs-on: ubuntu-24.04-arm
     container:
       image: mcr.microsoft.com/playwright:v1.64.0-noble
       options: --user 1001 --ipc=host
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -117,7 +152,7 @@ jobs:
       - run: npm run build-storybook
       - name: Screenshots of every story, in both themes and at 375 px, with axe
         run: npx playwright test --config=playwright.visual.config.ts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: visual-diffs

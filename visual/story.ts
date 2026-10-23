@@ -42,13 +42,16 @@ export async function openStory(page: Page, id: string) {
     const error = await page.locator("#error-message, #error-stack").allInnerTexts();
     throw new Error(`Story ${id} ended "${phase ?? "unknown"}": ${error.join("\n")}`);
   }
+  // Idle at two frames in a row, not just at the second: a request that starts and
+  // ends between them is caught by the first.
   await page.waitForFunction(
     () =>
       new Promise<boolean>((resolve) => {
         const isIdle = () => document.documentElement.dataset["storyIdle"] === "true";
         requestAnimationFrame(() => {
+          const wasIdle = isIdle();
           requestAnimationFrame(() => {
-            resolve(isIdle());
+            resolve(wasIdle && isIdle());
           });
         });
       }),

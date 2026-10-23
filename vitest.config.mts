@@ -66,10 +66,10 @@ export default defineConfig({
       // Components and routes are mostly covered by the browser tests, so the overall
       // floor is low; the layers that hold the rules carry their own, higher ones.
       thresholds: {
-        statements: 58,
-        branches: 53,
-        functions: 50,
-        lines: 58,
+        statements: 73,
+        branches: 65,
+        functions: 68,
+        lines: 73,
         "src/core/**": { statements: 92, branches: 94, functions: 89, lines: 96 },
         "src/contract/**": { statements: 98, branches: 48, functions: 98, lines: 98 },
         "src/backend/domain/**": { statements: 92, branches: 81, functions: 96, lines: 95 },
@@ -77,6 +77,11 @@ export default defineConfig({
         "src/features/checkout/domain/**": { statements: 87, branches: 89, functions: 89, lines: 91 },
         "src/features/events/domain/**": { statements: 95, branches: 87, functions: 98, lines: 98 },
         "src/features/queue/domain/**": { statements: 98, branches: 88, functions: 98, lines: 98 },
+        "src/features/scanner/domain/**": { statements: 98, branches: 91, functions: 98, lines: 98 },
+        "src/features/organiser/domain/**": { statements: 98, branches: 94, functions: 98, lines: 98 },
+        "src/lib/**": { statements: 68, branches: 70, functions: 55, lines: 67 },
+        "src/features/orders/hooks/**": { statements: 56, branches: 69, functions: 42, lines: 53 },
+        "src/features/tickets/**": { statements: 79, branches: 62, functions: 98, lines: 86 },
       },
     },
   },

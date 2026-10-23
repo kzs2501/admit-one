@@ -10,8 +10,12 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+        # Playwright comes on its own: a new version brings new browser builds, so the
+        # visual baselines are shot again in its Docker image, at the same version.
+        exclude-patterns: ["@playwright/test", "playwright", "playwright-core"]
   - package-ecosystem: github-actions
-    directory: /
+    # The workflows, and the composite actions they share.
+    directories: ["/", "/.github/actions/*"]
     schedule:
       interval: weekly
     groups:

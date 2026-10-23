@@ -1,0 +1,16 @@
+name: Next.js build cache
+description: Next's own cache of compiled modules, so a build reuses what hasn't changed.
+inputs:
+  dist-dir:
+    description: The build's directory (server mode builds to its own).
+    default: .next
+runs:
+  using: composite
+  steps:
+    # Next's advice: key on the lockfile and the sources, and fall back to the last
+    # cache for this lockfile, which still holds most of what's needed.
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ inputs.dist-dir }}/cache
+        key: next-${{ inputs.dist-dir }}-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'next.config.ts', 'public/**') }}
+        restore-keys: next-${{ inputs.dist-dir }}-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
