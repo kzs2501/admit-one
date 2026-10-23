@@ -66,8 +66,39 @@ export class NetworkError extends Error {
 }
 
 let readiness: Promise<unknown> = Promise.resolve();
+/** A request with no answer by then is given up on, as a network failure. */
+let timeoutMs = 15_000;
 let recovery: (() => Promise<unknown>) | null = null;
 let recovering: Promise<unknown> | null = null;
+
+/** For tests: how long a request may take. */
+export function setRequestTimeout(ms: number) {
+  timeoutMs = ms;
+}
+
+/** Wait for the backend to be ready; if it never can be, say so in words a buyer can use. */
+async function whenReady() {
+  try {
+    await readiness;
+  } catch (cause) {
+    throw new NetworkError(
+      "The demo’s backend couldn’t start in this browser. Reload the page; a private window or blocked site data can stop it.",
+      { cause },
+    );
+  }
+}
+
+/** The caller's signal, if any, and the request's time limit, together. */
+const withTimeout = (signal: AbortSignal | null | undefined) =>
+  signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+
+const unreachable = (cause: unknown) =>
+  new NetworkError(
+    cause instanceof DOMException && cause.name === "TimeoutError"
+      ? "The server took too long to answer. Check your connection and try again."
+      : "Couldn’t reach the server. Check your connection and try again.",
+    { cause },
+  );
 
 /** Hold every request until `ready` settles. Set once, at startup. */
 export function setApiReadiness(ready: Promise<unknown>) {
@@ -112,7 +143,7 @@ async function requestOnce<Schema extends z.ZodType>(
   schema: Schema,
   init: RequestInit,
 ): Promise<z.output<Schema>> {
-  await readiness;
+  await whenReady();
   let response: Response;
   try {
     // `new Headers(...)` accepts every HeadersInit shape (object, tuples, Headers);
@@ -120,9 +151,9 @@ async function requestOnce<Schema extends z.ZodType>(
     const headers = new Headers(init.headers);
     if (!headers.has("Accept")) headers.set("Accept", `application/json, ${PROBLEM_CONTENT_TYPE}`);
     if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-    response = await fetch(path, { ...init, headers });
+    response = await fetch(path, { ...init, headers, signal: withTimeout(init.signal) });
   } catch (cause) {
-    throw new NetworkError("Couldn’t reach the server. Check your connection and try again.", { cause });
+    throw unreachable(cause);
   }
 
   const body: unknown = await response.json().catch(() => undefined);
@@ -142,12 +173,12 @@ async function requestOnce<Schema extends z.ZodType>(
 
 /** A file from the API, such as a CSV export: its contents and the name the server gave it, or the problem. */
 export async function requestFile(path: string, init: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
-  await readiness;
+  await whenReady();
   let response: Response;
   try {
-    response = await fetch(path, init);
+    response = await fetch(path, { ...init, signal: withTimeout(init.signal) });
   } catch (cause) {
-    throw new NetworkError("Couldn’t reach the server. Check your connection and try again.", { cause });
+    throw unreachable(cause);
   }
   if (response.ok) {
     const disposition = response.headers.get("Content-Disposition") ?? "";

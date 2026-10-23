@@ -14,6 +14,21 @@ const POLL_MAX_MS = 4_000;
 /** 0.5s, 1s, 2s, then every 4s: fast when it's likely to finish, gentle when it isn't. */
 export const pollDelayMs = (attempt: number) => Math.min(POLL_MAX_MS, POLL_FIRST_MS * 2 ** attempt);
 
+/**
+ * When to look again: while the order waits to be confirmed, sooner then gentler; never
+ * once it's settled, or when there's no such order (nothing will change); and backing
+ * off while the server can't be read.
+ */
+export function orderPollDelayMs(
+  order: OrderDto | undefined,
+  error: unknown,
+  { dataUpdateCount, errorUpdateCount }: { dataUpdateCount: number; errorUpdateCount: number },
+): number | false {
+  if (order) return isAwaitingConfirmation(order) ? pollDelayMs(dataUpdateCount) : false;
+  if (problemOf(error)?.code === "not_found") return false;
+  return pollDelayMs(error ? errorUpdateCount : 0);
+}
+
 /** Everything the order page can be showing — exactly one at a time. */
 export type OrderPageState =
   | { kind: "loading" }
@@ -48,10 +63,7 @@ export function useOrderStatus(orderId: string): OrderPageState {
   const [isSlow, setIsSlow] = useState(false);
   const query = useQuery({
     ...orderQueries.detail(orderId),
-    refetchInterval: (current) =>
-      current.state.data && !isAwaitingConfirmation(current.state.data)
-        ? false
-        : pollDelayMs(current.state.dataUpdateCount),
+    refetchInterval: ({ state }) => orderPollDelayMs(state.data, state.error, state),
   });
 
   const isConfirming = query.data ? isAwaitingConfirmation(query.data) : false;

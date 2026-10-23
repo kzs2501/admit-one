@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OrderDto, PaymentDto } from "@/contract/dto";
 import type { OrderStatus } from "@/core/statuses";
 import { ApiError, NetworkError } from "@/lib/api-client";
-import { deriveOrderPageState, pollDelayMs, toOrderPageState } from "./use-order-status";
+import { deriveOrderPageState, orderPollDelayMs, pollDelayMs, toOrderPageState } from "./use-order-status";
 
 const payment = (status: PaymentDto["status"]): PaymentDto => ({
   id: "pay_1",
@@ -78,5 +78,35 @@ describe("order page state", () => {
       code: "not_found",
     });
     expect(deriveOrderPageState(order("pending", payment("processing")), notFound, false).kind).toBe("not-found");
+  });
+});
+
+describe("when the order page looks again", () => {
+  const counts = { dataUpdateCount: 2, errorUpdateCount: 3 };
+  const notFound = new ApiError(
+    {
+      type: "https://admit-one.test/problems/not-found",
+      title: "Not found",
+      status: 404,
+      detail: "No such order.",
+      code: "not_found",
+    },
+    null,
+  );
+
+  it("keeps looking while the payment waits to be confirmed, sooner first", () => {
+    expect(orderPollDelayMs(order("pending", payment("processing")), null, counts)).toBe(pollDelayMs(2));
+  });
+
+  it("stops once the order is settled", () => {
+    expect(orderPollDelayMs(order("fulfilled", payment("succeeded")), null, counts)).toBe(false);
+  });
+
+  it("stops when there's no such order: nothing will change", () => {
+    expect(orderPollDelayMs(undefined, notFound, counts)).toBe(false);
+  });
+
+  it("backs off while the server can't be read", () => {
+    expect(orderPollDelayMs(undefined, new NetworkError("Lost."), counts)).toBe(pollDelayMs(3));
   });
 });

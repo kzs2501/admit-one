@@ -5,10 +5,19 @@
  * typed value or one of exactly two typed errors.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { http, HttpResponse } from "msw/http";
+import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
-import { apiClient, ApiError, NetworkError, parseRetryAfter, problemOf, setApiRecovery } from "./api-client";
+import {
+  apiClient,
+  ApiError,
+  NetworkError,
+  parseRetryAfter,
+  problemOf,
+  setApiReadiness,
+  setApiRecovery,
+  setRequestTimeout,
+} from "./api-client";
 
 const network = setupServer();
 
@@ -172,5 +181,34 @@ describe("when the sandbox's backend has gone away", () => {
   it("without a way to recover, says what happened", async () => {
     network.use(http.get("*/api/events", restarting));
     await expect(apiClient.listEvents()).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("when the server is slow, or the backend never starts", () => {
+  afterEach(() => {
+    setRequestTimeout(15_000);
+    setApiReadiness(Promise.resolve());
+  });
+
+  it("gives up on a request with no answer in time, as a network failure that says so", async () => {
+    setRequestTimeout(50);
+    network.use(
+      http.get("*/api/events", async () => {
+        await delay(1_000);
+        return HttpResponse.json([]);
+      }),
+    );
+    const error = await apiClient.listEvents().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect((error as NetworkError).message).toContain("took too long");
+  });
+
+  it("says in words when the backend couldn't start, not in the library's", async () => {
+    const failed = Promise.reject(new Error("[MSW] Failed to register the Service Worker"));
+    failed.catch(() => undefined);
+    setApiReadiness(failed);
+    const error = await apiClient.listEvents().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect((error as NetworkError).message).toContain("couldn’t start in this browser");
   });
 });
