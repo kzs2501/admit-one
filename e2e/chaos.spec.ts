@@ -48,6 +48,50 @@ test("3-D Secure: failing lets you retry, approving completes the order", async 
   await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
 });
 
+test("3-D Secure with the hold nearly gone: the payment extends it, and the challenge stays", async ({
+  page,
+  buyer,
+  sandbox,
+}) => {
+  // The sandbox's backend runs in the page: reload, so it keeps the page's fake time too.
+  await page.clock.install();
+  await page.reload();
+  await sandbox.choosePreset("3-D Secure");
+  await buyer.goToPayment();
+  // Under two minutes left on the hold when the payment starts, which extends it.
+  await page.clock.fastForward("04:00");
+  await buyer.pay();
+  const challenge = page.getByRole("dialog", { name: "Confirm it’s you" });
+  await expect(challenge).toBeVisible();
+  await expect(challenge.getByRole("button", { name: "Approve" })).toBeFocused();
+  // A moment for the hold to be read again: the sandbox's latency runs on the same clock.
+  // The countdown shows the extension (two minutes from the payment), not the minute left before.
+  await page.clock.runFor(2_000);
+  await expect(page.locator("time").first()).toHaveText(/^1:5\d$/);
+  // Past the hold's first expiry, but within the extension.
+  await page.clock.fastForward("01:30");
+  await expect(page.getByRole("heading", { name: "Your reservation expired" })).toBeHidden();
+  await expect(challenge).toBeVisible();
+  await challenge.getByRole("button", { name: "Approve" }).click();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+});
+
+test("a 3-D Secure check closed with Escape comes back when you pay again", async ({ page, buyer, sandbox }) => {
+  await sandbox.choosePreset("3-D Secure");
+  await buyer.goToPayment();
+  await buyer.pay();
+  const challenge = page.getByRole("dialog", { name: "Confirm it’s you" });
+  await expect(challenge).toBeVisible();
+  // The page refuses the first Escape; browsers let a second one through.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(challenge).toBeHidden();
+  await page.getByRole("button", { name: /^Pay ₹/ }).click();
+  await expect(challenge).toBeVisible();
+  await challenge.getByRole("button", { name: "Approve" }).click();
+  await expect(buyer.ticketsHeading).toBeVisible({ timeout: 10_000 });
+});
+
 test("3-D Secure survives a refresh mid-challenge", async ({ page, buyer, sandbox }) => {
   await sandbox.choosePreset("3-D Secure");
   await buyer.goToPayment();

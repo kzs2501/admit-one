@@ -52,7 +52,11 @@ export function CardPayment({
   useEffect(() => {
     const dialog = challengeDialog.current;
     if (!dialog) return;
-    if (payment.challengePaymentId && !dialog.open) dialog.showModal();
+    if (payment.challengePaymentId && !dialog.open) {
+      dialog.showModal();
+      // React doesn't apply `autoFocus` here, so showModal would focus "Fail authentication".
+      dialog.querySelector<HTMLButtonElement>("[data-autofocus]")?.focus();
+    }
     if (!payment.challengePaymentId && dialog.open) dialog.close();
   }, [payment.challengePaymentId]);
 
@@ -163,6 +167,8 @@ export function CardPayment({
         onCancel={(cancelEvent) => {
           cancelEvent.preventDefault(); // the bank decides, not Escape
         }}
+        // Browsers let a second Escape close it anyway: then paying again reopens it.
+        onClose={payment.dismissChallenge}
         className="m-auto w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-card p-6 text-ink shadow-2xl backdrop:bg-ink/40"
       >
         <h2 id="challenge-title" className="font-display text-lg font-semibold">
@@ -179,10 +185,15 @@ export function CardPayment({
           >
             Fail authentication
           </Button>
-          <Button onClick={() => payment.authenticate("approve")} isBusy={payment.isAuthenticating} autoFocus>
+          <Button onClick={() => payment.authenticate("approve")} isBusy={payment.isAuthenticating} data-autofocus>
             Approve
           </Button>
         </div>
+        {payment.hasChallengeConnectionProblem && (
+          <p role="alert" className="mt-4 text-sm text-bad">
+            That didn’t reach your bank. Check your connection, and choose again.
+          </p>
+        )}
       </dialog>
     </div>
   );

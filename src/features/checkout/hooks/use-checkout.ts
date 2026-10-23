@@ -61,6 +61,15 @@ export interface CheckoutInputs {
   hasExpiredLocally: boolean;
 }
 
+/**
+ * Whether the countdown's "expired" still stands: it ran out at `expiredAtMs`, and the
+ * server's copy of the hold doesn't say later. A card payment extends a hold, so a
+ * guess made from an older copy gives way to the new one.
+ */
+export function isStillExpiredLocally(expiredAtMs: number | null, holdExpiresAt: string | undefined): boolean {
+  return expiredAtMs !== null && holdExpiresAt !== undefined && Date.parse(holdExpiresAt) <= expiredAtMs;
+}
+
 /** Where the checkout should be, and where the URL should go — a pure function of its inputs. */
 export function deriveCheckout(inputs: CheckoutInputs): {
   state: CheckoutState;
@@ -115,7 +124,11 @@ export function useCheckout(holdId: string, requestedStep: string) {
   const router = useRouter();
   const isMounted = useMounted();
   const [draft, updateDraft] = useDraft(holdId);
-  const [hasExpiredLocally, setHasExpiredLocally] = useState(false);
+  /**
+   * The expiry the countdown ran out at. Only a guess until the server agrees: a card
+   * payment extends the hold, and the server's copy then says later.
+   */
+  const [expiredAtMs, setExpiredAtMs] = useState<number | null>(null);
   const {
     data: details,
     error,
@@ -133,7 +146,7 @@ export function useCheckout(holdId: string, requestedStep: string) {
     fetchedAtMs: dataUpdatedAt,
     draft,
     isMounted,
-    hasExpiredLocally,
+    hasExpiredLocally: isStillExpiredLocally(expiredAtMs, details?.hold.expiresAt),
   });
 
   useEffect(() => {
@@ -144,11 +157,12 @@ export function useCheckout(holdId: string, requestedStep: string) {
     if (redirectStepId) router.replace(stepHref(holdId, redirectStepId));
   }, [redirectStepId, holdId, router]);
 
-  /** The hold ran out (the countdown hit zero, or the server said so): re-read it. */
+  /** The countdown hit zero: say so at once, and re-read the hold, which may have been extended. */
+  const expiresAt = details?.hold.expiresAt;
   const expire = useCallback(() => {
-    setHasExpiredLocally(true);
+    setExpiredAtMs(expiresAt === undefined ? Number.POSITIVE_INFINITY : Date.parse(expiresAt));
     void refetch();
-  }, [refetch]);
+  }, [expiresAt, refetch]);
 
   return { state, updateDraft, expire };
 }

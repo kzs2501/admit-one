@@ -10,7 +10,13 @@ import {
   upiPaymentDto,
 } from "@/features/checkout/testing/fixtures";
 import { createEmptyDraft } from "./use-draft";
-import { deriveCheckout, pollWhileApprovingUpi, UPI_POLL_MS, type CheckoutInputs } from "./use-checkout";
+import {
+  deriveCheckout,
+  isStillExpiredLocally,
+  pollWhileApprovingUpi,
+  UPI_POLL_MS,
+  type CheckoutInputs,
+} from "./use-checkout";
 
 const details = (overrides: Partial<HoldDetailsDto> = {}): HoldDetailsDto => ({
   hold: holdDtoFor("frontend-systems-summit", "fss-general", 2),
@@ -126,5 +132,22 @@ describe("pollWhileApprovingUpi", () => {
     expect(pollWhileApprovingUpi(withOrder(orderWithPayment(approved)))).toBe(false);
     expect(pollWhileApprovingUpi(withOrder(null))).toBe(false);
     expect(pollWhileApprovingUpi(undefined)).toBe(false);
+  });
+});
+
+describe("the countdown's guess that the hold ran out", () => {
+  const ranOutAt = Date.parse("2026-11-21T14:05:00.000Z");
+
+  it("stands while the server's hold ends when the countdown did, or earlier", () => {
+    expect(isStillExpiredLocally(ranOutAt, "2026-11-21T14:05:00.000Z")).toBe(true);
+    expect(isStillExpiredLocally(ranOutAt, "2026-11-21T14:04:00.000Z")).toBe(true);
+  });
+
+  it("gives way once the server's hold ends later: a payment extended it", () => {
+    expect(isStillExpiredLocally(ranOutAt, "2026-11-21T14:07:00.000Z")).toBe(false);
+  });
+
+  it("isn't a guess at all until the countdown has run out", () => {
+    expect(isStillExpiredLocally(null, "2026-11-21T14:05:00.000Z")).toBe(false);
   });
 });
