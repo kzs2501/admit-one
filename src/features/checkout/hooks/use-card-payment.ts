@@ -21,12 +21,15 @@ export function useCardPayment({
   onExpired,
   onDeclined,
   onInvalidCard,
+  onRefused,
 }: {
   order: OrderDto;
   onExpired: () => void;
   /** The bank said no: the attempt is over, and a retry is a new attempt. */
   onDeclined: (message: string) => void;
   onInvalidCard: (message: string) => void;
+  /** The server turned the payment away for another reason; nothing was charged. */
+  onRefused: (message: string) => void;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -57,29 +60,35 @@ export function useCardPayment({
 
   const pay = useMutation({
     mutationFn: (card: CardInput) => {
-      attempt.current = attemptFor(attempt.current, card.number, mintIdempotencyKey);
+      attempt.current = attemptFor(attempt.current, card, mintIdempotencyKey);
       return apiClient.createPayment(order.id, { method: "card", ...card }, attempt.current.key);
     },
     onSuccess: handleResult,
     onError: (error) => {
       const problem = problemOf(error);
-      switch (problem?.code) {
+      // No problem at all: the answer was lost. The attempt is kept, so retrying is safe
+      // (see `hasConnectionProblem`); so is a key still in use by the first request.
+      if (!problem || problem.code === "idempotency_key_in_use") return;
+      switch (problem.code) {
         case "card_declined":
         case "authentication_failed":
           endAttempt(problem.detail);
-          break;
+          return;
         case "hold_expired":
           onExpired();
-          break;
+          return;
         case "payment_in_progress":
         case "already_completed":
           goToOrder();
-          break;
+          return;
         case "invalid_card":
           onInvalidCard(problem.detail);
-          break;
+          return;
         default:
-          break; // a network failure keeps the attempt: retrying is safe (see `hasConnectionProblem`)
+          // Anything else (too many tries, an order that's moved on, a key reused): it's
+          // said, and the next try is a new attempt.
+          attempt.current = null;
+          onRefused(problem.detail);
       }
     },
   });

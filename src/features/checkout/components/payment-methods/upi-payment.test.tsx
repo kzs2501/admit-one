@@ -9,12 +9,13 @@ import { UpiPayment } from "./upi-payment";
 
 function renderUpi(order: OrderDto) {
   const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-  render(
+  const ui = (current: OrderDto) => (
     <QueryClientProvider client={queryClient}>
-      <UpiPayment holdId="hold_1" order={order} goBack={null} onExpired={vi.fn()} clockOffsetMs={0} />
-    </QueryClientProvider>,
+      <UpiPayment holdId="hold_1" order={current} goBack={null} onExpired={vi.fn()} clockOffsetMs={0} />
+    </QueryClientProvider>
   );
-  return userEvent.setup();
+  const { rerender } = render(ui(order));
+  return Object.assign(userEvent.setup(), { update: (next: OrderDto) => rerender(ui(next)) });
 }
 
 afterEach(() => {
@@ -63,10 +64,19 @@ describe("UpiPayment", () => {
 
   it("says a request was declined, where focus is, and that nothing was taken", () => {
     const declined = upiPaymentDto({ status: "failed", failureCode: "upi_declined", nextAction: null });
-    renderUpi(orderWithPayment(declined, "failed"));
+    const { update } = renderUpi(orderWithPayment(null));
+    // The request is declined while the step is open.
+    update(orderWithPayment(declined, "failed"));
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("UPI payment declined");
     expect(alert).toHaveTextContent("No money was taken. Your tickets are still held.");
     expect(alert.parentElement).toHaveFocus();
+  });
+
+  it("leaves focus where the step put it when it opens on a request that ended before", () => {
+    const declined = upiPaymentDto({ status: "failed", failureCode: "upi_declined", nextAction: null });
+    renderUpi(orderWithPayment(declined, "failed"));
+    expect(screen.getByRole("alert")).toHaveTextContent("UPI payment declined");
+    expect(screen.getByRole("alert").parentElement).not.toHaveFocus();
   });
 });

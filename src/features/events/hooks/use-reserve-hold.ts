@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { Problem } from "@/contract/problems";
@@ -21,13 +21,18 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [retryAtMs, setRetryAtMs] = useState<number | null>(null);
+  // Going to the checkout is a transition: the buttons stay busy until it's there, so a
+  // second press in between can't take a second hold.
+  const [isNavigating, startNavigating] = useTransition();
 
   const reserve = useMutation({
     // In a sale with a waiting room, your place in its queue goes with the request.
     mutationFn: (request: CreateHoldRequest) => apiClient.createHold(request, readQueueToken(request.eventSlug)),
     onSuccess: (details) => {
       queryClient.setQueryData(holdQueries.detail(details.hold.id).queryKey, details);
-      router.push(routes.checkoutStep(details.hold.id, "attendees"));
+      startNavigating(() => {
+        router.push(routes.checkoutStep(details.hold.id, "attendees"));
+      });
     },
     onError: (error) => {
       const problem = problemOf(error);
@@ -54,9 +59,9 @@ export function useReserveHold(onProblem: (problem: Problem) => void) {
 
   return {
     reserve: (request: CreateHoldRequest) => {
-      if (retryAtMs === null) reserve.mutate(request);
+      if (retryAtMs === null && !reserve.isPending && !isNavigating) reserve.mutate(request);
     },
-    isReserving: reserve.isPending,
+    isReserving: reserve.isPending || isNavigating,
     /** The last failure, problem or not, except a rate limit (that's `retryAtMs`). */
     error: problemOf(reserve.error)?.code === "rate_limited" ? null : reserve.error,
     /** When reserving may be tried again, after a 429; null when it may now. */

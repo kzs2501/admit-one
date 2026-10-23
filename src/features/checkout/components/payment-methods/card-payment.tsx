@@ -25,9 +25,15 @@ export function CardPayment({
   goBack: (() => void) | null;
   onExpired: () => void;
 }) {
-  const declineNotice = useRef<HTMLDivElement>(null);
+  const outcomeNotice = useRef<HTMLDivElement>(null);
   const challengeDialog = useRef<HTMLDialogElement>(null);
-  const [declineMessage, setDeclineMessage] = useState<string | null>(null);
+  /** Why the last try didn't pay: the bank said no, or the server turned it away. */
+  const [outcome, setOutcome] = useState<{ title: string; message: string } | null>(null);
+  const showOutcome = (title: string, message: string) => {
+    setOutcome({ title, message });
+    // After the notice renders, move focus to it so the outcome is announced and in view.
+    requestAnimationFrame(() => outcomeNotice.current?.focus());
+  };
 
   const form = useForm<CardInput, unknown, CardDetails>({
     resolver: zodResolver(cardSchema),
@@ -39,9 +45,10 @@ export function CardPayment({
     order,
     onExpired,
     onDeclined: (message) => {
-      setDeclineMessage(message);
-      // After the notice renders, move focus to it so the outcome is announced and in view.
-      requestAnimationFrame(() => declineNotice.current?.focus());
+      showOutcome("Payment didn’t go through", message);
+    },
+    onRefused: (message) => {
+      showOutcome("The payment didn’t start", message);
     },
     onInvalidCard: (message) => {
       form.setError("number", { message });
@@ -89,7 +96,7 @@ export function CardPayment({
       <form
         noValidate
         onSubmit={form.handleSubmit((card) => {
-          setDeclineMessage(null);
+          setOutcome(null);
           payment.pay(card);
         })}
         className="space-y-4 rounded-xl border border-line bg-card p-5"
@@ -139,10 +146,10 @@ export function CardPayment({
           />
         </div>
 
-        {declineMessage && (
-          <div ref={declineNotice} tabIndex={-1} className="outline-none">
-            <Notice tone="bad" title="Payment didn’t go through" role="alert">
-              {declineMessage} Your tickets are still held.
+        {outcome && (
+          <div ref={outcomeNotice} tabIndex={-1} className="outline-none">
+            <Notice tone="bad" title={outcome.title} role="alert">
+              {outcome.message} Your tickets are still held.
             </Notice>
           </div>
         )}

@@ -35,10 +35,14 @@ export function UpiPayment({
   const outcome = upiOutcome(order);
   const outcomeNotice = useRef<HTMLDivElement>(null);
 
-  // A request that ended without paying is said where focus is, so it's announced and in view.
+  // A request that ended without paying is said where focus is, so it's announced and in
+  // view: when it ends, not when the step opens on one that ended before (the step's
+  // heading has focus then).
   const outcomeTitle = outcome?.title ?? null;
+  const shownOutcome = useRef(outcomeTitle);
   useEffect(() => {
-    if (outcomeTitle) outcomeNotice.current?.focus();
+    if (outcomeTitle && outcomeTitle !== shownOutcome.current) outcomeNotice.current?.focus();
+    shownOutcome.current = outcomeTitle;
   }, [outcomeTitle]);
 
   if (upi.pending) {
