@@ -142,7 +142,7 @@ describe("the simulated provider's webhooks", () => {
     expect(await sendDue(failing)).toBe(0);
     expect(await eventFor(paymentId)).toMatchObject({
       attempts: 1,
-      lastError: "The endpoint is down",
+      lastError: "Error: The endpoint is down",
       deliveredAt: null,
     });
     // Not due again until its back-off has passed.

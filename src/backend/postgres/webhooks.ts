@@ -122,8 +122,8 @@ async function deliver(event: ProviderEventRow, secret: string, send: Send, orig
     );
     return response.ok ? null : `The endpoint answered ${String(response.status)}.`;
   } catch (error) {
-    // Logged, and kept on the row: what failed, never the data that was in it.
-    return describeError(error);
+    // Logged, and kept on the row, in one line: what failed, never the data that was in it.
+    return describeError(error).split("\n")[0] ?? "The delivery failed.";
   }
 }
 
