@@ -376,6 +376,9 @@ Choices made on purpose, and what each one costs:
 - **In a sale with a waiting room,** the ticket choices show for a moment before the
   queue replaces them. Nothing can be chosen in between: the choices wait for the same
   answer that decides the queue.
+- **The simulated 3-D Secure check** can be approved by whoever has the payment's id:
+  it stands in for the bank's page. A real provider runs that check at the card's
+  issuer.
 - **The organisers' dashboard and the waiting room** run in the sandbox only.
 
 ## Not in v0.1
@@ -388,4 +391,4 @@ Next up is a Razorpay test-mode adapter behind the same provider interface.
 
 Built by [Kshitiz Sonakiya](https://github.com/Punisher666). All events, venues and
 people are fictional.
-[MIT licensed](LICENSE) · [Reporting a vulnerability](SECURITY.md)
+[MIT licensed](LICENSE) · [Security: the threat model, and reporting a vulnerability](SECURITY.md)

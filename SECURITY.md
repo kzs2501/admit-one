@@ -8,10 +8,67 @@ within a week.
 
 ## What's in scope
 
-admit-one is a demo. Its backend runs in the visitor's browser, and there are no real
-payments, accounts or personal data. The reports that matter most are anything that
-runs script in another visitor's page, weakens the security headers
+admit-one is a demo with no real payments or accounts. Its public build runs its
+backend in the visitor's own browser; built in server mode, it runs the same API on a
+server, over Postgres ([ADR 018](docs/decisions/018-server-mode.md)). The reports that
+matter most are anything that runs script in another visitor's page, lets one client
+harm a sale or another buyer in server mode, weakens the security headers
 ([ADR 009](docs/decisions/009-security-headers.md)), or exposes the CI pipeline.
+
+## Threat model
+
+What an attacker could want here, and what stands in the way. Reviewed on 2026-10-24;
+the review's findings and fixes are in the commits from `fix(deps): next 16.4.3` to
+`docs(security)`.
+
+**What's worth protecting**
+
+- **The sale:** tickets and seats can't be oversold, held hostage or bought without
+  paying.
+- **Buyers' data:** names, emails and the last four digits of a card. Full card numbers
+  and CVCs are never stored, logged or hashed without a key.
+- **Tickets:** a ticket can't be forged or changed, and a refunded one stops working at
+  the door.
+- **The pipeline:** CI and its dependencies can't be used to ship something else.
+
+**Two ways it runs.** In the sandbox, the backend runs in the visitor's own browser, so
+the only person a server-side flaw could harm is the visitor themselves. In server
+mode, `/api/*` is a real server on Postgres, and everything below applies.
+
+**What stands in the way**
+
+| Threat                                  | Defence                                                                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Overselling under concurrency           | Conditional updates and a unique index in Postgres ([ADR 018](docs/decisions/018-server-mode.md))                                       |
+| Holding every ticket (scalping)         | A per-client rate limit on reserving, in Postgres, keyed by the IP a trusted proxy reports                                              |
+| Paying twice, or replaying a payment    | Idempotency-Keys, claimed before the work and owned by their claim; the request compared by an HMAC without the CVC                     |
+| Forged or replayed webhooks             | HMAC-SHA256 over the raw body, a five-minute tolerance, a constant-time compare, and each event acted on once                           |
+| Changing the price                      | Prices are worked out on the server from the catalogue; quantities, attendees and add-ons are checked against the hold                  |
+| Forged tickets                          | Ed25519 signatures, checked at the door with public keys only; a production door never trusts the demo key                              |
+| Refunded tickets                        | Voided where they're refunded (the organisers' dashboard, sandbox only for now), and refused at doors that have synced the event's list |
+| Script in someone else's page           | React escapes text, and nothing renders HTML from data; the CSP loads scripts from this site only (inline ones are allowed, as below)   |
+| Clickjacking, sniffing, leaky referrers | `frame-ancestors 'none'`, `nosniff`, `strict-origin-when-cross-origin`, HSTS                                                            |
+| Exhausting the server                   | 64 KB bodies, cut off as they arrive; bounded lengths and counts; the image optimiser off                                               |
+| Leaking data through errors             | Problems say what went wrong in general; logs name the query that failed, never its values                                              |
+| A poisoned offline cache                | The service worker caches only this site's content-hashed files, and only successful answers                                            |
+| The supply chain                        | Locked dependencies, a production audit in CI, actions pinned by commit, least-privilege workflows, CodeQL                              |
+
+**Accepted, on purpose**
+
+- **Inline scripts are allowed** (`'unsafe-inline'`): nonces would make every page render
+  on demand ([ADR 009](docs/decisions/009-security-headers.md)). It matters only if
+  something injects HTML, and nothing renders HTML from data.
+- **An order's id is its key:** whoever has an order's link can see it, as with most
+  ticket links. Ids carry 60 random bits.
+- **The simulated 3-D Secure check** can be approved by whoever holds the payment's id.
+  It stands in for the bank's page; a real provider runs that check at the card's
+  issuer.
+- **The sandbox's organiser sign-in** keeps its token where scripts can read it, and is a
+  demo account in the visitor's own browser.
+- **The demo ticket key is public,** so anyone can sign tickets the sandbox's door accepts.
+  That's the honest limit of a backend in the browser; a server signs with its own key.
+- **Without a trusted proxy,** the server can't tell clients apart and doesn't rate-limit
+  reserving; it says so when it starts.
 
 ## Dependencies
 
