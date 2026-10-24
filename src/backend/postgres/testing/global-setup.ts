@@ -3,21 +3,19 @@
  * every migration applied and the catalogue seeded.
  *
  * The Postgres is `DATABASE_URL`, or the one `npm run db:up` runs; if neither answers,
- * a temporary one is started for the run (the `embedded-postgres` package's real
- * PostgreSQL 17 binaries) and stopped after it, so the tests need no setup at all.
+ * the same one is started for the run (`scripts/db.mjs`, in a process of its own) and
+ * stopped after it, so the tests need no setup at all.
+ *
+ * Never in this process: the `embedded-postgres` package registers an exit hook as
+ * it's imported (`async-exit-hook`), and that hook ends the process with code 0. A test
+ * run that failed would then report success, to a terminal and to CI alike.
  */
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import EmbeddedPostgres from "embedded-postgres";
+import { execFileSync } from "node:child_process";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { connect } from "@/backend/postgres/db";
 import { seed } from "@/backend/postgres/seed";
 import { asAdmin, serverUrl, TEMPLATE_DATABASE, urlFor } from "./database";
-
-/** A port no developer database is likely to be on. */
-const TEMPORARY_PORT = 54_391;
 
 async function isReachable(url: string) {
   const sql = postgres(url, { max: 1, connect_timeout: 2, onnotice: () => undefined });
@@ -31,29 +29,13 @@ async function isReachable(url: string) {
   }
 }
 
-async function startTemporaryPostgres() {
-  const server = new EmbeddedPostgres({
-    databaseDir: await mkdtemp(join(tmpdir(), "admit-one-pg-")),
-    port: TEMPORARY_PORT,
-    user: "admit",
-    password: "admit",
-    persistent: false,
-    // Durability is for production; this database lives for one test run.
-    postgresFlags: ["-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "max_connections=200"],
-  });
-  await server.initialise();
-  await server.start();
-  await server.createDatabase("admit_one");
-  // Test workers start after this, so they inherit it.
-  process.env["DATABASE_URL"] = `postgres://admit:admit@localhost:${String(TEMPORARY_PORT)}/admit_one`;
-  return server;
-}
+const devDatabase = (action: "up" | "down") => {
+  execFileSync(process.execPath, ["scripts/db.mjs", action], { stdio: "inherit" });
+};
 
 export async function setup() {
-  const temporary =
-    process.env["DATABASE_URL"] === undefined && !(await isReachable(serverUrl()))
-      ? await startTemporaryPostgres()
-      : null;
+  const isStartedHere = process.env["DATABASE_URL"] === undefined && !(await isReachable(serverUrl()));
+  if (isStartedHere) devDatabase("up");
 
   await asAdmin(async (sql) => {
     await sql.unsafe(`DROP DATABASE IF EXISTS "${TEMPLATE_DATABASE}" WITH (FORCE)`);
@@ -67,7 +49,7 @@ export async function setup() {
     await close();
   }
 
-  return async () => {
-    await temporary?.stop();
+  return () => {
+    if (isStartedHere) devDatabase("down");
   };
 }
