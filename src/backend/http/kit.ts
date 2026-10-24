@@ -42,10 +42,36 @@ export const MAX_BODY_BYTES = 64 * 1024;
 const isTooLarge = (request: Request) => Number(request.headers.get("Content-Length") ?? "0") > MAX_BODY_BYTES;
 
 /** A request's body as text, unless it's over `MAX_BODY_BYTES` (then null). */
+/**
+ * A request's body as text, or null if it's over the limit. A body that says it's too
+ * large isn't read at all; one sent in chunks, with no length to say so, is read only
+ * until it passes the limit, then cancelled — never held whole in memory first.
+ */
 export async function readText(request: Request): Promise<string | null> {
   if (isTooLarge(request)) return null;
-  const text = await request.text();
-  return new TextEncoder().encode(text).length > MAX_BODY_BYTES ? null : text;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done: isDone, value } = await reader.read();
+    if (isDone) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      // Not awaited: a cloned request's body is teed, and cancelling one branch only
+      // settles once the other is cancelled too (MSW keeps a clone).
+      reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 type JsonBody = { ok: true; value: unknown } | { ok: false };
