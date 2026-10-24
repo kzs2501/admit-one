@@ -43,6 +43,7 @@ test(
     expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["strict-transport-security"]).toBe("max-age=63072000; includeSubDomains");
     expect(headers).not.toHaveProperty("x-powered-by");
 
     await buyer.goToPayment();

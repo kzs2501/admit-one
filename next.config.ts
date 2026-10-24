@@ -39,6 +39,9 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   // For browsers that predate `frame-ancestors`.
   { key: "X-Frame-Options", value: "DENY" },
+  // HTTPS only, for two years, subdomains included. Vercel sends this too; saying it
+  // here keeps it on any host. Browsers ignore it over plain http, so localhost is fine.
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
 /** Later rules win for the same header, so these replace the two above on the scanner. */
