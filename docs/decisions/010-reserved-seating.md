@@ -66,11 +66,13 @@ questions general admission never did:
   tests. Changing a hall means a deploy; a production system would serve layouts from
   the API, versioned, and keep the same client.
 - Server-rendering about a thousand cells costs page weight: 480 KB of HTML (17 KB
-  gzipped) and 1,850 DOM elements. Desktop Lighthouse: 100 in every category, CLS 0. Mobile
-  performance is 86–92, the same range as the general-admission pages. On those pages,
-  Lighthouse's simulated LCP is bound by the JavaScript the whole app ships; that's a
-  separate, tracked gap. If halls grow, sections can render as they near the viewport,
-  behind placeholders of known size.
+  gzipped) and 1,850 DOM elements. Desktop Lighthouse: 100 in every category, CLS 0. On a
+  simulated phone, Lighthouse counts every script and font requested before the largest
+  paint against it, though the page's text paints at once. Mobile performance was 88;
+  numbers in Inter rather than a mono font (no font for ₹ either), and Zod imported so
+  it tree-shakes, took it to 93, with the home and summit pages at 94 (2026-10-24). The
+  budget is 0.90 on all three, and 420 KB of script. If halls grow, sections can render
+  as they near the viewport, behind placeholders of known size.
 - Availability can be up to 5 seconds stale. That's safe, because the hold is the
   check: a seat taken in the meantime comes back as `seats_unavailable`, by name.
 - Checked so far: axe in both themes with seats chosen, the accessibility tree,

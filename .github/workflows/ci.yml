@@ -92,9 +92,10 @@ jobs:
       - run: npm run build
       - name: Lighthouse budgets
         run: npx lhci autorun
-      # The seat map on a mid-range phone. Its performance floor is today's (0.85), not
-      # the desktop 0.95: mobile LCP is bound by the app's JavaScript (ADR 010).
-      - name: Lighthouse budgets, mobile (seat map)
+      # The buyer's pages on a mid-range phone: performance at least 0.90, below desktop's
+      # 0.95, since Lighthouse's simulated phone counts every script before the first
+      # paint against it (ADR 010); and a budget on the scripts' total size.
+      - name: Lighthouse budgets, mobile (buyer pages)
         run: npm run lhci:mobile
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
