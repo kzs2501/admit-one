@@ -15,7 +15,7 @@ import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
-import { connect, sqlStateOf, type Database } from "./postgres/db";
+import { connect, describeError, sqlStateOf, type Database } from "./postgres/db";
 import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
@@ -78,7 +78,7 @@ function isTransient(error: unknown) {
 
 /** An error nobody planned for, as a problem: a 503 to retry if it was the database, a 500 if not. */
 function unexpectedReply(error: unknown, request: Request, kit: Kit) {
-  console.error(`[server] ${request.method} ${new URL(request.url).pathname} failed`, error);
+  console.error(`[server] ${request.method} ${new URL(request.url).pathname} failed: ${describeError(error)}`);
   if (!isTransient(error)) {
     return kit.problemReply(
       { code: "internal_error", detail: "The server ran into a problem it didn’t expect." },
@@ -93,7 +93,7 @@ function unexpectedReply(error: unknown, request: Request, kit: Kit) {
 }
 
 const logDeliveryError = (error: unknown) => {
-  console.error("[webhooks] Couldn't deliver the webhooks that are due", error);
+  console.error(`[webhooks] Couldn't deliver the webhooks that are due: ${describeError(error)}`);
 };
 
 /**

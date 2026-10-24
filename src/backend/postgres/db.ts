@@ -18,6 +18,50 @@ export function sqlStateOf(error: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * What a server log needs to know about a failure, and nothing a buyer typed.
+ *
+ * Drizzle wraps a failed query in an error whose message (and so its stack) lists the
+ * query's parameters: names, emails. Postgres's own error can quote the values in its
+ * `detail` ("Key (email)=(…) already exists"). So a database error is described by its
+ * kind, SQLSTATE, constraint, table and column, and its cause the same way. Any other
+ * error is a bug, and keeps its message and stack, which is what fixing it needs.
+ */
+export function describeError(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== undefined && current !== null; depth++) {
+    if (!(current instanceof Error)) {
+      parts.push(`a thrown ${typeof current}`);
+      break;
+    }
+    if (!isDatabaseError(current)) {
+      parts.push(current.stack ?? `${current.name}: ${current.message}`);
+      break;
+    }
+    const fields = current as Error & Record<string, unknown>;
+    const said = (label: string, value: unknown) =>
+      typeof value === "string" && value !== "" ? [`${label} ${value}`] : [];
+    parts.push(
+      [
+        isQueryError(current) ? "Failed query" : current.name,
+        ...said("code", fields["code"]),
+        ...said("constraint", fields["constraint_name"]),
+        ...said("table", fields["table_name"]),
+        ...said("column", fields["column_name"]),
+      ].join(", "),
+    );
+    current = current.cause;
+  }
+  return parts.join("\n  caused by ");
+}
+
+/** Drizzle's wrapper of a failed query: it keeps the default name, so it's known by its fields. */
+const isQueryError = (error: Error) => "query" in error && "params" in error;
+
+const isDatabaseError = (error: Error) =>
+  isQueryError(error) || error.name === "PostgresError" || error.name.startsWith("Drizzle");
+
 /** A deadlock, or a serialisation failure: the transaction did nothing, and may simply be run again. */
 const RETRYABLE = new Set(["40P01", "40001"]);
 const ATTEMPTS = 3;

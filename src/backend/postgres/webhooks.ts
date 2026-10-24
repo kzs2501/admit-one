@@ -17,7 +17,7 @@ import { fail, ok } from "@/backend/domain/errors";
 import type { OutboxItem } from "@/backend/domain/state";
 import { deliverDue } from "@/backend/domain/webhooks";
 import { API_ROUTES, WEBHOOK_SIGNATURE_HEADER } from "@/contract/routes";
-import { withRetries, type Database } from "./db";
+import { describeError, withRetries, type Database } from "./db";
 import { signWebhook, verifyWebhook, type ProviderWebhook } from "./provider";
 import type { ServerDeps } from "./records";
 import { providerEvents, webhookEvents } from "./schema";
@@ -122,7 +122,8 @@ async function deliver(event: ProviderEventRow, secret: string, send: Send, orig
     );
     return response.ok ? null : `The endpoint answered ${String(response.status)}.`;
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    // Logged, and kept on the row: what failed, never the data that was in it.
+    return describeError(error);
   }
 }
 
