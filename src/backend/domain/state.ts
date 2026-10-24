@@ -6,7 +6,7 @@
  * The Zod schemas are the source of truth for the record types, and every restore
  * parses against them: persisted data is untrusted input like any other.
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { PRESET_IDS } from "@/backend/chaos/presets";
 import { CURRENCIES } from "@/core/money";
 import { TAX_LINE_KINDS } from "@/core/pricing";

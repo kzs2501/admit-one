@@ -81,7 +81,23 @@ const eslintConfig = defineConfig([
       "import/no-default-export": "error",
       "no-restricted-imports": [
         "error",
-        { paths: [{ name: "zod", message: "Import z from @/core/zod, where it's configured for the CSP." }] },
+        {
+          paths: [
+            {
+              name: "zod",
+              message: 'Import Zod as `import * as z from "@/core/zod"`, where it\'s configured for the CSP.',
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          // Zod's own `z` is one object holding all of it, every locale included, so a
+          // bundler keeps it all (90 KB gzip). Through the namespace, only what's used ships.
+          selector: "ImportDeclaration[source.value='@/core/zod'] > ImportSpecifier[imported.name='z']",
+          message: 'Import Zod as a namespace: `import * as z from "@/core/zod"`.',
+        },
       ],
 
       "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],

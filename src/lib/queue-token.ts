@@ -5,7 +5,7 @@
  * nothing on the server, so hydration can't disagree.
  */
 import { useSyncExternalStore } from "react";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { readSession, writeSession } from "./storage";
 
 const keyFor = (eventSlug: string) => `admit-one:queue:${eventSlug}`;

@@ -4,7 +4,7 @@
  * and every failure degrades to "nothing saved". Session storage is this tab's; local
  * storage is this device's, for what should outlast the tab (a door's chosen event).
  */
-import type { z } from "@/core/zod";
+import type * as z from "@/core/zod";
 
 type Area = "session" | "local";
 const storageFor = (area: Area) => (area === "session" ? sessionStorage : localStorage);

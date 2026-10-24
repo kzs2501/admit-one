@@ -9,7 +9,7 @@
  * rather than silently giving the wrong rows.
  */
 import { own } from "./state";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import type { OrderBy, OrderSortField } from "@/contract/queries";
 import { findEvent, getEvent } from "@/core/catalog";
 import { can, getOrganisation, type Account, type Permission } from "@/core/organisations";

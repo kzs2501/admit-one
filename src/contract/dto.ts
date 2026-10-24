@@ -6,7 +6,7 @@
  * Timestamps are ISO 8601 strings; money is integer minor units, always with its
  * currency (ISO 4217).
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { CURRENCIES } from "@/core/money";
 import { PERMISSIONS, ROLES } from "@/core/organisations";
 import { TAX_LINE_KINDS } from "@/core/pricing";

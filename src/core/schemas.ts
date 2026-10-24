@@ -2,7 +2,7 @@
  * Validation rules shared by the forms (client) and the backend, so the two can never
  * disagree about what a valid attendee, ticket request or card looks like.
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { SEAT_ID_PATTERN } from "./seating";
 import { MAX_TICKETS_PER_ORDER } from "./ticketing";
 

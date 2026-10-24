@@ -6,7 +6,7 @@
  * Paging follows Google AIP-158 (`pageSize`, `pageToken`, `nextPageToken`) and sorting
  * AIP-132 (`orderBy=createdAt desc`; ascending unless it says `desc`).
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/core/statuses";
 
 export const ORDER_SORT_FIELDS = ["createdAt", "totalMinor", "buyerName", "ticketCount"] as const;

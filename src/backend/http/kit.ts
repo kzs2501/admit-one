@@ -4,7 +4,7 @@
  * both answer the same way.
  */
 import { HttpResponse } from "msw/http";
-import type { z } from "@/core/zod";
+import type * as z from "@/core/zod";
 import type { Awaitable, KitPort } from "@/backend/port";
 import type { DomainError, Result } from "@/backend/domain/errors";
 import type { JsonValue } from "@/backend/domain/state";

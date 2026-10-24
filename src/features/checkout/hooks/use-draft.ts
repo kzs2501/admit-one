@@ -3,7 +3,7 @@
  * a refresh — or a deep link back into the flow — loses nothing.
  */
 import { useCallback, useSyncExternalStore } from "react";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { PAYMENT_METHODS } from "@/core/statuses";
 import { readSession, writeSession } from "@/lib/storage";
 

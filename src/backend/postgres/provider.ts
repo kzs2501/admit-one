@@ -11,7 +11,7 @@
  *   are deduplicated as well, which is what stops a replay inside those five minutes.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { fail, ok, type Result } from "@/backend/domain/errors";
 import { WEBHOOK_SIGNATURE_HEADER as SIGNATURE_HEADER } from "@/contract/routes";
 

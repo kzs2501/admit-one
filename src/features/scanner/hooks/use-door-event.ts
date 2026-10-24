@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { CATALOG, findEvent } from "@/core/catalog";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { readLocal, writeLocal } from "@/lib/storage";
 
 /**

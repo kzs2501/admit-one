@@ -3,7 +3,7 @@
  * bearer token; a 401 means the session is over, so the token is forgotten and the
  * dashboard goes back to signing in.
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import type { RefundReason } from "@/core/statuses";
 import {
   accountDtoSchema,

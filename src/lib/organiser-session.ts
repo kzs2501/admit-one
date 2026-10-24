@@ -8,7 +8,7 @@
  * out of reach of any script; this sandbox has no server to set one (ADR 014).
  */
 import { useSyncExternalStore } from "react";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { readSession, writeSession } from "./storage";
 
 const KEY = "admit-one:organiser-session";

@@ -4,7 +4,7 @@
  * page is more forgiving, because a URL may have been typed or trimmed: each filter
  * that doesn't make sense is dropped on its own, and the rest still apply.
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/core/statuses";
 import {
   DEFAULT_ORDER_BY,

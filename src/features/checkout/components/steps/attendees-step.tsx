@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { attendeesSchema } from "@/core/schemas";
 import { ticketCount } from "@/core/ticketing";
 import { formatSeat } from "@/lib/format";

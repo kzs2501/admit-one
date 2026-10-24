@@ -3,7 +3,7 @@
  * anything reaches the domain; a body that doesn't parse is an `invalid_request`
  * (or `invalid_card`) problem.
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import { addOnSelectionSchema, attendeeSchema, cardSchema, lineItemsSchema, seatIdsSchema } from "@/core/schemas";
 import { REFUND_REASONS } from "@/core/statuses";
 

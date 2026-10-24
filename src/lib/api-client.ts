@@ -7,7 +7,7 @@
  * It knows nothing about the simulation; whoever starts the app can hold requests
  * until a dependency is ready (`setApiReadiness`).
  */
-import { z } from "@/core/zod";
+import * as z from "@/core/zod";
 import {
   eventDtoSchema,
   holdDetailsDtoSchema,
