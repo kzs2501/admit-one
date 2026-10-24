@@ -53,6 +53,9 @@ const nextConfig: NextConfig = {
   // Check every literal href against the real routes at build time.
   typedRoutes: true,
   poweredByHeader: false,
+  // Nothing here uses next/image, so the image optimiser is off: a server endpoint that
+  // fetches and transforms images is one more thing to attack (GHSA-2464-fhr4-w9xw).
+  images: { unoptimized: true },
   headers: () =>
     Promise.resolve([
       { source: "/(.*)", headers: SECURITY_HEADERS },

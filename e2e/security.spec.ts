@@ -99,3 +99,13 @@ test("the wallet, the door and the dashboard stay within their policies too", as
   await expect(page.getByRole("table")).toBeVisible();
   expect(violations).toEqual([]);
 });
+
+test(
+  "the image optimiser is off: nothing uses it, so it isn't there to attack",
+  { tag: "@both" },
+  async ({ request }) => {
+    expect((await request.get("/icons/icon-192.png")).status()).toBe(200);
+    // GHSA-2464-fhr4-w9xw was in this endpoint. The app has no use for it.
+    expect((await request.get("/_next/image?url=%2Ficons%2Ficon-192.png&w=64&q=75")).status()).toBe(404);
+  },
+);
