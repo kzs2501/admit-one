@@ -67,11 +67,24 @@
   --color-bad: var(--bad);
   --color-bad-soft: var(--bad-soft);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+  --font-sans: "Rupee sign", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Rupee sign", var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  /* Code-like text only (order ids, the server log): the system's own monospace, so
+     buyers' pages fetch no font for it. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* The rupee sign, from a font the device already has. Inter keeps ₹ in its Latin
+   Extended file (85 KB), which every page with a price would fetch for this one glyph.
+   If none of these is installed, the browser falls back to Inter's file. */
+@font-face {
+  font-family: "Rupee sign";
+  src:
+    local("Segoe UI"), local("Roboto"), local("Noto Sans"), local("Helvetica Neue"), local("Arial"),
+    local("DejaVu Sans"), local("Liberation Sans");
+  unicode-range: U+20B9;
 }
 
 html {
@@ -107,8 +120,9 @@ input[type="radio"] {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Prices, times and counts: digits of equal width, so they line up and don't jiggle as
+   they change, in the text's own typeface. */
 .tabular {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
