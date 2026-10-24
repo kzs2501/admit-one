@@ -19,6 +19,7 @@ import { connect, describeError, sqlStateOf, type Database } from "./postgres/db
 import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
+import { createPostgresRateLimit } from "./postgres/rate-limit";
 import { serverConfigFrom } from "./server-config";
 
 /** Where the simulated provider's webhooks are addressed: they're handled in-process. */
@@ -103,6 +104,17 @@ const logDeliveryError = (error: unknown) => {
  */
 export const DELIVERY_ENDPOINT = "/api/internal/deliver";
 
+/**
+ * The rate limit's key for a request: the client's IP from the header a trusted proxy
+ * sets (the first address, the client's own, if a list), or null if there's no such
+ * header, and so no telling clients apart.
+ */
+export function clientKeyOf(request: Request, header: string | null): string | null {
+  if (header === null) return null;
+  const address = request.headers.get(header)?.split(",")[0]?.trim();
+  return address ? `ip:${address}` : null;
+}
+
 /** The bearer token matches the secret: compared as digests, so in constant time whatever the lengths. */
 function isAuthorised(request: Request, secret: string) {
   const digest = (text: string) => createHash("sha256").update(text).digest();
@@ -116,10 +128,23 @@ export function createServerApi(
     webhookSecret,
     deliverySecret = null,
     fingerprintSecret = null,
-  }: { webhookSecret: string; deliverySecret?: string | null; fingerprintSecret?: string | null },
+    clientIpHeader = null,
+  }: {
+    webhookSecret: string;
+    deliverySecret?: string | null;
+    fingerprintSecret?: string | null;
+    clientIpHeader?: string | null;
+  },
 ) {
   const backend = createPostgresBackend(db, deps);
-  const options = { sleep: () => Promise.resolve(), random: deps.random, now: deps.now, fingerprintSecret };
+  const options = {
+    sleep: () => Promise.resolve(),
+    random: deps.random,
+    now: deps.now,
+    fingerprintSecret,
+    holdAttempts: createPostgresRateLimit(db, deps.now),
+    clientKeyOf: (request: Request) => clientKeyOf(request, clientIpHeader),
+  };
   const kit = createKit(backend, options);
   const handlers = [
     ...createBuyerHandlers(backend, options, kit),
@@ -194,6 +219,11 @@ let serverApi: Promise<ServerApi> | null = null;
 export function getServerApi(): Promise<ServerApi> {
   serverApi ??= (async () => {
     const config = serverConfigFrom(process.env);
+    if (config.clientIpHeader === null && process.env.NODE_ENV === "production") {
+      console.warn(
+        "[server] No trusted header names the client's IP, so reserving isn't rate-limited. Set TRUSTED_CLIENT_IP_HEADER to the header your proxy sets.",
+      );
+    }
     const { db } = connect(config.databaseUrl, { max: 5 });
     await seed(db);
     return createServerApi(
@@ -208,6 +238,7 @@ export function getServerApi(): Promise<ServerApi> {
         webhookSecret: config.webhookSecret,
         deliverySecret: config.deliverySecret,
         fingerprintSecret: config.fingerprintSecret,
+        clientIpHeader: config.clientIpHeader,
       },
     );
   })().catch((error: unknown) => {

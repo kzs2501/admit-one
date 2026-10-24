@@ -28,7 +28,7 @@ import {
 } from "./mappers";
 import { anyOrigin, createKit, pathOf, type HandlerOptions, type Kit, type Reply } from "./kit";
 import { createOrganiserHandlers } from "./organiser-handlers";
-import { createSlidingWindow } from "./rate-limit";
+import { createSlidingWindowStore } from "./rate-limit";
 
 /** A card payment can fail as it's attempted; a UPI payment only fails later, by webhook. */
 const CARD_FAILURE_DETAILS = {
@@ -70,13 +70,15 @@ function createQueueHandlers(backend: Backend, { latency, problemReply, resultRe
   ];
 }
 
+/** The sandbox's one client: the browser tab it runs in. */
+const THIS_TAB = "this-tab";
+
 /** The buyer's API: events, seats, holds, orders and payments, on either backend. */
 export function createBuyerHandlers(
   backend: BuyerPort,
-  { sleep, random, now }: HandlerOptions,
+  { sleep, random, now, holdAttempts = createSlidingWindowStore(now), clientKeyOf = () => THIS_TAB }: HandlerOptions,
   kit: Kit = createKit(backend, { sleep, random }),
 ) {
-  const holdAttempts = createSlidingWindow(now);
   const { latency, problemReply, resultReply, send, parseBody, withIdempotencyKey } = kit;
 
   // What the "connection drops" preset loses. The work has already happened; only the
@@ -95,10 +97,12 @@ export function createBuyerHandlers(
    * says how long to wait, in a header any HTTP client understands and in the problem,
    * and that no cache may keep.
    */
-  const rateLimitReply = (request: Request): Reply | null => {
+  const rateLimitReply = async (request: Request): Promise<Reply | null> => {
     const limit = backend.chaos().holdRateLimit;
     if (!limit) return null;
-    const decision = holdAttempts.take(limit);
+    const clientKey = clientKeyOf(request);
+    if (clientKey === null) return null;
+    const decision = await holdAttempts.take(clientKey, limit);
     if (decision.isAllowed) return null;
     const retryAfterSeconds = Math.max(1, Math.ceil(decision.retryAfterMs / 1000));
     const problem = problemReply(
@@ -143,7 +147,7 @@ export function createBuyerHandlers(
     }),
 
     http.post(anyOrigin(API_ROUTES.createHold), async ({ request }) => {
-      const limited = rateLimitReply(request);
+      const limited = await rateLimitReply(request);
       if (limited) {
         await latency();
         return send(request, limited);

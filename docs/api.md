@@ -36,7 +36,9 @@ is browser-specific: it's plain JSON over HTTP, defined by the schemas in
   service worker; the app's client starts the backend again and retries once.
 - **Rate limits:** reservation attempts (`POST /api/holds`) are limited per client with a
   sliding window — 20 a minute normally, 3 every 15 seconds in the "Too many attempts"
-  scenario. Refused attempts count too. A refusal is `429 rate_limited` with a
+  scenario. Refused attempts count too. In server mode a client is its IP, from the
+  header a trusted proxy sets (`x-forwarded-for` on Vercel, or
+  `TRUSTED_CLIENT_IP_HEADER`); without one, there's no limit. A refusal is `429 rate_limited` with a
   `Retry-After` header in seconds (RFC 6585, RFC 9110) and `Cache-Control: no-store`;
   waiting exactly that long always works.
 

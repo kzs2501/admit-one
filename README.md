@@ -354,9 +354,10 @@ checklist.
 
 Choices made on purpose, and what each one costs:
 
-- **The server doesn't rate-limit.** One limiter in one process would count every
-  client together. A real deployment limits per client at the edge, with a firewall
-  rule; the sandbox limits per visitor.
+- **The rate limit knows a client by its IP,** from a header a trusted proxy sets
+  (Vercel's `x-forwarded-for`). Behind no such proxy it can't tell clients apart, so it
+  doesn't limit, and says so at start-up. Many buyers behind one address share a
+  limit.
 - **An order's id is its key.** Anyone with an order's link sees it and its tickets,
   as with most ticket links. A server's ids carry 60 random bits; buyer accounts
   would replace this.

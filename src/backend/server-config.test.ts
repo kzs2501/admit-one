@@ -47,6 +47,15 @@ describe("the server's configuration", () => {
     expect(kidOf(config.signTicket(CLAIMS))).toBe(DEMO_TICKET_KEY_ID);
   });
 
+  it("trusts the client IP header Vercel sets, or the one named, and otherwise none", () => {
+    const production = { NODE_ENV: "production", ...SECRETS };
+    expect(serverConfigFrom(production).clientIpHeader).toBeNull();
+    expect(serverConfigFrom({ ...production, VERCEL: "1" }).clientIpHeader).toBe("x-forwarded-for");
+    expect(serverConfigFrom({ ...production, TRUSTED_CLIENT_IP_HEADER: "CF-Connecting-IP" }).clientIpHeader).toBe(
+      "cf-connecting-ip",
+    );
+  });
+
   it("turns the scheduler's delivery endpoint on only with CRON_SECRET", () => {
     expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS }).deliverySecret).toBeNull();
     expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS, CRON_SECRET: "cron" }).deliverySecret).toBe("cron");

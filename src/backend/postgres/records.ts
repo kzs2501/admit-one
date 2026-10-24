@@ -17,15 +17,13 @@ import type { holds, orders, payments, providerEvents } from "./schema";
 
 /**
  * The server's settings, where the sandbox has chaos presets: no simulated latency, and
- * no rate limit here, since one limiter in a process would count every client together
- * (a real deployment limits per client, at the edge). The simulated provider still
- * takes a moment to send its webhook, as real ones do.
+ * the sandbox's usual limit on reserving, counted per client in Postgres. The
+ * simulated provider still takes a moment to send its webhook, as real ones do.
  */
 export const SERVER_SETTINGS: ChaosConfig = {
   ...DEFAULT_CHAOS,
   latencyRangeMs: [0, 0],
   extraPaymentLatencyMs: 0,
-  holdRateLimit: null,
 };
 
 export type ServerDeps = Omit<Deps, "newToken">;

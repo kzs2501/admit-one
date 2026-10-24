@@ -22,6 +22,13 @@ export interface ServerConfig {
   deliverySecret: string | null;
   /** Keys the hash Idempotency-Keys compare requests by (`http/idempotency.ts`). */
   fingerprintSecret: string;
+  /**
+   * The header that holds the client's IP, set by a proxy the server trusts: the rate
+   * limit's key. On Vercel it's `x-forwarded-for`, which Vercel sets and overwrites, so
+   * a client can't choose it; elsewhere, `TRUSTED_CLIENT_IP_HEADER` names it. Without
+   * one, the server can't tell clients apart, and doesn't limit them.
+   */
+  clientIpHeader: string | null;
 }
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -54,5 +61,7 @@ export function serverConfigFrom(env: Environment): ServerConfig {
     signTicket: key ? (claims) => signTicket(claims, key) : signDemoTicket,
     deliverySecret: setting(env, "CRON_SECRET") ?? null,
     fingerprintSecret: setting(env, "FINGERPRINT_SECRET") ?? LOCAL_FINGERPRINT_SECRET,
+    clientIpHeader:
+      setting(env, "TRUSTED_CLIENT_IP_HEADER")?.toLowerCase() ?? (env["VERCEL"] === "1" ? "x-forwarded-for" : null),
   };
 }

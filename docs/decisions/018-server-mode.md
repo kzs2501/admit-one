@@ -168,8 +168,13 @@ build.
 **Still not done:**
 
 - **The constant-time compare** can't be caught by a functional test; review guards it.
-- **The server's rate limit is off:** one in-process limiter would count every client
-  together. A real deployment limits per client, at the edge.
+- **The rate limit is per IP** (amended 2026-10-24). Reserving is limited as in the
+  sandbox, 20 a minute, refusals counted, but per client, in a Postgres table every
+  instance shares, under a lock on the client's key. The key is the IP from a header a
+  trusted proxy sets. Without one the server can't tell clients apart and doesn't
+  limit, since one shared bucket would let a single client block everyone. A burst of
+  30 at once lets exactly the limit through, and the same attempts get the sandbox's
+  answers.
 - **Organisers still sign in with a bearer token,** in the sandbox only. Cookie sessions
   come if the dashboard moves to the server.
 - **UPI on the server** waits for a real provider. That's 6b: Razorpay test mode, whose

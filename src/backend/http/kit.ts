@@ -11,6 +11,7 @@ import type { JsonValue } from "@/backend/domain/state";
 import { PROBLEM_CONTENT_TYPE } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
 import { fingerprintRequest } from "./idempotency";
+import type { RateLimitStore } from "./rate-limit";
 import { toProblem } from "./problems";
 
 export interface HandlerOptions {
@@ -21,6 +22,13 @@ export interface HandlerOptions {
   now: () => number;
   /** The server's key for request fingerprints (`idempotency.ts`); the sandbox has none. */
   fingerprintSecret?: string | null;
+  /** Where reservation attempts are counted (`rate-limit.ts`); by default, in this process's memory. */
+  holdAttempts?: RateLimitStore;
+  /**
+   * Who's asking, for the rate limit: a key per client, or null when the server can't
+   * tell clients apart, and so doesn't limit. The sandbox has one client, its tab.
+   */
+  clientKeyOf?: (request: Request) => string | null;
 }
 
 /** A response before it's sent: a status, a JSON body (a DTO or a problem), and any extra headers. */

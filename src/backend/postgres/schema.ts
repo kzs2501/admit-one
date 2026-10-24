@@ -212,3 +212,21 @@ export const webhookEvents = pgTable("webhook_events", {
   type: text("type").notNull(),
   receivedAt: at("received_at").notNull(),
 });
+
+/**
+ * Reservation attempts, per client, for the rate limit (`rate-limit.ts`). Only a
+ * client's newest few attempts ever decide an answer, so only those are kept.
+ */
+export const holdAttempts = pgTable(
+  "hold_attempts",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    clientKey: text("client_key").notNull(),
+    at: at("at").notNull(),
+  },
+  (table) => [
+    index("hold_attempts_by_client").on(table.clientKey, table.at),
+    // Clients that have gone quiet are forgotten by age.
+    index("hold_attempts_by_age").on(table.at),
+  ],
+);
