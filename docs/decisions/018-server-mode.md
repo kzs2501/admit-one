@@ -162,7 +162,7 @@ didn't reproduce in tests, so the retries are tested directly, and the order is 
 code's comments.
 
 **One contract, two backends.** The same 14 HTTP contract tests pass on the sandbox and
-on the server, and 22 end-to-end flows, tagged `@both`, pass against a server-mode
+on the server, and 24 end-to-end flows, tagged `@both`, pass against a server-mode
 build.
 
 **Still not done:**
