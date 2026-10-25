@@ -11,7 +11,7 @@ mode, and a door scanner checks them with no connection at all. Pick a failure f
 card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buying the
 last ticket — and watch the checkout handle it while the server log explains why.
 
-**[Live demo](#)** · No sign-up, no keys, no real payments. The backend runs in your
+**[Live demo](https://admit-one-ten.vercel.app)** · No sign-up, no keys, no real payments. The backend runs in your
 browser, so your sandbox is yours alone.
 
 ![A completed order with the chaos panel open: the server log shows a duplicate webhook being ignored](docs/images/chaos-panel.png)

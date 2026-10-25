@@ -37,21 +37,21 @@ mode, `/api/*` is a real server on Postgres, and everything below applies.
 
 **What stands in the way**
 
-| Threat                                  | Defence                                                                                                                                 |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Overselling under concurrency           | Conditional updates and a unique index in Postgres ([ADR 018](docs/decisions/018-server-mode.md))                                       |
-| Holding every ticket (scalping)         | A per-client rate limit on reserving, in Postgres, keyed by the IP a trusted proxy reports                                              |
-| Paying twice, or replaying a payment    | Idempotency-Keys, claimed before the work and owned by their claim; the request compared by an HMAC without the CVC                     |
-| Forged or replayed webhooks             | HMAC-SHA256 over the raw body, a five-minute tolerance, a constant-time compare, and each event acted on once                           |
-| Changing the price                      | Prices are worked out on the server from the catalogue; quantities, attendees and add-ons are checked against the hold                  |
-| Forged tickets                          | Ed25519 signatures, checked at the door with public keys only; a production door never trusts the demo key                              |
-| Refunded tickets                        | Voided where they're refunded (the organisers' dashboard, sandbox only for now), and refused at doors that have synced the event's list |
-| Script in someone else's page           | React escapes text, and nothing renders HTML from data; the CSP loads scripts from this site only (inline ones are allowed, as below)   |
-| Clickjacking, sniffing, leaky referrers | `frame-ancestors 'none'`, `nosniff`, `strict-origin-when-cross-origin`, HSTS                                                            |
-| Exhausting the server                   | 64 KB bodies, cut off as they arrive; bounded lengths and counts; the image optimiser off                                               |
-| Leaking data through errors             | Problems say what went wrong in general; logs name the query that failed, never its values                                              |
-| A poisoned offline cache                | The service worker caches only this site's content-hashed files, and only successful answers                                            |
-| The supply chain                        | Locked dependencies, a production audit in CI, actions pinned by commit, least-privilege workflows, CodeQL                              |
+| Threat                                  | Defence                                                                                                                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overselling under concurrency           | Conditional updates and a unique index in Postgres ([ADR 018](docs/decisions/018-server-mode.md))                                                                                                          |
+| Holding every ticket (scalping)         | A per-client rate limit on reserving, in Postgres, keyed by the IP a trusted proxy reports                                                                                                                 |
+| Paying twice, or replaying a payment    | Idempotency-Keys, claimed before the work and owned by their claim; the request compared by an HMAC without the CVC                                                                                        |
+| Forged or replayed webhooks             | HMAC-SHA256 over the raw body, a five-minute tolerance, a constant-time compare, and each event acted on once                                                                                              |
+| Changing the price                      | Prices are worked out on the server from the catalogue; quantities, attendees and add-ons are checked against the hold                                                                                     |
+| Forged tickets                          | Ed25519 signatures, checked at the door with public keys only; a production door never trusts the demo key                                                                                                 |
+| Refunded tickets                        | Voided where they're refunded (the organisers' dashboard, sandbox only for now), and refused at doors that have synced the event's list                                                                    |
+| Script in someone else's page           | React escapes text, and nothing renders HTML from data; the CSP loads scripts from this site only (inline ones are allowed, as below)                                                                      |
+| Clickjacking, sniffing, leaky referrers | `frame-ancestors 'none'`, `nosniff`, `strict-origin-when-cross-origin`, HSTS                                                                                                                               |
+| Exhausting the server                   | 64 KB bodies, cut off as they arrive; bounded lengths and counts; Next's image optimiser off (on Vercel, the platform's own resizer answers instead, for this site's images only: no SVGs, no other sites) |
+| Leaking data through errors             | Problems say what went wrong in general; logs name the query that failed, never its values                                                                                                                 |
+| A poisoned offline cache                | The service worker caches only this site's content-hashed files, and only successful answers                                                                                                               |
+| The supply chain                        | Locked dependencies, a production audit in CI, actions pinned by commit, least-privilege workflows, CodeQL                                                                                                 |
 
 **Accepted, on purpose**
 
