@@ -13,6 +13,7 @@ import { useDoor } from "@/features/scanner/hooks/use-door";
 import { useFrameScanner } from "@/features/scanner/hooks/use-frame-scanner";
 import { useQrReader } from "@/features/scanner/hooks/use-qr-reader";
 import { formatEventTime } from "@/lib/format";
+import { useIsInteractive } from "@/lib/use-is-interactive";
 import { ScanResult } from "./scan-result";
 
 const CAMERA_NOTICES: Partial<Record<CameraState["kind"], { title: string; body: string }>> = {
@@ -40,6 +41,7 @@ const ticketsLetIn = (count: number) => `${String(count)} ${count === 1 ? "ticke
  */
 export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyring }) {
   const [eventSlug, setEventSlug] = useDoorEvent();
+  const isInteractive = useIsInteractive();
   const event = getEvent(eventSlug);
   const refunds = useDoorVoids(eventSlug);
   const door = useDoor(eventSlug, keyring, refunds.codes);
@@ -90,8 +92,11 @@ export function ScannerPage({ keyring = DOOR_KEYRING }: { keyring?: TicketKeyrin
 
       <label className="mt-6 flex flex-col gap-1 text-sm">
         <span className="text-ink-2">Event at this door</span>
+        {/* Disabled until the page is interactive: on a slow phone, a choice made on the
+            bare HTML would show here while the door went on checking the first event. */}
         <select
           value={eventSlug}
+          disabled={!isInteractive}
           onChange={(change) => {
             setEventSlug(change.target.value);
             door.clear();
