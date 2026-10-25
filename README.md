@@ -389,6 +389,6 @@ Next up is a Razorpay test-mode adapter behind the same provider interface.
 
 ---
 
-Built by [Kshitiz Sonakiya](https://github.com/Punisher666). All events, venues and
+Built by [Kshitiz Sonakiya](https://github.com/kzs2501). All events, venues and
 people are fictional.
 [MIT licensed](LICENSE) · [Security: the threat model, and reporting a vulnerability](SECURITY.md)
