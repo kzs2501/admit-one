@@ -29,7 +29,8 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: /camera\.spec\.ts/,
+      // Razorpay's flows need a build that takes payment through it (playwright.razorpay.config.ts).
+      testIgnore: [/camera\.spec\.ts/, /razorpay\.spec\.ts/],
       grepInvert: /@perf/,
     },
     // Responsiveness budgets, never retried: a budget missed once is a failure, not a
@@ -38,7 +39,7 @@ export default defineConfig({
     {
       name: "perf",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: /camera\.spec\.ts/,
+      testIgnore: [/camera\.spec\.ts/, /razorpay\.spec\.ts/],
       grep: /@perf/,
       retries: 0,
     },

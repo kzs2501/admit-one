@@ -107,7 +107,7 @@ jobs:
     # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
     # embedded-postgres package, as it does on a laptop, so there's no service to run.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -125,6 +125,12 @@ jobs:
       - uses: ./.github/actions/playwright
       - name: The buyer's flows against server mode
         run: npm run test:e2e:server
+      - uses: ./.github/actions/next-cache
+        with:
+          dist-dir: .next-razorpay
+      - run: npm run build:razorpay
+      - name: Paying through Razorpay's checkout, against a stand-in for Razorpay
+        run: npm run test:e2e:razorpay
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
@@ -132,6 +138,7 @@ jobs:
           path: |
             playwright-report
             test-results/server
+            test-results/razorpay
 
   visual:
     # Screenshots only compare on the machine that made them: the same OS, browser build,

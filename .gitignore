@@ -15,5 +15,6 @@ storybook-static
 *storybook.log
 .postgres
 .next-server
+.next-razorpay
 # Copied from node_modules after install (scripts/copy-zxing-wasm.mjs)
 public/vendor

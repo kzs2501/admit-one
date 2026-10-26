@@ -178,6 +178,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     ".next/**",
     ".next-server/**",
+    ".next-razorpay/**",
     "out/**",
     "build/**",
     "coverage/**",
