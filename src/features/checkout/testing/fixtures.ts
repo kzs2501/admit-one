@@ -71,6 +71,24 @@ export const upiPaymentDto = (overrides: Partial<PaymentDto> = {}): PaymentDto =
   ...overrides,
 });
 
+/** A Razorpay checkout waiting for the buyer, open for five minutes from the epoch. */
+export const razorpayPaymentDto = (overrides: Partial<PaymentDto> = {}): PaymentDto => ({
+  id: "pay_1",
+  method: "razorpay",
+  status: "requires_action",
+  last4: null,
+  failureCode: null,
+  nextAction: {
+    type: "razorpay_checkout",
+    keyId: "rzp_test_fixture",
+    orderId: "order_fixture",
+    amountMinor: 30_373,
+    currency: "INR",
+    expiresAt: new Date(5 * 60_000).toISOString(),
+  },
+  ...overrides,
+});
+
 /** An order with a total to pay, and the given payment. */
 export const orderWithPayment = (payment: PaymentDto | null, status: OrderStatus = "pending"): OrderDto => ({
   ...orderDtoFor(createEmptyDraft(), status),

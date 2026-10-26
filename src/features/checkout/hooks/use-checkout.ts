@@ -18,18 +18,21 @@ import {
   type StepContext,
   type StepId,
 } from "@/features/checkout/domain/step-registry";
-import { pendingUpiRequest } from "@/features/checkout/domain/payment-methods";
+import { pendingRazorpayCheckout, pendingUpiRequest } from "@/features/checkout/domain/payment-methods";
 import { useDraft, type Draft } from "./use-draft";
 
-/** While the buyer approves a UPI request in their app, how often to re-read the order. */
-export const UPI_POLL_MS = 2_000;
+/** While the buyer pays somewhere else, how often to re-read the order. */
+export const ELSEWHERE_POLL_MS = 2_000;
 
 /**
- * Keep re-reading while a UPI request waits: the buyer answers in another app, and
- * the server hears it from the provider's webhook, so nothing tells this page — it asks.
+ * Keep re-reading while the buyer pays somewhere else — in their UPI app, on Razorpay's
+ * checkout. The server hears how it went from the provider, so nothing tells this page:
+ * it asks.
  */
-export const pollWhileApprovingUpi = (details: HoldDetailsDto | undefined) =>
-  details?.order && pendingUpiRequest(details.order) ? UPI_POLL_MS : false;
+export const pollWhilePayingElsewhere = (details: HoldDetailsDto | undefined) =>
+  details?.order && (pendingUpiRequest(details.order) || pendingRazorpayCheckout(details.order))
+    ? ELSEWHERE_POLL_MS
+    : false;
 
 /** Everything the checkout can be showing — exactly one at a time. */
 export type CheckoutState =
@@ -136,7 +139,7 @@ export function useCheckout(holdId: string, requestedStep: string) {
     refetch,
   } = useQuery({
     ...holdQueries.detail(holdId),
-    refetchInterval: (query) => pollWhileApprovingUpi(query.state.data),
+    refetchInterval: (query) => pollWhilePayingElsewhere(query.state.data),
   });
 
   const { state, orderPageId, redirectStepId } = deriveCheckout({

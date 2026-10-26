@@ -126,6 +126,23 @@ export const cardPayment = (overrides: Partial<PaymentDto> = {}): PaymentDto => 
 });
 
 /** A UPI request waiting for the buyer, payable for another `minutesLeft` minutes. */
+/** A Razorpay checkout waiting for the buyer, as server mode with Razorpay answers. */
+export const pendingRazorpayPayment = (order: Pick<OrderDto, "amounts">, minutesLeft = 4): PaymentDto => ({
+  id: "pay_story",
+  method: "razorpay",
+  status: "requires_action",
+  last4: null,
+  failureCode: null,
+  nextAction: {
+    type: "razorpay_checkout",
+    keyId: "rzp_test_story",
+    orderId: "order_story",
+    amountMinor: order.amounts.totalMinor,
+    currency: order.amounts.currency,
+    expiresAt: isoIn(minutesLeft * MINUTE_MS),
+  },
+});
+
 export const pendingUpiPayment = (order: Pick<OrderDto, "amounts">, minutesLeft = 4): PaymentDto => ({
   id: "pay_story",
   method: "upi",

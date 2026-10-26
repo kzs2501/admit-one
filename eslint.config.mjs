@@ -141,6 +141,11 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Razorpay's Checkout API, typed as Razorpay names it: snake_case options, and a global.
+    files: ["src/lib/razorpay-checkout.ts"],
+    rules: { "@typescript-eslint/naming-convention": "off" },
+  },
+  {
     // The one place Zod is imported directly, to configure it.
     files: ["src/core/zod.ts"],
     rules: { "no-restricted-imports": "off" },

@@ -4,9 +4,11 @@ import { Notice } from "@/components/ui/notice";
 import {
   chosenPaymentMethod,
   offeredPaymentMethods,
+  pendingRazorpayCheckout,
   pendingUpiRequest,
 } from "@/features/checkout/domain/payment-methods";
 import { CardPayment } from "@/features/checkout/components/payment-methods/card-payment";
+import { RazorpayPayment } from "@/features/checkout/components/payment-methods/razorpay-payment";
 import { UpiPayment } from "@/features/checkout/components/payment-methods/upi-payment";
 import type { StepProps } from "./step-props";
 
@@ -25,14 +27,15 @@ export function PaymentStep({ context, updateDraft, goBack, onExpired, clockOffs
   }
 
   const offered = offeredPaymentMethods(order);
-  const isUpiPending = pendingUpiRequest(order) !== null;
-  // A UPI request that's waiting is the only way forward until it's cancelled.
-  const method = isUpiPending ? "upi" : chosenPaymentMethod(order, draft.paymentMethod);
+  // A UPI request or checkout that's waiting is the only way forward until it's cancelled.
+  const pendingMethod = pendingUpiRequest(order) ? "upi" : pendingRazorpayCheckout(order) ? "razorpay" : null;
+  const isPending = pendingMethod !== null;
+  const method = pendingMethod ?? chosenPaymentMethod(order, draft.paymentMethod);
 
   return (
     <div className="space-y-5">
       {offered.length > 1 && (
-        <fieldset disabled={isUpiPending} className="disabled:opacity-60">
+        <fieldset disabled={isPending} className="disabled:opacity-60">
           <legend className="text-sm font-medium">How would you like to pay?</legend>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {offered.map((option) => (
@@ -70,6 +73,8 @@ export function PaymentStep({ context, updateDraft, goBack, onExpired, clockOffs
           onExpired={onExpired}
           clockOffsetMs={clockOffsetMs}
         />
+      ) : method === "razorpay" ? (
+        <RazorpayPayment holdId={hold.id} order={order} goBack={goBack} onExpired={onExpired} />
       ) : (
         <CardPayment
           order={order}

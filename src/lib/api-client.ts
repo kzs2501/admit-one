@@ -19,6 +19,7 @@ import {
 import { PROBLEM_CONTENT_TYPE, problemSchema, type Problem } from "@/contract/problems";
 import type {
   ConfirmChallengeRequest,
+  ConfirmRazorpayRequest,
   CreateHoldRequest,
   CreatePaymentRequest,
   UpsertOrderRequest,
@@ -224,6 +225,8 @@ export const apiClient = {
     post(buildApiPath(API_ROUTES.confirmChallenge, { paymentId }), paymentResultDtoSchema, body),
   cancelPayment: (paymentId: string) =>
     post(buildApiPath(API_ROUTES.cancelPayment, { paymentId }), paymentResultDtoSchema, {}),
+  confirmRazorpayPayment: (paymentId: string, body: ConfirmRazorpayRequest) =>
+    post(buildApiPath(API_ROUTES.confirmRazorpayPayment, { paymentId }), paymentResultDtoSchema, body),
 };
 
 /** The problem behind an error, if the server sent one. */

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { OrderDto } from "@/contract/dto";
-import { orderWithPayment, UPI_INTENT, upiPaymentDto } from "@/features/checkout/testing/fixtures";
-import { chosenPaymentMethod, offeredPaymentMethods, pendingUpiRequest, upiOutcome } from "./payment-methods";
+import { orderWithPayment, razorpayPaymentDto, UPI_INTENT, upiPaymentDto } from "@/features/checkout/testing/fixtures";
+import {
+  checkoutOutcome,
+  chosenPaymentMethod,
+  offeredPaymentMethods,
+  pendingRazorpayCheckout,
+  pendingUpiRequest,
+  upiOutcome,
+} from "./payment-methods";
 
 const offering = (paymentMethods: OrderDto["paymentMethods"]): OrderDto => ({
   ...orderWithPayment(null),
@@ -47,5 +54,29 @@ describe("payment methods", () => {
     expect(upiOutcome(orderWithPayment(declinedCard, "failed"))).toBeNull();
     const oddFailure = upiPaymentDto({ status: "failed", failureCode: null, nextAction: null });
     expect(upiOutcome(orderWithPayment(oddFailure, "failed"))).toBeNull();
+  });
+
+  it("finds a Razorpay checkout waiting for the buyer, and nothing else", () => {
+    expect(pendingRazorpayCheckout(orderWithPayment(razorpayPaymentDto()))).toEqual({
+      paymentId: "pay_1",
+      keyId: "rzp_test_fixture",
+      orderId: "order_fixture",
+      amountMinor: 30_373,
+      currency: "INR",
+      expiresAt: new Date(5 * 60_000).toISOString(),
+    });
+    expect(pendingRazorpayCheckout(orderWithPayment(upiPaymentDto()))).toBeNull();
+    expect(pendingRazorpayCheckout(orderWithPayment(razorpayPaymentDto({ status: "processing" })))).toBeNull();
+  });
+
+  it("says how a Razorpay checkout ended unpaid, and nothing for any other", () => {
+    const ended = (failureCode: "checkout_expired" | "cancelled" | "provider_declined") =>
+      checkoutOutcome(
+        orderWithPayment(razorpayPaymentDto({ status: "failed", failureCode, nextAction: null }), "failed"),
+      );
+    expect(ended("checkout_expired")).toMatchObject({ tone: "bad", title: "The checkout closed" });
+    expect(ended("cancelled")).toMatchObject({ tone: "info", title: "Checkout closed" });
+    expect(ended("provider_declined")).toBeNull();
+    expect(checkoutOutcome(orderWithPayment(razorpayPaymentDto()))).toBeNull();
   });
 });

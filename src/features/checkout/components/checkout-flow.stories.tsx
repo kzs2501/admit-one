@@ -6,6 +6,7 @@ import {
   checkoutStateFor,
   completeDraft,
   holdDetailsFor,
+  pendingRazorpayPayment,
   pendingUpiPayment,
   SUMMIT,
 } from "@/features/checkout/testing/story-fixtures";
@@ -113,6 +114,39 @@ export const UpiDeclined: Story = {
 };
 
 /** In the last minute, the countdown turns amber. */
+/** Server mode with Razorpay: one way to pay, on Razorpay's own checkout, and what its test mode takes. */
+export const RazorpayPayment: Story = {
+  args: { state: checkoutStateFor("payment", { ...summitReviewed, paymentMethods: ["razorpay"] }) },
+};
+
+/** Razorpay's checkout is open (or was, before a reload): go back to it, or start again. */
+export const RazorpayCheckoutOpen: Story = {
+  args: {
+    state: checkoutStateFor("payment", {
+      ...summitReviewed,
+      paymentMethods: ["razorpay"],
+      payment: (order) => pendingRazorpayPayment(order),
+    }),
+  },
+};
+
+/** The checkout closed with nothing paid: said where focus is, with the tickets still held. */
+export const RazorpayCheckoutClosed: Story = {
+  args: {
+    state: checkoutStateFor("payment", {
+      ...summitReviewed,
+      paymentMethods: ["razorpay"],
+      orderStatus: "failed",
+      payment: (order) => ({
+        ...pendingRazorpayPayment(order),
+        status: "failed",
+        failureCode: "checkout_expired",
+        nextAction: null,
+      }),
+    }),
+  },
+};
+
 export const AlmostOutOfTime: Story = {
   args: { state: checkoutStateFor("review", { ...SUMMIT, draft: completeDraft(SUMMIT, LUNCH), minutesLeft: 0.75 }) },
 };

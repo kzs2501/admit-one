@@ -9,13 +9,21 @@ import { ticketCount } from "@/core/ticketing";
 import { deriveCheckout, type CheckoutState } from "@/features/checkout/hooks/use-checkout";
 import { createEmptyDraft, type Draft } from "@/features/checkout/hooks/use-draft";
 
-export { attendeesFor, CONCERT, pendingUpiPayment, SUMMIT } from "@/contract/testing/dto-fixtures";
+export {
+  attendeesFor,
+  CONCERT,
+  pendingRazorpayPayment,
+  pendingUpiPayment,
+  SUMMIT,
+} from "@/contract/testing/dto-fixtures";
 
 export interface CheckoutScene extends HoldScene {
   draft?: Partial<Draft>;
   /** Make the order the review step creates. */
   hasOrder?: boolean;
   payment?: PaymentDto | ((order: OrderDto) => PaymentDto);
+  /** The ways the backend offers to pay: the sandbox's, unless the scene is server mode's. */
+  paymentMethods?: OrderDto["paymentMethods"];
   orderStatus?: OrderStatus;
   /** Free tickets for the tier picker's "left" counts. */
   available?: number;
@@ -25,7 +33,8 @@ export interface CheckoutScene extends HoldScene {
 export function holdDetailsFor(scene: CheckoutScene): HoldDetailsDto {
   const hold = holdFor(scene);
   const draft = { ...createEmptyDraft(), ...scene.draft };
-  const base = scene.hasOrder ? orderFor(hold, draft, { status: scene.orderStatus ?? "pending" }) : null;
+  const ordered = scene.hasOrder ? orderFor(hold, draft, { status: scene.orderStatus ?? "pending" }) : null;
+  const base = ordered && scene.paymentMethods ? { ...ordered, paymentMethods: scene.paymentMethods } : ordered;
   const order =
     base && scene.payment
       ? { ...base, payment: typeof scene.payment === "function" ? scene.payment(base) : scene.payment }

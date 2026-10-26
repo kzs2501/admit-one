@@ -7,14 +7,15 @@ import {
   orderDtoFor,
   orderWithPayment,
   testPeople,
+  razorpayPaymentDto,
   upiPaymentDto,
 } from "@/features/checkout/testing/fixtures";
 import { createEmptyDraft } from "./use-draft";
 import {
   deriveCheckout,
   isStillExpiredLocally,
-  pollWhileApprovingUpi,
-  UPI_POLL_MS,
+  pollWhilePayingElsewhere,
+  ELSEWHERE_POLL_MS,
   type CheckoutInputs,
 } from "./use-checkout";
 
@@ -123,15 +124,16 @@ describe("deriveCheckout", () => {
   });
 });
 
-describe("pollWhileApprovingUpi", () => {
+describe("pollWhilePayingElsewhere", () => {
   const withOrder = (order: HoldDetailsDto["order"]) => ({ order }) as HoldDetailsDto;
 
-  it("re-reads the order every couple of seconds while a UPI request waits — and only then", () => {
-    expect(pollWhileApprovingUpi(withOrder(orderWithPayment(upiPaymentDto())))).toBe(UPI_POLL_MS);
+  it("re-reads the order every couple of seconds while a UPI request or a checkout waits — and only then", () => {
+    expect(pollWhilePayingElsewhere(withOrder(orderWithPayment(upiPaymentDto())))).toBe(ELSEWHERE_POLL_MS);
+    expect(pollWhilePayingElsewhere(withOrder(orderWithPayment(razorpayPaymentDto())))).toBe(ELSEWHERE_POLL_MS);
     const approved = upiPaymentDto({ status: "processing", nextAction: null });
-    expect(pollWhileApprovingUpi(withOrder(orderWithPayment(approved)))).toBe(false);
-    expect(pollWhileApprovingUpi(withOrder(null))).toBe(false);
-    expect(pollWhileApprovingUpi(undefined)).toBe(false);
+    expect(pollWhilePayingElsewhere(withOrder(orderWithPayment(approved)))).toBe(false);
+    expect(pollWhilePayingElsewhere(withOrder(null))).toBe(false);
+    expect(pollWhilePayingElsewhere(undefined)).toBe(false);
   });
 });
 

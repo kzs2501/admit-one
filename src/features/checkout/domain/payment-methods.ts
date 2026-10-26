@@ -15,6 +15,7 @@ export interface PaymentMethodOption {
 export const PAYMENT_METHOD_OPTIONS: readonly PaymentMethodOption[] = [
   { id: "card", label: "Card", hint: "Credit or debit card" },
   { id: "upi", label: "UPI", hint: "Any UPI app — scan a QR code, or open the app on this phone" },
+  { id: "razorpay", label: "Razorpay", hint: "Card, UPI or net banking, on Razorpay’s secure checkout" },
 ];
 
 /** The ways to pay this order, as the backend offers them: its provider decides, not this page. */
@@ -59,6 +60,38 @@ export function upiOutcome(order: OrderDto): { tone: "bad" | "info"; title: stri
       };
     case "cancelled":
       return { tone: "info", title: "UPI request cancelled", message: "Pay with UPI again, or choose another way." };
+    default:
+      return null;
+  }
+}
+
+export interface PendingRazorpayCheckout {
+  paymentId: string;
+  keyId: string;
+  /** Razorpay's order, which the checkout pays. */
+  orderId: string;
+  amountMinor: number;
+  currency: string;
+  expiresAt: string;
+}
+
+/** The Razorpay checkout waiting for the buyer to pay, if there is one. */
+export function pendingRazorpayCheckout(order: OrderDto): PendingRazorpayCheckout | null {
+  const { payment } = order;
+  if (payment?.status !== "requires_action" || payment.nextAction?.type !== "razorpay_checkout") return null;
+  const { keyId, orderId, amountMinor, currency, expiresAt } = payment.nextAction;
+  return { paymentId: payment.id, keyId, orderId, amountMinor, currency, expiresAt };
+}
+
+/** How the last Razorpay checkout ended without paying, if it did — in words for the buyer. */
+export function checkoutOutcome(order: OrderDto): { tone: "bad" | "info"; title: string; message: string } | null {
+  const { payment } = order;
+  if (order.status !== "failed" || payment?.method !== "razorpay") return null;
+  switch (payment.failureCode) {
+    case "checkout_expired":
+      return { tone: "bad", title: "The checkout closed", message: "Nothing was paid in time. No money was taken." };
+    case "cancelled":
+      return { tone: "info", title: "Checkout closed", message: "Nothing was paid. Pay again whenever you’re ready." };
     default:
       return null;
   }
