@@ -6,7 +6,8 @@ import { IDEMPOTENCY_KEY_TTL_MS } from "@/backend/backend";
 import { createPostgresBackend, type PostgresBackend } from "./backend";
 import { ABANDONED_AFTER_MS } from "./idempotency";
 import { SERVER_SETTINGS } from "./records";
-import { payments, providerEvents } from "./schema";
+import { holds, payments, providerEvents } from "./schema";
+import { withHold } from "./unit-of-work";
 import { createTestDatabase } from "./testing/database";
 import { signDemoTicket } from "@/core/demo-ticket-key";
 
@@ -76,6 +77,28 @@ describe("orders on Postgres", () => {
       addOns: {},
     });
     expect(!late.ok && late.error.code).toBe("hold_expired");
+  });
+});
+
+describe("a hold's records, written back", () => {
+  const deps = {
+    now: () => nowMs,
+    newId: (prefix: string) => `${prefix}_${String(++idCount)}`,
+    random: () => 0,
+    signTicket: signDemoTicket,
+  };
+
+  it("never make a sale of a hold swept in the database, whatever the rules in memory said", async () => {
+    const { holdId } = await holdAndOrder();
+    await database.db.update(holds).set({ status: "expired" }).where(eq(holds.id, holdId));
+    await expect(
+      withHold(database.db, deps, { holdId }, (context) => {
+        const hold = context.state.holds[holdId];
+        if (hold) hold.isConverted = true;
+      }),
+    ).rejects.toThrow("was swept before it could become a sale");
+    const [row] = await database.db.select({ status: holds.status }).from(holds).where(eq(holds.id, holdId));
+    expect(row?.status).toBe("expired");
   });
 });
 

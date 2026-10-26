@@ -134,6 +134,50 @@ describe("the server API", () => {
     expect(await bug.json()).toMatchObject({ code: "internal_error" });
   });
 
+  it("refuses changes to an order once it's sold, as the sandbox does, rather than failing", async () => {
+    const api = createServerApi(
+      database.db,
+      {
+        now: () => nowMs,
+        newId: (prefix) => `${prefix}_${String(++idCount)}`,
+        random: () => 0,
+        signTicket: signDemoTicket,
+      },
+      { webhookSecret: "whsec_server_api" },
+    );
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      api.handle(
+        new Request(ORIGIN + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify(body),
+        }),
+      );
+    const held = (await (
+      await post("/api/holds", { eventSlug: "open-studio-ceramics", items: [{ tierId: "osc-session", quantity: 1 }] })
+    ).json()) as { hold: { id: string } };
+    const attendees = [{ name: "Asha Rao", email: "asha@example.com" }];
+    const order = (await (await post("/api/orders", { holdId: held.hold.id, attendees, addOns: {} })).json()) as {
+      id: string;
+    };
+    const paid = (await (
+      await post(
+        `/api/orders/${order.id}/payments`,
+        { number: TEST_CARDS.success, expiry: "12 / 30", cvc: "123", name: "Asha Rao" },
+        { [IDEMPOTENCY_KEY_HEADER]: "sold-1" },
+      )
+    ).json()) as { payment: { id: string } };
+    nowMs += SERVER_SETTINGS.webhookDelayMs;
+    await api.deliverDueWebhooks();
+
+    const edited = await post("/api/orders", { holdId: held.hold.id, attendees, addOns: {} });
+    expect(edited.status).toBe(409);
+    expect(await edited.json()).toMatchObject({ code: "already_completed" });
+    const cancelled = await post(`/api/payments/${paid.payment.id}/cancel`, {});
+    expect(cancelled.status).toBe(409);
+    expect(await cancelled.json()).toMatchObject({ code: "invalid_state" });
+  });
+
   it("refuses UPI, which needs a real provider, and takes cards", async () => {
     const api = createServerApi(
       database.db,

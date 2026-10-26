@@ -65,11 +65,15 @@ async function loadHoldRecords(db: Queryable, holdId: string, { isLocked }: { is
   } satisfies HoldRecords;
 }
 
-/** Write back what the sandbox's rules changed: the hold, its orders and payments, events to send, and stock sold. */
-async function persist(tx: Transaction, context: BackendContext, holdId: string) {
+/**
+ * Write back what the sandbox's rules changed: the hold, its orders and payments, events
+ * to send, and stock sold. `wasConverted`: the hold was a sale already when it was loaded.
+ */
+async function persist(tx: Transaction, context: BackendContext, holdId: string, wasConverted: boolean) {
   const { state } = context;
   const hold = state.holds[holdId];
   if (hold) {
+    const isBecomingSale = hold.isConverted && !wasConverted;
     const updated = await tx
       .update(holds)
       .set({
@@ -78,8 +82,9 @@ async function persist(tx: Transaction, context: BackendContext, holdId: string)
         orderId: hold.orderId,
         ...(hold.isConverted ? { status: "converted" as const } : {}),
       })
-      // Only an unswept hold becomes a sale: a swept one's stock and seats are gone.
-      .where(hold.isConverted ? and(eq(holds.id, holdId), eq(holds.status, "active")) : eq(holds.id, holdId))
+      // Only an unswept hold becomes a sale: a swept one's stock and seats are gone. One
+      // that was a sale already stays one, whatever else the rules changed (or refused).
+      .where(isBecomingSale ? and(eq(holds.id, holdId), eq(holds.status, "active")) : eq(holds.id, holdId))
       .returning({ id: holds.id });
     if (updated.length === 0) throw new Error(`Hold ${holdId} was swept before it could become a sale.`);
   }
@@ -139,8 +144,9 @@ export async function withHoldIn<T>(
   const records = holdId ? await loadHoldRecords(tx, holdId, { isLocked: true }) : null;
   if (!holdId || !records) return null;
   const context = contextWith(deps, records);
+  const wasConverted = records.hold.isConverted;
   const result = run(context, records);
-  await persist(tx, context, holdId);
+  await persist(tx, context, holdId, wasConverted);
   return result;
 }
 
