@@ -177,5 +177,6 @@ build.
   answers.
 - **Organisers still sign in with a bearer token,** in the sandbox only. Cookie sessions
   come if the dashboard moves to the server.
-- **UPI on the server** waits for a real provider. That's 6b: Razorpay test mode, whose
-  webhooks carry no timestamp, so dedupe by event id is the replay defence.
+- **UPI on the server** waited for a real provider. Done in [020](020-razorpay-test-mode.md):
+  Razorpay's Checkout, whose webhooks carry no timestamp, so dedupe by event id is the
+  replay defence (and Checkout offers whatever the Razorpay account has on).

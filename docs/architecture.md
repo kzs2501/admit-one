@@ -172,8 +172,9 @@ Server mode ([ADR 018](decisions/018-server-mode.md)) has made the first of thes
   the same transaction as its effect, all proven against real Postgres under
   concurrency.
 - **Done: signed webhooks.** HMAC-SHA256 over the raw body, a constant-time compare and
-  a five-minute tolerance, from a simulated provider. A real provider's adapter
-  (Razorpay, 6b) is next.
+  a five-minute tolerance, from a simulated provider; and Razorpay's, in test mode, whose
+  captures settle by webhook or by asking Razorpay, and whose money is refunded when it
+  can't become tickets ([ADR 020](decisions/020-razorpay-test-mode.md)).
 - **Done: delivery that survives a failure.** Each webhook is delivered under a lease,
   and one that fails is retried with backoff. A scheduler can call a protected endpoint
   so delivery doesn't wait for a reader.

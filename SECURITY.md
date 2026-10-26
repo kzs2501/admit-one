@@ -42,6 +42,9 @@ mode, `/api/*` is a real server on Postgres, and everything below applies.
 | Overselling under concurrency           | Conditional updates and a unique index in Postgres ([ADR 018](docs/decisions/018-server-mode.md))                                                                                                          |
 | Holding every ticket (scalping)         | A per-client rate limit on reserving, in Postgres, keyed by the IP a trusted proxy reports                                                                                                                 |
 | Paying twice, or replaying a payment    | Idempotency-Keys, claimed before the work and owned by their claim; the request compared by an HMAC without the CVC                                                                                        |
+| Card data on this server                | None: with Razorpay, cards are typed into Razorpay's own frame; the simulated provider's card form is the sandbox's and the simulated server's                                                             |
+| Forged or replayed Razorpay payments    | Checkout's result is checked against its signature, then against Razorpay itself; a webhook is checked over its raw body, and acted on once by its event id                                                |
+| Keeping money that can't become tickets | Every capture that can't is refunded through Razorpay's API, from an outbox that retries and never refunds twice                                                                                           |
 | Forged or replayed webhooks             | HMAC-SHA256 over the raw body, a five-minute tolerance, a constant-time compare, and each event acted on once                                                                                              |
 | Changing the price                      | Prices are worked out on the server from the catalogue; quantities, attendees and add-ons are checked against the hold                                                                                     |
 | Forged tickets                          | Ed25519 signatures, checked at the door with public keys only; a production door never trusts the demo key                                                                                                 |
@@ -61,8 +64,13 @@ mode, `/api/*` is a real server on Postgres, and everything below applies.
 - **An order's id is its key:** whoever has an order's link can see it, as with most
   ticket links. Ids carry 60 random bits.
 - **The simulated 3-D Secure check** can be approved by whoever holds the payment's id.
-  It stands in for the bank's page; a real provider runs that check at the card's
-  issuer.
+  It stands in for the bank's page, in the sandbox; with Razorpay, the check runs at the
+  card's issuer.
+- **A Razorpay build lets Razorpay's origins in** to its content security policy, on every
+  page, since the checkout is reached without a document load. They serve only
+  Razorpay's code, which loads when a buyer presses Pay ([ADR 020](docs/decisions/020-razorpay-test-mode.md)).
+- **Razorpay's webhooks carry no timestamp,** so a replay can't be refused for its age; it
+  finds its event recorded, or its payment settled, and changes nothing.
 - **The sandbox's organiser sign-in** keeps its token where scripts can read it, and is a
   demo account in the visitor's own browser.
 - **The demo ticket key is public,** so anyone can sign tickets the sandbox's door accepts.
