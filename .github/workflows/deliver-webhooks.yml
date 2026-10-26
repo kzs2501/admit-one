@@ -1,0 +1,38 @@
+name: Deliver due webhooks
+
+# The server-mode deployment delivers the simulated provider's webhooks right after a
+# payment and whenever a buyer reads an order. This is the backstop for a webhook that
+# falls due when nobody is looking (a closed tab): every five minutes, the most often
+# GitHub runs a schedule, ask the server to deliver whatever is due (ADR 018).
+#
+# Needs the repository variable SERVER_URL and the secret CRON_SECRET. Without them, as
+# on a fork, it does nothing.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: deliver-webhooks
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ask the server to deliver what's due
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SERVER_URL: ${{ vars.SERVER_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$SERVER_URL" ]; then
+            echo "SERVER_URL or CRON_SECRET isn't set; nothing to do."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$SERVER_URL/api/internal/deliver"

@@ -12,7 +12,8 @@ card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buy
 last ticket — and watch the checkout handle it while the server log explains why.
 
 **[Live demo](https://admit-one-ten.vercel.app)** · No sign-up, no keys, no real payments. The backend runs in your
-browser, so your sandbox is yours alone.
+browser, so your sandbox is yours alone. The same checkout in server mode, on Postgres:
+**[admit-one-server](https://admit-one-server.vercel.app)**.
 
 ![A completed order with the chaos panel open: the server log shows a duplicate webhook being ignored](docs/images/chaos-panel.png)
 
