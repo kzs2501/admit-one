@@ -7,6 +7,7 @@
  */
 import * as z from "@/core/zod";
 import type { RazorpaySettings } from "./settings";
+import { checkoutPayload, isRazorpaySignature } from "./signatures";
 
 const minorUnitsSchema = z.number().int().nonnegative();
 
@@ -116,6 +117,10 @@ export function createRazorpayClient(
 
   return {
     keyId,
+
+    /** Whether Checkout's result is Razorpay's: signed with this account's key secret over the two ids. */
+    isCheckoutResult: (razorpayOrderId: string, razorpayPaymentId: string, signature: string) =>
+      isRazorpaySignature(keySecret, checkoutPayload(razorpayOrderId, razorpayPaymentId), signature),
 
     /** An order to pay against: Checkout opens on it, and its payments are looked up by it. */
     createOrder: (input: { amountMinor: number; currency: string; receipt: string; notes: Record<string, string> }) =>

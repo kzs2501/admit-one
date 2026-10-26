@@ -50,6 +50,17 @@ describe("the Razorpay client", () => {
     expect(razorpay.calls).toContain("POST /payments/:id/refund");
   });
 
+  it("knows Checkout's result is Razorpay's by its signature, over both ids", async () => {
+    const { razorpay, client } = setUp();
+    const order = await client.createOrder({ amountMinor: 100, currency: "INR", receipt: "pay_3", notes: {} });
+    const result = razorpay.checkoutResult(razorpay.pay(order.id));
+    const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = result;
+    expect(client.isCheckoutResult(orderId, paymentId, signature)).toBe(true);
+    expect(client.isCheckoutResult(orderId, "pay_other", signature)).toBe(false);
+    expect(client.isCheckoutResult(orderId, paymentId, signature.toUpperCase())).toBe(false);
+    expect(client.isCheckoutResult(orderId, paymentId, "not-hex")).toBe(false);
+  });
+
   it("is refused with the wrong key", async () => {
     const razorpay = createFakeRazorpay();
     const client = createRazorpayClient({ ...razorpay.settings, keySecret: "wrong" }, { fetch: razorpay.fetch });

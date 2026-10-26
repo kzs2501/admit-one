@@ -30,10 +30,12 @@ import {
   type PaymentResultView,
   type SeatAvailabilityView,
 } from "@/backend/domain/views";
-import { RazorpayError, type RazorpayClient } from "@/backend/razorpay/client";
+import { RazorpayError, type RazorpayClient, type RazorpayPayment } from "@/backend/razorpay/client";
+import type { ConfirmRazorpayRequest } from "@/contract/requests";
 import type { Database } from "./db";
 import type { BuyerPort } from "@/backend/port";
 import { createIdempotencyStore } from "./idempotency";
+import { settleRazorpayPayment } from "./razorpay";
 import { SERVER_SETTINGS, type ServerDeps } from "./records";
 import { availability, holdByTiers, holdSeats, unavailableSeatIds } from "./stock";
 import { readHold, withHold, type HoldReference } from "./unit-of-work";
@@ -109,7 +111,48 @@ export function createPostgresBackend(
     );
   }
 
-  return {
+  /**
+   * Checkout's signed result, which settles the payment without waiting for the webhook
+   * (and where no webhook can reach, as on a laptop). The signature proves the ids are
+   * Razorpay's; what was paid is then asked of Razorpay, never taken from the browser.
+   * A payment already settled is answered as it stands.
+   */
+  async function confirmCheckout(
+    paymentId: string,
+    { razorpayOrderId, razorpayPaymentId, razorpaySignature }: ConfirmRazorpayRequest,
+  ): Promise<Result<PaymentResultView>> {
+    const view = () =>
+      readHold(db, deps, { paymentId }, (context) => {
+        const payment = context.state.payments[paymentId];
+        const order = payment ? context.state.orders[payment.orderId] : undefined;
+        return payment && order ? toPaymentResultView(context, { payment, order }) : null;
+      });
+    const known = await readHold(db, deps, { paymentId }, (context) => context.state.payments[paymentId] ?? null);
+    if (!razorpay || !known) return notFound("That payment doesn’t exist.");
+    if (known.method !== "razorpay" || known.providerOrderId !== razorpayOrderId) {
+      return fail({ code: "invalid_state", detail: "That isn’t this payment’s checkout." });
+    }
+    if (!razorpay.isCheckoutResult(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
+      return fail({ code: "invalid_signature", detail: "Checkout’s signature doesn’t match." });
+    }
+    let paid: RazorpayPayment;
+    try {
+      paid = await razorpay.fetchPayment(razorpayPaymentId);
+    } catch (error) {
+      if (!(error instanceof RazorpayError && error.isRetryable)) throw error;
+      console.error(`[razorpay] ${error.message}`);
+      // Razorpay's webhook will settle it; the order page waits for that.
+      return fail({ code: "service_unavailable", detail: "Razorpay couldn’t be reached just now. Try again." });
+    }
+    if (paid.order_id !== razorpayOrderId) {
+      return fail({ code: "invalid_state", detail: "That isn’t this payment’s checkout." });
+    }
+    await settleRazorpayPayment(db, deps, paid);
+    const settled = await view();
+    return settled ? ok(settled) : notFound("That payment doesn’t exist.");
+  }
+
+  const port = {
     chaos: () => SERVER_SETTINGS,
     idempotency: createIdempotencyStore(db, deps),
     /** The server's record of what happened is its request log, not the sandbox's panel. */
@@ -179,6 +222,8 @@ export function createPostgresBackend(
     cancelPayment: (paymentId: string) =>
       onPayment({ paymentId }, "That payment doesn’t exist.", (context) => cancelPayment(context, paymentId)),
   } satisfies BuyerPort;
+  // Razorpay's alone, beside the port both backends share.
+  return { ...port, confirmCheckout };
 }
 
 export type PostgresBackend = ReturnType<typeof createPostgresBackend>;

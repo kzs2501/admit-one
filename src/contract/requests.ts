@@ -60,6 +60,16 @@ export const createPaymentRequestSchemaFor = (body: unknown) => {
   return cardPaymentRequestSchema;
 };
 
+/**
+ * What Razorpay's Checkout hands the browser once the buyer has paid, passed on as it
+ * came: the ids, and Razorpay's signature over them, which the server checks.
+ */
+export const confirmRazorpayRequestSchema = z.object({
+  razorpayOrderId: z.string().min(1).max(64),
+  razorpayPaymentId: z.string().min(1).max(64),
+  razorpaySignature: z.string().min(1).max(128),
+});
+
 /** The buyer's answer to the bank's 3-D Secure challenge. */
 export const confirmChallengeRequestSchema = z.object({ decision: z.enum(["approve", "reject"]) });
 
@@ -77,3 +87,4 @@ export type CreatePaymentRequest =
   | z.input<typeof upiPaymentRequestSchema>
   | z.input<typeof razorpayPaymentRequestSchema>;
 export type ConfirmChallengeRequest = z.input<typeof confirmChallengeRequestSchema>;
+export type ConfirmRazorpayRequest = z.input<typeof confirmRazorpayRequestSchema>;

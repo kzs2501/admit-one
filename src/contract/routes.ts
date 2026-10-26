@@ -15,6 +15,8 @@ export const API_ROUTES = {
   createPayment: "/api/orders/:orderId/payments",
   confirmChallenge: "/api/payments/:paymentId/challenge",
   cancelPayment: "/api/payments/:paymentId/cancel",
+  /** Checkout's signed result, when Razorpay is the provider: settles without waiting for the webhook. */
+  confirmRazorpayPayment: "/api/payments/:paymentId/razorpay",
   /** The payment provider's webhooks, in server mode; the sandbox delivers its own in-process. */
   providerWebhook: "/api/webhooks/payments",
   /** Razorpay's webhooks, when it's the provider: signed its own way (`backend/razorpay/signatures.ts`). */

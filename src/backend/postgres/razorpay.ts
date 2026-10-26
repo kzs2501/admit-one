@@ -12,7 +12,7 @@
  * work. Each first asks Razorpay how the payment stands, so one that went through but
  * wasn't marked done is never sent twice — and a refund is never given up on.
  */
-import { and, asc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { fail, ok, type Result } from "@/backend/domain/errors";
 import { settleObservedPayment, type ObservedPayment, type SettleOutcome } from "@/backend/domain/provider-payments";
 import { RazorpayError, type RazorpayClient, type RazorpayPayment } from "@/backend/razorpay/client";
@@ -199,4 +199,48 @@ export async function sendDueCommands(db: Database, deps: ServerDeps, client: Ra
     }
   }
   return sent;
+}
+
+/** A closed checkout is worth asking Razorpay about for as long as Razorpay retries its webhooks. */
+const SWEEP_WINDOW_MS = 24 * 60 * 60_000;
+/** A closed checkout's webhook gets this long to arrive before Razorpay is asked. */
+const SWEEP_GRACE_MS = 2 * 60_000;
+
+/**
+ * The scheduler's sweep: ask Razorpay about checkouts that closed without a payment
+ * reaching us, in case one was made and both its webhook and Checkout's result were
+ * lost (a tab closed at the wrong moment, the endpoint down all day). At most a batch
+ * a run, newest first. Returns how many payments it settled.
+ */
+export async function sweepClosedCheckouts(db: Database, deps: ServerDeps, client: RazorpayClient): Promise<number> {
+  const nowMs = deps.now();
+  const closed = await db
+    .select({ providerOrderId: payments.providerOrderId })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.method, "razorpay"),
+        isNull(payments.providerPaymentId),
+        gt(payments.checkoutExpiresAt, new Date(nowMs - SWEEP_WINDOW_MS)),
+        lte(payments.checkoutExpiresAt, new Date(nowMs - SWEEP_GRACE_MS)),
+      ),
+    )
+    .orderBy(desc(payments.checkoutExpiresAt))
+    .limit(BATCH);
+
+  let settledCount = 0;
+  for (const { providerOrderId } of closed) {
+    if (providerOrderId === null) continue;
+    try {
+      for (const paid of await client.orderPayments(providerOrderId)) {
+        const outcome = await settleRazorpayPayment(db, deps, paid);
+        if (outcome === "fulfilled" || outcome === "refunded" || outcome === "capturing") settledCount += 1;
+      }
+    } catch (error) {
+      const failure =
+        error instanceof RazorpayError ? error.message : (describeError(error).split("\n")[0] ?? "It failed.");
+      console.error(`[razorpay] Couldn't check a closed checkout: ${failure}`);
+    }
+  }
+  return settledCount;
 }

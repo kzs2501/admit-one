@@ -13,7 +13,8 @@ import { http } from "msw/http";
 import { API_ROUTES } from "@/contract/routes";
 import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
-import { createRazorpayWebhookHandlers, createWebhookHandlers } from "./http/webhook-handlers";
+import { createRazorpayHandlers } from "./http/razorpay-handlers";
+import { createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
 import { createRazorpayClient, type RazorpayClient } from "./razorpay/client";
 import { connect, describeError, sqlStateOf, type Database } from "./postgres/db";
@@ -21,7 +22,7 @@ import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
 import { createPostgresRateLimit } from "./postgres/rate-limit";
-import { createRazorpayWebhookReceiver, sendDueCommands } from "./postgres/razorpay";
+import { createRazorpayWebhookReceiver, sendDueCommands, sweepClosedCheckouts } from "./postgres/razorpay";
 import { serverConfigFrom } from "./server-config";
 
 /** Where the simulated provider's webhooks are addressed: they're handled in-process. */
@@ -62,8 +63,10 @@ const startsPayment = (request: Request) =>
   request.method === "POST" &&
   (routeTest(API_ROUTES.createPayment)(request) || routeTest(API_ROUTES.confirmChallenge)(request));
 
-const isRazorpayWebhook = (request: Request) =>
-  request.method === "POST" && routeTest(API_ROUTES.razorpayWebhook)(request);
+/** Requests that settle a Razorpay payment: what they decide to ask Razorpay for goes at once. */
+const settlesRazorpayPayment = (request: Request) =>
+  request.method === "POST" &&
+  (routeTest(API_ROUTES.razorpayWebhook)(request) || routeTest(API_ROUTES.confirmRazorpayPayment)(request));
 
 /** Retry-After, in seconds, for a request the database couldn't take just now. */
 const RETRY_AFTER_SECONDS = 2;
@@ -158,11 +161,18 @@ export function createServerApi(
     clientKeyOf: (request: Request) => clientKeyOf(request, clientIpHeader),
   };
   const kit = createKit(backend, options);
+  const receiver = razorpay ? createRazorpayWebhookReceiver(db, deps, razorpay.webhookSecret) : null;
   const handlers = [
     ...createBuyerHandlers(backend, options, kit),
     ...createWebhookHandlers(createWebhookReceiver(db, deps, webhookSecret), kit),
-    ...(razorpay
-      ? createRazorpayWebhookHandlers(createRazorpayWebhookReceiver(db, deps, razorpay.webhookSecret), kit)
+    ...(razorpay && receiver
+      ? createRazorpayHandlers(
+          {
+            receiveWebhook: (...args) => receiver.receive(...args),
+            confirmCheckout: backend.confirmCheckout,
+          },
+          kit,
+        )
       : []),
     ...sandboxOnlyHandlers(kit),
   ];
@@ -199,7 +209,9 @@ export function createServerApi(
       // RFC 9110: a 401 says how to authenticate.
       return kit.send(request, { ...problem, headers: { "WWW-Authenticate": 'Bearer realm="admit-one"' } });
     }
-    return kit.send(request, { status: 200, body: { delivered: await deliverDue() } });
+    // Checkouts first: whatever the sweep settles is then sent with everything else due.
+    const swept = razorpay ? await sweepClosedCheckouts(db, deps, razorpay.client) : 0;
+    return kit.send(request, { status: 200, body: { delivered: await deliverDue(), swept } });
   }
 
   return {
@@ -218,8 +230,7 @@ export function createServerApi(
      */
     followUp(request: Request, response: Response): (() => Promise<void>) | null {
       if (!response.ok) return null;
-      // What a Razorpay webhook decided to ask Razorpay for goes at once.
-      if (isRazorpayWebhook(request)) return () => deliverDue().then(() => undefined, logDeliveryError);
+      if (settlesRazorpayPayment(request)) return () => deliverDue().then(() => undefined, logDeliveryError);
       if (!startsPayment(request)) return null;
       return async () => {
         await new Promise((resolve) => setTimeout(resolve, SERVER_SETTINGS.webhookDelayMs + 100));

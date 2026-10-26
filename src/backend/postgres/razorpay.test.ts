@@ -30,6 +30,7 @@ const MINUTE_MS = 60_000;
 type ClientWrapper = (client: RazorpayClient) => RazorpayClient;
 
 function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper } = {}) {
+  const deliverySecret = "cron_razorpay_test";
   const razorpay = createFakeRazorpay({ now: () => nowMs });
   const api = createServerApi(
     database.db,
@@ -41,6 +42,7 @@ function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper
     },
     {
       webhookSecret: "whsec_razorpay_test",
+      deliverySecret,
       razorpay: {
         client: wrapClient(createRazorpayClient(razorpay.settings, { fetch: razorpay.fetch })),
         webhookSecret: razorpay.settings.webhookSecret,
@@ -57,8 +59,9 @@ function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper
     );
 
   async function openOrder({
-    eventSlug = "open-studio-ceramics",
-    tierId = "osc-session",
+    // A festival day: enough tickets for every test here to sell some.
+    eventSlug = "lakeside-lights",
+    tierId = "llf-day",
   }: { eventSlug?: string; tierId?: string } = {}) {
     const held = await send("POST", "/api/holds", { eventSlug, items: [{ tierId, quantity: 1 }] });
     const { hold } = holdDetailsDtoSchema.pick({ hold: true }).parse(await held.json());
@@ -93,7 +96,25 @@ function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper
     return { status: response.status, outcome: reply.outcome ?? reply.code };
   }
 
-  return { razorpay, api, send, openOrder, pay, readOrder, startCheckout, webhook };
+  /** The browser passes on Checkout's result; returns the response's status, and its body. */
+  async function confirm(paymentId: string, result: ReturnType<typeof razorpay.checkoutResult>) {
+    const response = await send("POST", `/api/payments/${paymentId}/razorpay`, {
+      razorpayOrderId: result.razorpay_order_id,
+      razorpayPaymentId: result.razorpay_payment_id,
+      razorpaySignature: result.razorpay_signature,
+    });
+    return { status: response.status, body: (await response.json()) as unknown };
+  }
+
+  /** The scheduler's run. */
+  const schedule = async () =>
+    (await (
+      await api.handle(
+        new Request(ORIGIN + "/api/internal/deliver", { headers: { Authorization: `Bearer ${deliverySecret}` } }),
+      )
+    ).json()) as { delivered: number; swept: number };
+
+  return { razorpay, api, send, openOrder, pay, readOrder, startCheckout, webhook, confirm, schedule };
 }
 
 const commandsFor = (paymentId: string) =>
@@ -298,6 +319,85 @@ describe("Razorpay's webhooks", () => {
     const outcomes = await Promise.all([webhook("payment.captured", paid.id), webhook("payment.captured", paid.id)]);
     expect(outcomes.map(({ outcome }) => outcome).sort()).toEqual(["already-settled", "fulfilled"]);
     expect((await readOrder(order.id)).tickets).toHaveLength(1);
+  });
+});
+
+describe("Checkout's signed result", () => {
+  it("settles the payment at once, without waiting for the webhook", async () => {
+    const { razorpay, openOrder, startCheckout, confirm, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    const paid = razorpay.pay(providerOrderId);
+
+    const confirmed = await confirm(paymentId, razorpay.checkoutResult(paid));
+    expect(confirmed.status).toBe(200);
+    expect(paymentResultDtoSchema.parse(confirmed.body)).toMatchObject({
+      payment: { id: paymentId, status: "succeeded" },
+      order: { status: "fulfilled" },
+    });
+    expect((await webhook("payment.captured", paid.id)).outcome).toBe("already-settled");
+    expect((await confirm(paymentId, razorpay.checkoutResult(paid))).status).toBe(200);
+    expect((await readOrder(order.id)).tickets).toHaveLength(1);
+  });
+
+  it("is refused unless Razorpay signed it, for this payment's own checkout", async () => {
+    const { razorpay, openOrder, startCheckout, confirm, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    const paid = razorpay.pay(providerOrderId);
+    const result = razorpay.checkoutResult(paid);
+
+    const forged = await confirm(paymentId, { ...result, razorpay_signature: "0".repeat(64) });
+    expect(forged.status).toBe(400);
+    expect(problemSchema.parse(forged.body).code).toBe("invalid_signature");
+
+    // Signed by Razorpay, but for another order's checkout.
+    const other = await openOrder();
+    const elsewhere = await startCheckout(other.order.id);
+    const theirs = razorpay.checkoutResult(razorpay.pay(elsewhere.providerOrderId));
+    expect(problemSchema.parse((await confirm(paymentId, theirs)).body).code).toBe("invalid_state");
+    // A pair Razorpay never made: this checkout's order, someone else's payment.
+    const mixed = razorpay.checkoutResult({ ...paid, id: theirs.razorpay_payment_id });
+    expect(problemSchema.parse((await confirm(paymentId, mixed)).body).code).toBe("invalid_state");
+    expect((await readOrder(order.id)).status).toBe("pending");
+  });
+
+  it("settles nothing when what Razorpay says is that nothing was paid", async () => {
+    const { razorpay, openOrder, startCheckout, confirm, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    const declined = razorpay.pay(providerOrderId, { status: "failed" });
+    expect((await confirm(paymentId, razorpay.checkoutResult(declined))).status).toBe(200);
+    expect((await readOrder(order.id)).payment?.status).toBe("requires_action");
+  });
+
+  it("leaves it to the webhook when Razorpay can't be reached", async () => {
+    const { razorpay, openOrder, startCheckout, confirm, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    const paid = razorpay.pay(providerOrderId);
+    razorpay.failNext("GET /payments/:id", 503);
+    expect(problemSchema.parse((await confirm(paymentId, razorpay.checkoutResult(paid))).body).code).toBe(
+      "service_unavailable",
+    );
+    expect((await webhook("payment.captured", paid.id)).outcome).toBe("fulfilled");
+    expect((await readOrder(order.id)).status).toBe("fulfilled");
+  });
+});
+
+describe("the scheduler's sweep", () => {
+  it("settles a payment whose webhook and Checkout result were both lost, once", async () => {
+    const { razorpay, openOrder, startCheckout, schedule, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    razorpay.pay(providerOrderId);
+    expect((await schedule()).swept).toBe(0);
+
+    // The checkout has closed, and its webhook has had time to arrive.
+    nowMs += 5 * MINUTE_MS + 2 * MINUTE_MS;
+    expect((await schedule()).swept).toBe(1);
+    expect((await readOrder(order.id)).status).toBe("fulfilled");
+    expect((await schedule()).swept).toBe(0);
   });
 });
 
