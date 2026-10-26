@@ -15,6 +15,7 @@ import {
   type Permission,
   type Role,
 } from "@/core/organisations";
+import type { CurrencyCode } from "@/core/money";
 import type { Seat } from "@/core/seating";
 import type { Amounts } from "@/core/pricing";
 import type {
@@ -83,7 +84,17 @@ export interface HoldView {
 }
 
 /** What the buyer must do before the payment can go on. */
-export type NextActionView = { type: "card_challenge" } | { type: "upi"; intentUri: string; expiresAtMs: number };
+export type NextActionView =
+  | { type: "card_challenge" }
+  | { type: "upi"; intentUri: string; expiresAtMs: number }
+  | {
+      type: "razorpay_checkout";
+      keyId: string;
+      orderId: string;
+      amountMinor: number;
+      currency: CurrencyCode;
+      expiresAtMs: number;
+    };
 
 export interface PaymentView {
   id: string;
@@ -339,9 +350,10 @@ const toHoldView = (context: BackendContext, hold: HoldRecord): HoldView => ({
   seats: seatsOf(hold.eventSlug, hold.seatIds),
 });
 
-const nextActionFor = (payment: PaymentRecord): NextActionView =>
-  payment.method === "upi"
-    ? {
+function nextActionFor(context: BackendContext, payment: PaymentRecord): NextActionView {
+  switch (payment.method) {
+    case "upi":
+      return {
         type: "upi",
         intentUri: buildUpiIntent({
           paymentId: payment.id,
@@ -349,8 +361,20 @@ const nextActionFor = (payment: PaymentRecord): NextActionView =>
           amountMinor: payment.amountMinor,
         }),
         expiresAtMs: payment.expiresAtMs,
-      }
-    : { type: "card_challenge" };
+      };
+    case "razorpay":
+      return {
+        type: "razorpay_checkout",
+        keyId: context.razorpayKeyId ?? "",
+        orderId: payment.providerOrderId,
+        amountMinor: payment.amountMinor,
+        currency: context.state.orders[payment.orderId]?.amounts.currency ?? "INR",
+        expiresAtMs: payment.expiresAtMs,
+      };
+    case "card":
+      return { type: "card_challenge" };
+  }
+}
 
 /** A payment as it stands now: an expired UPI request reads as failed before anything writes it down. */
 export function toPaymentView(context: BackendContext, payment: PaymentRecord): PaymentView {
@@ -359,9 +383,9 @@ export function toPaymentView(context: BackendContext, payment: PaymentRecord): 
     id: payment.id,
     method: payment.method,
     status,
-    last4: payment.method === "card" ? payment.last4 : null,
+    last4: payment.method === "upi" ? null : payment.last4,
     failureCode,
-    nextAction: status === "requires_action" ? nextActionFor(payment) : null,
+    nextAction: status === "requires_action" ? nextActionFor(context, payment) : null,
   };
 }
 

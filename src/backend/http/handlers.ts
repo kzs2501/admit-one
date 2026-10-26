@@ -13,8 +13,8 @@ import type { PaymentResultView } from "@/backend/domain/views";
 import {
   confirmChallengeRequestSchema,
   createHoldRequestSchemaFor,
+  cardPaymentRequestSchema,
   createPaymentRequestSchemaFor,
-  upiPaymentRequestSchema,
   upsertOrderRequestSchema,
 } from "@/contract/requests";
 import { API_ROUTES, QUEUE_TOKEN_HEADER, RETRY_AFTER_HEADER } from "@/contract/routes";
@@ -208,7 +208,7 @@ export function createBuyerHandlers(
         const input = schema.safeParse(body);
         if (!input.success) {
           const detail = input.error.issues[0]?.message ?? "Check the payment details.";
-          const code = schema === upiPaymentRequestSchema ? "invalid_request" : "invalid_card";
+          const code = schema === cardPaymentRequestSchema ? "invalid_card" : "invalid_request";
           return { reply: problemReply({ code, detail }, request), isAttempted: false };
         }
         const result = await backend.createPayment(params.orderId, input.data);

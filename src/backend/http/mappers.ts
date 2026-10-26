@@ -99,12 +99,15 @@ function toHoldDto({ createdAtMs, expiresAtMs, ...hold }: HoldView): HoldDto {
   return { ...hold, createdAt: toIso(createdAtMs), expiresAt: toIso(expiresAtMs) };
 }
 
+function toNextActionDto(nextAction: PaymentView["nextAction"]): PaymentDto["nextAction"] {
+  if (nextAction === null || nextAction.type === "card_challenge") return nextAction;
+  const { expiresAtMs, ...action } = nextAction;
+  return { ...action, expiresAt: toIso(expiresAtMs) };
+}
+
 export const toPaymentDto = ({ nextAction, ...payment }: PaymentView): PaymentDto => ({
   ...payment,
-  nextAction:
-    nextAction?.type === "upi"
-      ? { type: "upi", intentUri: nextAction.intentUri, expiresAt: toIso(nextAction.expiresAtMs) }
-      : nextAction,
+  nextAction: toNextActionDto(nextAction),
 });
 
 export function toOrderDto({ createdAtMs, updatedAtMs, payment, ...order }: OrderView): OrderDto {

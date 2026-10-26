@@ -92,12 +92,24 @@ const paymentRecordBaseSchema = z.object({
   createdAtMs: epochMsSchema,
 });
 
-/** A payment by card or by UPI: each has only the fields its method has. */
+/** A payment by card, by UPI or through Razorpay's checkout: each has only the fields its method has. */
 const paymentRecordSchema = z.discriminatedUnion("method", [
   paymentRecordBaseSchema.extend({ method: z.literal("card"), last4: z.string() }),
   paymentRecordBaseSchema.extend({
     method: z.literal("upi"),
     /** When the request stops being payable, if nobody has approved it. */
+    expiresAtMs: epochMsSchema,
+  }),
+  paymentRecordBaseSchema.extend({
+    method: z.literal("razorpay"),
+    /** The Razorpay order the buyer's checkout pays. */
+    providerOrderId: z.string(),
+    /** Razorpay's payment, once one has been made against the order. */
+    providerPaymentId: z.string().nullable(),
+    /** How the buyer paid on Razorpay's page (card, upi, netbanking…), once they have. */
+    instrument: z.string().nullable(),
+    last4: z.string().nullable(),
+    /** When the checkout stops being payable, if nobody has paid: never later than the hold. */
     expiresAtMs: epochMsSchema,
   }),
 ]);

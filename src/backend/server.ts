@@ -15,6 +15,7 @@ import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
 import { createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
+import { createRazorpayClient, type RazorpayClient } from "./razorpay/client";
 import { connect, describeError, sqlStateOf, type Database } from "./postgres/db";
 import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
@@ -123,20 +124,27 @@ function isAuthorised(request: Request, secret: string) {
 
 export function createServerApi(
   db: Database,
-  deps: ServerDeps,
+  baseDeps: ServerDeps,
   {
     webhookSecret,
     deliverySecret = null,
     fingerprintSecret = null,
     clientIpHeader = null,
+    razorpay = null,
   }: {
     webhookSecret: string;
     deliverySecret?: string | null;
     fingerprintSecret?: string | null;
     clientIpHeader?: string | null;
+    /** Take payment through Razorpay's checkout, instead of the simulated provider's cards. */
+    razorpay?: RazorpayClient | null;
   },
 ) {
-  const backend = createPostgresBackend(db, deps);
+  // Every context the rules run in knows the provider: what it takes, and Checkout's key.
+  const deps: ServerDeps = razorpay
+    ? { ...baseDeps, paymentMethods: ["razorpay"], razorpayKeyId: razorpay.keyId }
+    : baseDeps;
+  const backend = createPostgresBackend(db, deps, { razorpay });
   const options = {
     sleep: () => Promise.resolve(),
     random: deps.random,
@@ -239,6 +247,7 @@ export function getServerApi(): Promise<ServerApi> {
         deliverySecret: config.deliverySecret,
         fingerprintSecret: config.fingerprintSecret,
         clientIpHeader: config.clientIpHeader,
+        razorpay: config.razorpay ? createRazorpayClient(config.razorpay) : null,
       },
     );
   })().catch((error: unknown) => {

@@ -11,6 +11,7 @@ import type { BackendContext } from "@/backend/domain/context";
 import { findOrder, upsertOrder, type UpsertOrderCommand } from "@/backend/domain/orders";
 import {
   cancelPayment,
+  checkPayable,
   confirmChallenge,
   createPayment,
   type ChallengeDecision,
@@ -29,6 +30,7 @@ import {
   type PaymentResultView,
   type SeatAvailabilityView,
 } from "@/backend/domain/views";
+import { RazorpayError, type RazorpayClient } from "@/backend/razorpay/client";
 import type { Database } from "./db";
 import type { BuyerPort } from "@/backend/port";
 import { createIdempotencyStore } from "./idempotency";
@@ -43,7 +45,11 @@ const toPaymentResultView = (context: BackendContext, { payment, order }: Paymen
   order: toOrderView(context, order),
 });
 
-export function createPostgresBackend(db: Database, deps: ServerDeps) {
+export function createPostgresBackend(
+  db: Database,
+  deps: ServerDeps,
+  { razorpay = null }: { razorpay?: RazorpayClient | null } = {},
+) {
   const now = () => new Date(deps.now());
 
   async function eventView(event: EventInfo): Promise<EventView> {
@@ -68,6 +74,39 @@ export function createPostgresBackend(db: Database, deps: ServerDeps) {
       map(run(context), (attempt) => toPaymentResultView(context, attempt)),
     );
     return result ?? notFound(missing);
+  }
+
+  /**
+   * Open a Razorpay checkout for the order. Razorpay's order is made first, over the
+   * network and so outside any lock, once the order is known to be payable; then the
+   * payment is recorded under the hold's lock, where the rules check it all again. If
+   * that fails, or the process dies in between, Razorpay keeps an order nobody pays,
+   * which costs nothing. A retry with the same Idempotency-Key is replayed, not re-run.
+   */
+  async function openCheckout(client: RazorpayClient, orderId: string): Promise<Result<PaymentResultView>> {
+    const payable = await readHold(db, deps, { orderId }, (context) =>
+      map(checkPayable(context, orderId, "razorpay"), (order) => order.amounts),
+    );
+    if (!payable) return notFound("That order doesn’t exist.");
+    if (!payable.ok) return payable;
+    const { totalMinor: amountMinor, currency } = payable.value;
+    const paymentId = deps.newId("pay");
+    let providerOrderId: string;
+    try {
+      ({ id: providerOrderId } = await client.createOrder({
+        amountMinor,
+        currency,
+        receipt: paymentId,
+        notes: { order_id: orderId, payment_id: paymentId },
+      }));
+    } catch (error) {
+      if (!(error instanceof RazorpayError && error.isRetryable)) throw error;
+      console.error(`[razorpay] ${error.message}`);
+      return fail({ code: "service_unavailable", detail: "Razorpay couldn’t be reached just now. Try again." });
+    }
+    return onPayment({ orderId }, "That order doesn’t exist.", (context) =>
+      createPayment(context, orderId, { method: "razorpay" }, { paymentId, providerOrderId, amountMinor }),
+    );
   }
 
   return {
@@ -130,7 +169,9 @@ export function createPostgresBackend(db: Database, deps: ServerDeps) {
 
     // Which ways to pay are taken is the provider's to say (`ServerDeps.paymentMethods`).
     createPayment: (orderId: string, input: PaymentInput) =>
-      onPayment({ orderId }, "That order doesn’t exist.", (context) => createPayment(context, orderId, input)),
+      input.method === "razorpay" && razorpay
+        ? openCheckout(razorpay, orderId)
+        : onPayment({ orderId }, "That order doesn’t exist.", (context) => createPayment(context, orderId, input)),
     confirmChallenge: (paymentId: string, decision: ChallengeDecision) =>
       onPayment({ paymentId }, "That payment doesn’t exist.", (context) =>
         confirmChallenge(context, paymentId, decision),

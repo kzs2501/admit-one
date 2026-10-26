@@ -32,6 +32,8 @@ export type ServerDeps = Omit<Deps, "newToken"> & {
    * only: UPI is approved in the buyer's own app, which only a real provider can reach.
    */
   paymentMethods?: readonly PaymentMethod[];
+  /** Razorpay's public key, when Razorpay is the provider. */
+  razorpayKeyId?: string | null;
 };
 
 const SIMULATED_PROVIDER_METHODS: readonly PaymentMethod[] = ["card"];
@@ -82,9 +84,22 @@ export function paymentRecordOf(row: typeof payments.$inferSelect): PaymentRecor
     webhookLagMs: row.webhookLagMs,
     createdAtMs: msOf(row.createdAt),
   };
-  return row.method === "upi"
-    ? { ...base, method: "upi", expiresAtMs: msOf(row.upiExpiresAt ?? row.createdAt) }
-    : { ...base, method: "card", last4: row.last4 ?? "" };
+  switch (row.method) {
+    case "upi":
+      return { ...base, method: "upi", expiresAtMs: msOf(row.upiExpiresAt ?? row.createdAt) };
+    case "razorpay":
+      return {
+        ...base,
+        method: "razorpay",
+        providerOrderId: row.providerOrderId ?? "",
+        providerPaymentId: row.providerPaymentId,
+        instrument: row.instrument,
+        last4: row.last4,
+        expiresAtMs: msOf(row.checkoutExpiresAt ?? row.createdAt),
+      };
+    case "card":
+      return { ...base, method: "card", last4: row.last4 ?? "" };
+  }
 }
 
 export const paymentRowOf = (record: PaymentRecord): typeof payments.$inferInsert => ({
@@ -94,8 +109,12 @@ export const paymentRowOf = (record: PaymentRecord): typeof payments.$inferInser
   amountMinor: record.amountMinor,
   status: record.status,
   failureCode: record.failureCode,
-  last4: record.method === "card" ? record.last4 : null,
+  last4: record.method === "upi" ? null : record.last4,
   upiExpiresAt: record.method === "upi" ? new Date(record.expiresAtMs) : null,
+  providerOrderId: record.method === "razorpay" ? record.providerOrderId : null,
+  providerPaymentId: record.method === "razorpay" ? record.providerPaymentId : null,
+  instrument: record.method === "razorpay" ? record.instrument : null,
+  checkoutExpiresAt: record.method === "razorpay" ? new Date(record.expiresAtMs) : null,
   webhookLagMs: record.webhookLagMs,
   createdAt: new Date(record.createdAtMs),
 });
@@ -129,7 +148,7 @@ export interface HoldRecords {
 
 /** The sandbox's context, holding only the given records: enough for its rules and views to run on. */
 export function contextWith(
-  { paymentMethods = SIMULATED_PROVIDER_METHODS, ...deps }: ServerDeps,
+  { paymentMethods = SIMULATED_PROVIDER_METHODS, razorpayKeyId = null, ...deps }: ServerDeps,
   records: Partial<HoldRecords> = {},
 ): BackendContext {
   const state = createInitialState("happy", deps.now());
@@ -139,6 +158,7 @@ export function contextWith(
   return {
     state,
     paymentMethods,
+    razorpayKeyId,
     deps: {
       ...deps,
       newToken: () => {

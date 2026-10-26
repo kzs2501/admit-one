@@ -27,7 +27,20 @@ export const TEST_CARDS = {
 } as const;
 
 /** How the buyer chose to pay. */
-export type PaymentInput = ({ method: "card" } & CardDetails) | { method: "upi" };
+export type PaymentInput = ({ method: "card" } & CardDetails) | { method: "upi" } | { method: "razorpay" };
+
+/**
+ * A Razorpay checkout to open: the order Razorpay holds for it, made first — it's a
+ * call over the network, so it's made before any lock is taken — and what it charges.
+ */
+export interface RazorpayCheckout {
+  paymentId: string;
+  providerOrderId: string;
+  amountMinor: number;
+}
+
+/** How long a Razorpay checkout stays payable, at most: the hold is kept that long, once. */
+export const CHECKOUT_WINDOW_MS = 5 * 60_000;
 
 export interface PaymentAttempt {
   payment: PaymentRecord;
@@ -115,7 +128,48 @@ function requestUpiPayment(context: BackendContext, order: OrderRecord): Payment
 export const offeredPaymentMethods = (context: BackendContext, order: OrderRecord): PaymentMethod[] =>
   context.paymentMethods.filter((method) => method !== "upi" || order.amounts.currency === "INR");
 
-export function createPayment(context: BackendContext, orderId: string, input: PaymentInput): Result<PaymentAttempt> {
+/**
+ * The buyer's Razorpay checkout, waiting for them to pay on Razorpay's page. Like a UPI
+ * request, it never outlasts the hold. What happens there reaches this server as
+ * Razorpay's webhook, or as Checkout's signed result — never as the browser's say-so.
+ */
+function openCheckout(context: BackendContext, order: OrderRecord, checkout: RazorpayCheckout): PaymentAttempt {
+  const nowMs = context.deps.now();
+  keepHoldThroughPayment(context, order, CHECKOUT_WINDOW_MS);
+  const holdExpiresAtMs = context.state.holds[order.holdId]?.expiresAtMs ?? Number.MAX_SAFE_INTEGER;
+  const payment: PaymentRecord = {
+    id: checkout.paymentId,
+    orderId: order.id,
+    method: "razorpay",
+    amountMinor: checkout.amountMinor,
+    status: "requires_action",
+    failureCode: null,
+    webhookLagMs: null,
+    providerOrderId: checkout.providerOrderId,
+    providerPaymentId: null,
+    instrument: null,
+    last4: null,
+    expiresAtMs: Math.min(nowMs + CHECKOUT_WINDOW_MS, holdExpiresAtMs),
+    createdAtMs: nowMs,
+  };
+  record(context, order, payment);
+  return { payment, order };
+}
+
+const NO_RAZORPAY_ORDER = {
+  code: "invalid_state",
+  detail: "A Razorpay payment needs Razorpay’s order first.",
+} as const;
+
+/**
+ * Whether the order can be paid now, by this method: what `createPayment` checks first.
+ * The server asks before it makes a Razorpay order, so it doesn't make one for nothing.
+ */
+export function checkPayable(
+  context: BackendContext,
+  orderId: string,
+  method: PaymentInput["method"],
+): Result<OrderRecord> {
   const order = own(context.state.orders, orderId);
   if (!order) return fail({ code: "not_found", detail: "That order doesn’t exist." });
   settleExpiry(context, order);
@@ -126,18 +180,44 @@ export function createPayment(context: BackendContext, orderId: string, input: P
     return fail({ code: "payment_in_progress", detail: "A payment is already in progress." });
   }
   if (!isOrderOpen(order)) return fail({ code: "already_completed", detail: "This order is already paid." });
-  if (input.method === "upi" && order.amounts.currency !== "INR") {
+  if (method === "upi" && order.amounts.currency !== "INR") {
     return fail({ code: "invalid_request", detail: "UPI can only pay in rupees." });
   }
-  if (!offeredPaymentMethods(context, order).includes(input.method)) {
+  if (!offeredPaymentMethods(context, order).includes(method)) {
     return fail({
       code: "payment_method_unavailable",
       detail: "That way to pay isn’t taken here. Choose one of the ways this order offers.",
     });
   }
+  return ok(order);
+}
+
+export function createPayment(
+  context: BackendContext,
+  orderId: string,
+  input: PaymentInput,
+  checkout?: RazorpayCheckout,
+): Result<PaymentAttempt> {
+  const payable = checkPayable(context, orderId, input.method);
+  if (!payable.ok) return payable;
+  const order = payable.value;
+  if (input.method === "razorpay") {
+    if (!checkout) return fail(NO_RAZORPAY_ORDER);
+    // The order was priced when Razorpay's was made; if it's changed since, that one's wrong.
+    if (checkout.amountMinor !== order.amounts.totalMinor) {
+      return fail({ code: "invalid_state", detail: "The order changed while the payment was starting. Try again." });
+    }
+  }
 
   if (order.status === "failed") setOrderStatus(context, order, "pending", "retrying payment");
-  return ok(input.method === "upi" ? requestUpiPayment(context, order) : chargeCard(context, order, input));
+  switch (input.method) {
+    case "upi":
+      return ok(requestUpiPayment(context, order));
+    case "razorpay":
+      return checkout ? ok(openCheckout(context, order, checkout)) : fail(NO_RAZORPAY_ORDER);
+    case "card":
+      return ok(chargeCard(context, order, input));
+  }
 }
 
 /** The buyer's answer to the bank's authentication challenge. */

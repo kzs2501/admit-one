@@ -149,11 +149,21 @@ export const payments = pgTable(
     failureCode: text("failure_code"),
     last4: text("last4"),
     upiExpiresAt: at("upi_expires_at"),
+    /** Razorpay's order, which the buyer's checkout pays; null for the simulated provider. */
+    providerOrderId: text("provider_order_id"),
+    /** Razorpay's payment against it, once there is one. */
+    providerPaymentId: text("provider_payment_id"),
+    /** How the buyer paid on Razorpay's page: card, upi, netbanking… */
+    instrument: text("instrument"),
+    checkoutExpiresAt: at("checkout_expires_at"),
     webhookLagMs: integer("webhook_lag_ms"),
     createdAt: at("created_at").notNull(),
   },
   (table) => [
     index("payments_by_order").on(table.orderId),
+    // Razorpay's webhooks and Checkout name its ids, never ours.
+    uniqueIndex("payments_by_provider_order").on(table.providerOrderId),
+    uniqueIndex("payments_by_provider_payment").on(table.providerPaymentId),
     check("payments_status_known", isOneOf(table.status, PAYMENT_STATUSES)),
     check("payments_method_known", isOneOf(table.method, PAYMENT_METHODS)),
   ],

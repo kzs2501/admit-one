@@ -9,8 +9,12 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const PAYMENT_STATUSES = ["processing", "requires_action", "succeeded", "failed", "refunded"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-/** How a buyer pays. UPI is India's real-time payment system: the buyer approves in their own UPI app. */
-export const PAYMENT_METHODS = ["card", "upi"] as const;
+/**
+ * How a buyer pays. UPI is India's real-time payment system: the buyer approves in their
+ * own UPI app. Razorpay is a payment provider's hosted checkout, where the buyer picks a
+ * card, UPI or their bank on Razorpay's page, so card details never reach this server.
+ */
+export const PAYMENT_METHODS = ["card", "upi", "razorpay"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_FAILURE_CODES = [
@@ -22,6 +26,10 @@ export const PAYMENT_FAILURE_CODES = [
   "upi_expired",
   /** The buyer cancelled the payment before approving it, to pay another way. */
   "cancelled",
+  /** The payment provider, or the buyer's bank through it, refused the payment. */
+  "provider_declined",
+  /** The provider's checkout closed before anyone paid. */
+  "checkout_expired",
 ] as const;
 export type PaymentFailureCode = (typeof PAYMENT_FAILURE_CODES)[number];
 

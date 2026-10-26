@@ -41,13 +41,24 @@ export const cardPaymentRequestSchema = cardSchema.extend({ method: z.literal("c
 export const upiPaymentRequestSchema = z.strictObject({ method: z.literal("upi") });
 
 /**
- * `POST /api/orders/:orderId/payments` takes either method, told apart by `method`, so
- * a bad body gets the error for the method it was meant for.
+ * Pay through Razorpay's checkout. The server answers with the checkout to open; the
+ * buyer chooses a card, UPI or their bank on Razorpay's page, so nothing else is sent.
  */
-export const createPaymentRequestSchemaFor = (body: unknown) =>
-  typeof body === "object" && body !== null && "method" in body && body.method === "upi"
-    ? upiPaymentRequestSchema
-    : cardPaymentRequestSchema;
+export const razorpayPaymentRequestSchema = z.strictObject({ method: z.literal("razorpay") });
+
+const methodOf = (body: unknown) =>
+  typeof body === "object" && body !== null && "method" in body ? body.method : undefined;
+
+/**
+ * `POST /api/orders/:orderId/payments` takes any method, told apart by `method`, so a
+ * bad body gets the error for the method it was meant for.
+ */
+export const createPaymentRequestSchemaFor = (body: unknown) => {
+  const method = methodOf(body);
+  if (method === "upi") return upiPaymentRequestSchema;
+  if (method === "razorpay") return razorpayPaymentRequestSchema;
+  return cardPaymentRequestSchema;
+};
 
 /** The buyer's answer to the bank's 3-D Secure challenge. */
 export const confirmChallengeRequestSchema = z.object({ decision: z.enum(["approve", "reject"]) });
@@ -61,5 +72,8 @@ export const createSessionRequestSchema = z.object({ accountId: z.string().min(1
 export type CreateRefundRequest = z.input<typeof createRefundRequestSchema>;
 export type CreateHoldRequest = z.input<typeof holdByTiersRequestSchema> | z.input<typeof holdBySeatsRequestSchema>;
 export type UpsertOrderRequest = z.input<typeof upsertOrderRequestSchema>;
-export type CreatePaymentRequest = z.input<typeof cardPaymentRequestSchema> | z.input<typeof upiPaymentRequestSchema>;
+export type CreatePaymentRequest =
+  | z.input<typeof cardPaymentRequestSchema>
+  | z.input<typeof upiPaymentRequestSchema>
+  | z.input<typeof razorpayPaymentRequestSchema>;
 export type ConfirmChallengeRequest = z.input<typeof confirmChallengeRequestSchema>;

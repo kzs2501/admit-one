@@ -135,7 +135,10 @@ export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 
 export const paymentFailureCodeSchema = z.enum(PAYMENT_FAILURE_CODES);
 
-/** What the buyer has to do before a payment can go on: answer their bank's 3-D Secure check, or approve in a UPI app. */
+/**
+ * What the buyer has to do before a payment can go on: answer their bank's 3-D Secure
+ * check, approve in a UPI app, or pay on Razorpay's checkout.
+ */
 export const nextActionDtoSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("card_challenge") }),
   z.object({
@@ -145,13 +148,24 @@ export const nextActionDtoSchema = z.discriminatedUnion("type", [
     /** When the request stops being payable. */
     expiresAt: isoDateTimeSchema,
   }),
+  z.object({
+    type: z.literal("razorpay_checkout"),
+    /** Razorpay's public key (`rzp_test_…`), which Checkout opens with. */
+    keyId: z.string().startsWith("rzp_"),
+    /** Razorpay's order, which the checkout pays. */
+    orderId: z.string(),
+    amountMinor: minorUnitsSchema,
+    currency: currencySchema,
+    /** When the checkout stops being payable: close it then. */
+    expiresAt: isoDateTimeSchema,
+  }),
 ]);
 
 export const paymentDtoSchema = z.object({
   id: z.string(),
   method: z.enum(PAYMENT_METHODS),
   status: paymentStatusSchema,
-  /** The card's last four digits; null for UPI. */
+  /** The card's last four digits; null for UPI, and for Razorpay until a card has paid. */
   last4: z.string().nullable(),
   failureCode: paymentFailureCodeSchema.nullable(),
   /** Set while the status is `requires_action`. */

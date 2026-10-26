@@ -23,6 +23,10 @@ export type RazorpayEvent = "payment.authorized" | "payment.captured" | "payment
 const error = (status: number, description: string) =>
   Response.json({ error: { code: "BAD_REQUEST_ERROR", description } }, { status });
 
+// Shared by every fake, as Razorpay's ids are unique across its accounts: tests that share
+// a database never see two payments with one id.
+let sequence = 0;
+
 export function createFakeRazorpay({ now = () => Date.now() }: { now?: () => number } = {}) {
   const settings: RazorpaySettings = {
     keyId: "rzp_test_fake0000000000",
@@ -36,7 +40,6 @@ export function createFakeRazorpay({ now = () => Date.now() }: { now?: () => num
   /** Every call made, as its route: `POST /payments/:id/refund`. */
   const calls: string[] = [];
   const failures: { route: string; status: number }[] = [];
-  let sequence = 0;
   const newId = (prefix: string) => `${prefix}_fake${String(++sequence).padStart(8, "0")}`;
   const unixNow = () => Math.floor(now() / 1000);
   const authorization = `Basic ${btoa(`${settings.keyId}:${settings.keySecret}`)}`;

@@ -26,14 +26,29 @@ export interface UpsertOrderCommand {
 }
 
 const UPI_EXPIRED_REASON = "Nobody approved the UPI request before it ran out.";
+const CHECKOUT_EXPIRED_REASON = "The payment window closed before anything was paid. No money was taken.";
 
-/** A payment as it stands now: a UPI request nobody approved in time has failed, though nothing has written that down yet. */
+/**
+ * A payment waiting on the buyer — a UPI request, an open checkout — that ran out with
+ * nothing paid: how it failed, and why in words. Null if it hasn't. Like a hold's
+ * expiry, it's worked out when read, and written down by the next command.
+ */
+function lapsedRequest(payment: PaymentRecord, nowMs: number) {
+  if (isUpiRequestExpired(payment, nowMs)) return { failureCode: "upi_expired" as const, reason: UPI_EXPIRED_REASON };
+  if (payment.method === "razorpay" && payment.status === "requires_action" && nowMs >= payment.expiresAtMs) {
+    return { failureCode: "checkout_expired" as const, reason: CHECKOUT_EXPIRED_REASON };
+  }
+  return null;
+}
+
+/** A payment as it stands now: a request nobody paid in time has failed, though nothing has written that down yet. */
 export function resolvePayment(
   context: BackendContext,
   payment: PaymentRecord,
 ): { status: PaymentStatus; failureCode: PaymentFailureCode | null } {
-  return isUpiRequestExpired(payment, context.deps.now())
-    ? { status: "failed", failureCode: "upi_expired" }
+  const lapsed = lapsedRequest(payment, context.deps.now());
+  return lapsed
+    ? { status: "failed", failureCode: lapsed.failureCode }
     : { status: payment.status, failureCode: payment.failureCode };
 }
 
@@ -67,9 +82,8 @@ export function resolveOrderStatus(
       return { status: "expired", reason: "Your reservation expired before payment was completed." };
     }
     const payment = paymentOf(context, order);
-    if (order.status === "pending" && payment && isUpiRequestExpired(payment, nowMs)) {
-      return { status: "failed", reason: UPI_EXPIRED_REASON };
-    }
+    const lapsed = order.status === "pending" && payment ? lapsedRequest(payment, nowMs) : null;
+    if (lapsed) return { status: "failed", reason: lapsed.reason };
   }
   return { status: order.status, reason: order.statusReason };
 }
@@ -91,10 +105,11 @@ export function setOrderStatus(
 export function settleExpiry(context: BackendContext, order: OrderRecord) {
   const { status, reason } = resolveOrderStatus(context, order);
   const payment = paymentOf(context, order);
-  if (payment && isUpiRequestExpired(payment, context.deps.now())) {
+  const lapsed = payment ? lapsedRequest(payment, context.deps.now()) : null;
+  if (payment && lapsed) {
     payment.status = "failed";
-    payment.failureCode = "upi_expired";
-    context.log("payment", `UPI request ${payment.id} ran out unapproved.`);
+    payment.failureCode = lapsed.failureCode;
+    context.log("payment", `Payment ${payment.id} ran out unpaid.`);
   }
   if (status !== order.status) setOrderStatus(context, order, status, reason);
 }

@@ -31,4 +31,6 @@ export interface BackendContext {
   hasItsTickets: (hold: HoldRecord) => boolean;
   /** The ways to pay that this backend's provider takes: the sandbox simulates more than the server can. */
   readonly paymentMethods: readonly PaymentMethod[];
+  /** The public key Razorpay's checkout opens with, when the provider is Razorpay. */
+  readonly razorpayKeyId: string | null;
 }
