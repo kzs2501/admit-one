@@ -17,7 +17,8 @@ const razorpayCheckoutUrl = new URL(
 const isRazorpayBuild = process.env["NEXT_PUBLIC_BACKEND"] === "server" && Boolean(process.env["RAZORPAY_KEY_ID"]);
 const RAZORPAY_SOURCES = isRazorpayBuild
   ? {
-      script: [razorpayCheckoutUrl.origin],
+      // Checkout adds Razorpay's risk check, from its CDN, before it takes a card.
+      script: [razorpayCheckoutUrl.origin, "https://cdn.razorpay.com"],
       frame: [razorpayCheckoutUrl.origin, "https://api.razorpay.com"],
       connect: [razorpayCheckoutUrl.origin, "https://api.razorpay.com", "https://lumberjack.razorpay.com"],
       img: ["https://cdn.razorpay.com"],
