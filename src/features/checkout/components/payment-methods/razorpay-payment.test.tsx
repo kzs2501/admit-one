@@ -126,6 +126,6 @@ describe("RazorpayPayment", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("No money was taken. Your tickets are still held.");
     const testMode = screen.getByRole("region", { name: "Razorpay’s test mode" });
     expect(testMode).toHaveTextContent("4111 1111 1111 1111");
-    expect(testMode).toHaveTextContent("success@razorpay");
+    expect(testMode).toHaveTextContent("then Success, or Failure, on the test bank’s page");
   });
 });

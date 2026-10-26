@@ -9,16 +9,22 @@ import { Notice } from "@/components/ui/notice";
 import { checkoutOutcome } from "@/features/checkout/domain/payment-methods";
 import { useRazorpayPayment } from "@/features/checkout/hooks/use-razorpay-payment";
 
-/** What Razorpay's test mode takes, from its documentation: no real money moves. */
+/** What Razorpay's test mode takes: no real money moves. */
 export const RAZORPAY_TEST_DETAILS = [
-  { label: "Card", value: "4111 1111 1111 1111", note: "any future expiry, any CVV" },
-  { label: "UPI ID", value: "success@razorpay", note: "or failure@razorpay, to see a decline" },
+  { label: "Card", value: "4111 1111 1111 1111", isTyped: true, note: "any future expiry, any CVV" },
+  {
+    label: "Net banking",
+    value: "Any bank",
+    isTyped: false,
+    note: "then Success, or Failure, on the test bank’s page",
+  },
 ] as const;
 
 /**
  * Pay through Razorpay's checkout: one button, which opens Razorpay's page over this one.
- * There the buyer picks a card, UPI or their bank, and Razorpay takes the details; this
- * app only ever sees whether the payment was made.
+ * There the buyer picks how to pay, from what the Razorpay account offers (a card, their
+ * bank, a wallet, UPI), and Razorpay takes the details; this app only ever sees whether
+ * the payment was made.
  */
 export function RazorpayPayment({
   holdId,
@@ -56,8 +62,8 @@ export function RazorpayPayment({
   return (
     <div className="space-y-4 rounded-xl border border-line bg-card p-5">
       <p className="text-sm text-ink-2">
-        You’ll pay {total} on Razorpay’s secure checkout, by card, UPI or net banking. Your card details go to Razorpay,
-        never to admit-one.
+        You’ll pay {total} on Razorpay’s secure checkout, by card, net banking or a wallet. Your card details go to
+        Razorpay, never to admit-one.
       </p>
       {outcome && (
         <div ref={outcomeNotice} tabIndex={-1} className="outline-none">
@@ -93,11 +99,12 @@ export function RazorpayPayment({
         </h2>
         <p className="mt-1 text-sm text-ink-2">No real money moves. Pay with:</p>
         <dl className="mt-2 grid gap-1.5 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4">
-          {RAZORPAY_TEST_DETAILS.map(({ label: name, value, note }) => (
+          {RAZORPAY_TEST_DETAILS.map(({ label: name, value, isTyped, note }) => (
             <div key={name} className="contents">
               <dt className="text-ink-2">{name}</dt>
               <dd>
-                <span className="font-mono select-all">{value}</span> <span className="text-ink-3">({note})</span>
+                <span className={isTyped ? "font-mono select-all" : undefined}>{value}</span>{" "}
+                <span className="text-ink-3">({note})</span>
               </dd>
             </div>
           ))}
