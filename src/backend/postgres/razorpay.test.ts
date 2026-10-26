@@ -5,12 +5,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServerApi } from "@/backend/server";
-import { createRazorpayClient, type RazorpayClient } from "@/backend/razorpay/client";
+import { createRazorpayClient, RazorpayError, type RazorpayClient } from "@/backend/razorpay/client";
 import { createFakeRazorpay } from "@/backend/razorpay/testing/fake-razorpay";
 import { holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
 import { problemSchema } from "@/contract/problems";
 import { IDEMPOTENCY_KEY_HEADER } from "@/contract/routes";
 import { signDemoTicket } from "@/core/demo-ticket-key";
+import { eq } from "drizzle-orm";
+import { providerCommands } from "./schema";
 import { createTestDatabase } from "./testing/database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -39,7 +41,10 @@ function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper
     },
     {
       webhookSecret: "whsec_razorpay_test",
-      razorpay: wrapClient(createRazorpayClient(razorpay.settings, { fetch: razorpay.fetch })),
+      razorpay: {
+        client: wrapClient(createRazorpayClient(razorpay.settings, { fetch: razorpay.fetch })),
+        webhookSecret: razorpay.settings.webhookSecret,
+      },
     },
   );
   const send = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -71,8 +76,28 @@ function setUp({ wrapClient = (client) => client }: { wrapClient?: ClientWrapper
   const readOrder = async (orderId: string) =>
     orderDtoSchema.parse(await (await send("GET", `/api/orders/${orderId}`)).json());
 
-  return { razorpay, api, send, openOrder, pay, readOrder };
+  /** Open a checkout for the order: our payment, and the Razorpay order it pays. */
+  async function startCheckout(orderId: string) {
+    const { payment } = paymentResultDtoSchema.parse(await (await pay(orderId)).json());
+    if (payment.nextAction?.type !== "razorpay_checkout") throw new Error("No checkout was opened.");
+    return { paymentId: payment.id, providerOrderId: payment.nextAction.orderId };
+  }
+
+  /** Razorpay sends a webhook, signed; returns the response's status and outcome. */
+  async function webhook(...args: Parameters<typeof razorpay.webhook>) {
+    const { body, headers } = razorpay.webhook(...args);
+    const response = await api.handle(
+      new Request(ORIGIN + "/api/webhooks/razorpay", { method: "POST", headers, body }),
+    );
+    const reply = (await response.json()) as { outcome?: string; code?: string };
+    return { status: response.status, outcome: reply.outcome ?? reply.code };
+  }
+
+  return { razorpay, api, send, openOrder, pay, readOrder, startCheckout, webhook };
 }
+
+const commandsFor = (paymentId: string) =>
+  database.db.select().from(providerCommands).where(eq(providerCommands.paymentId, paymentId));
 
 describe("paying through Razorpay's checkout", () => {
   it("is the one way to pay, once Razorpay is the provider", async () => {
@@ -190,5 +215,169 @@ describe("paying through Razorpay's checkout", () => {
     const lapsed = await readOrder(order.id);
     expect(lapsed.payment).toMatchObject({ status: "failed", failureCode: "checkout_expired", nextAction: null });
     expect(lapsed.status).toBe("expired");
+  });
+});
+
+describe("Razorpay's webhooks", () => {
+  it("fulfil the order on a captured payment, once", async () => {
+    const { razorpay, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const paid = razorpay.pay(providerOrderId);
+
+    expect(await webhook("payment.captured", paid.id, { eventId: "evt_capture_1" })).toEqual({
+      status: 200,
+      outcome: "fulfilled",
+    });
+    const fulfilled = await readOrder(order.id);
+    expect(fulfilled).toMatchObject({ status: "fulfilled", payment: { status: "succeeded", last4: "1111" } });
+    expect(fulfilled.tickets).toHaveLength(1);
+
+    expect((await webhook("payment.captured", paid.id, { eventId: "evt_capture_1" })).outcome).toBe("duplicate");
+    expect((await webhook("payment.captured", paid.id)).outcome).toBe("already-settled");
+    expect((await readOrder(order.id)).tickets).toEqual(fulfilled.tickets);
+  });
+
+  it("are refused when the signature doesn't match the body, or there's no event id", async () => {
+    const { razorpay, api, openOrder, startCheckout } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const { body, headers } = razorpay.webhook("payment.captured", razorpay.pay(providerOrderId).id);
+    const post = (init: { body: string; headers: Record<string, string> }) =>
+      api.handle(new Request(ORIGIN + "/api/webhooks/razorpay", { method: "POST", ...init }));
+
+    const tampered = await post({ body: body.replace('"captured"', '"refunded"'), headers });
+    expect(problemSchema.parse(await tampered.json()).code).toBe("invalid_signature");
+    const unsigned = await post({ body, headers: { "Content-Type": "application/json" } });
+    expect(unsigned.status).toBe(400);
+    const anonymous = await post({ body, headers: { ...headers, "X-Razorpay-Event-Id": "" } });
+    expect(problemSchema.parse(await anonymous.json()).code).toBe("invalid_request");
+  });
+
+  it("leave the checkout open after a failed attempt, for the buyer to try again", async () => {
+    const { razorpay, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+
+    const declined = razorpay.pay(providerOrderId, { status: "failed" });
+    expect((await webhook("payment.failed", declined.id)).outcome).toBe("noted");
+    expect(await readOrder(order.id)).toMatchObject({ status: "pending", payment: { status: "requires_action" } });
+
+    const paid = razorpay.pay(providerOrderId, { method: "upi" });
+    expect((await webhook("payment.captured", paid.id)).outcome).toBe("fulfilled");
+    expect((await readOrder(order.id)).payment).toMatchObject({ status: "succeeded", last4: null });
+  });
+
+  it("are acknowledged, and left, when they're about someone else's order", async () => {
+    const { razorpay, webhook } = setUp();
+    const client = createRazorpayClient(razorpay.settings, { fetch: razorpay.fetch });
+    const theirs = await client.createOrder({ amountMinor: 100, currency: "INR", receipt: "other-app", notes: {} });
+    expect(await webhook("payment.captured", razorpay.pay(theirs.id).id)).toEqual({ status: 200, outcome: "not-ours" });
+  });
+
+  it("capture authorised money, then fulfil the order without waiting for another webhook", async () => {
+    const { razorpay, api, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const held = razorpay.pay(providerOrderId, { status: "authorized" });
+
+    expect((await webhook("payment.authorized", held.id)).outcome).toBe("capturing");
+    expect(razorpay.calls).not.toContain("POST /payments/:id/capture");
+    expect(await api.deliverDue()).toBe(1);
+    expect(razorpay.payments.get(held.id)?.status).toBe("captured");
+    expect((await readOrder(order.id)).status).toBe("fulfilled");
+    expect((await webhook("payment.captured", held.id)).outcome).toBe("already-settled");
+  });
+
+  it("settle a capture once when two deliveries of it race", async () => {
+    const { razorpay, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const paid = razorpay.pay(providerOrderId);
+
+    const outcomes = await Promise.all([webhook("payment.captured", paid.id), webhook("payment.captured", paid.id)]);
+    expect(outcomes.map(({ outcome }) => outcome).sort()).toEqual(["already-settled", "fulfilled"]);
+    expect((await readOrder(order.id)).tickets).toHaveLength(1);
+  });
+});
+
+describe("money that can't become tickets", () => {
+  it("is refunded through Razorpay when it's paid after the hold ran out", async () => {
+    const { razorpay, api, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    nowMs += 6 * MINUTE_MS;
+    const late = razorpay.pay(providerOrderId);
+
+    expect((await webhook("payment.captured", late.id)).outcome).toBe("refunded");
+    expect(await commandsFor(paymentId)).toMatchObject([{ kind: "refund", providerPaymentId: late.id, doneAt: null }]);
+
+    expect(await api.deliverDue()).toBe(1);
+    expect(await readOrder(order.id)).toMatchObject({ status: "refunded", payment: { status: "refunded" } });
+    expect(razorpay.payments.get(late.id)).toMatchObject({ status: "refunded", amount_refunded: late.amount });
+    expect(await api.deliverDue()).toBe(0);
+    expect(razorpay.refunds.size).toBe(1);
+    expect((await webhook("refund.processed", late.id)).outcome).toBe("refund-confirmed");
+  });
+
+  it("is refunded when it pays a checkout the buyer gave up on and paid another way", async () => {
+    const { razorpay, api, send, openOrder, startCheckout, webhook, readOrder } = setUp();
+    const { order } = await openOrder();
+    const abandoned = await startCheckout(order.id);
+    await send("POST", `/api/payments/${abandoned.paymentId}/cancel`);
+    const second = await startCheckout(order.id);
+    expect((await webhook("payment.captured", razorpay.pay(second.providerOrderId).id)).outcome).toBe("fulfilled");
+
+    const stray = razorpay.pay(abandoned.providerOrderId);
+    expect((await webhook("payment.captured", stray.id)).outcome).toBe("refunded");
+    const fulfilled = await readOrder(order.id);
+    expect(fulfilled).toMatchObject({ status: "fulfilled", payment: { id: second.paymentId, status: "succeeded" } });
+    await api.deliverDue();
+    expect(razorpay.payments.get(stray.id)?.status).toBe("refunded");
+  });
+
+  it("is refunded when it's for the wrong amount, and the order can still be paid", async () => {
+    const { razorpay, openOrder, startCheckout, webhook, readOrder, pay } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const providerOrder = razorpay.orders.get(providerOrderId);
+    if (providerOrder) providerOrder.amount -= 100;
+
+    expect((await webhook("payment.captured", razorpay.pay(providerOrderId).id)).outcome).toBe("refunded");
+    expect((await readOrder(order.id)).status).toBe("pending");
+    expect((await pay(order.id)).status).toBe(202);
+  });
+
+  it("is refunded again later if Razorpay fails, and only once if a reply is lost", async () => {
+    let shouldLoseReply = false;
+    const { razorpay, api, openOrder, startCheckout, webhook } = setUp({
+      wrapClient: (client) => ({
+        ...client,
+        refundPayment: async (...args) => {
+          const refund = await client.refundPayment(...args);
+          if (shouldLoseReply) throw new RazorpayError("Razorpay POST /payments/:id/refund timed out.", null, true);
+          return refund;
+        },
+      }),
+    });
+    const { order } = await openOrder();
+    const { paymentId, providerOrderId } = await startCheckout(order.id);
+    nowMs += 6 * MINUTE_MS;
+    await webhook("payment.captured", razorpay.pay(providerOrderId).id);
+
+    razorpay.failNext("POST /payments/:id/refund", 500);
+    shouldLoseReply = true;
+    expect(await api.deliverDue()).toBe(0);
+    expect((await commandsFor(paymentId))[0]).toMatchObject({ attempts: 1, doneAt: null });
+    expect(await api.deliverDue()).toBe(0);
+    nowMs += 1_000;
+    // This time the refund goes through, but its reply is lost.
+    expect(await api.deliverDue()).toBe(0);
+    expect(razorpay.refunds.size).toBe(1);
+    nowMs += 2_000;
+    // Asked again, Razorpay says it's refunded already: done, and not refunded twice.
+    expect(await api.deliverDue()).toBe(1);
+    expect(razorpay.refunds.size).toBe(1);
+    expect((await commandsFor(paymentId))[0]?.doneAt).not.toBeNull();
   });
 });

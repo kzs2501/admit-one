@@ -17,6 +17,8 @@ export const API_ROUTES = {
   cancelPayment: "/api/payments/:paymentId/cancel",
   /** The payment provider's webhooks, in server mode; the sandbox delivers its own in-process. */
   providerWebhook: "/api/webhooks/payments",
+  /** Razorpay's webhooks, when it's the provider: signed its own way (`backend/razorpay/signatures.ts`). */
+  razorpayWebhook: "/api/webhooks/razorpay",
   session: "/api/session",
   organiserAccount: "/api/organiser/account",
   organiserEvents: "/api/organiser/events",

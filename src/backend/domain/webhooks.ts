@@ -94,7 +94,7 @@ function claimPayment(
  * webhook happened to be delivered: a payment confirmed while its hold was live keeps
  * its tickets, if the hold still has them.
  */
-function processPaymentSucceeded(
+export function processPaymentSucceeded(
   context: BackendContext,
   payment: PaymentRecord,
   order: OrderRecord,

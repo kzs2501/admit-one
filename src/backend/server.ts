@@ -13,7 +13,7 @@ import { http } from "msw/http";
 import { API_ROUTES } from "@/contract/routes";
 import { createBuyerHandlers } from "./http/handlers";
 import { anyOrigin, createKit, type Kit } from "./http/kit";
-import { createWebhookHandlers } from "./http/webhook-handlers";
+import { createRazorpayWebhookHandlers, createWebhookHandlers } from "./http/webhook-handlers";
 import { createPostgresBackend } from "./postgres/backend";
 import { createRazorpayClient, type RazorpayClient } from "./razorpay/client";
 import { connect, describeError, sqlStateOf, type Database } from "./postgres/db";
@@ -21,6 +21,7 @@ import { SERVER_SETTINGS, type ServerDeps } from "./postgres/records";
 import { seed } from "./postgres/seed";
 import { createWebhookReceiver, sendDueWebhooks } from "./postgres/webhooks";
 import { createPostgresRateLimit } from "./postgres/rate-limit";
+import { createRazorpayWebhookReceiver, sendDueCommands } from "./postgres/razorpay";
 import { serverConfigFrom } from "./server-config";
 
 /** Where the simulated provider's webhooks are addressed: they're handled in-process. */
@@ -60,6 +61,9 @@ const isOrderRead = (request: Request) =>
 const startsPayment = (request: Request) =>
   request.method === "POST" &&
   (routeTest(API_ROUTES.createPayment)(request) || routeTest(API_ROUTES.confirmChallenge)(request));
+
+const isRazorpayWebhook = (request: Request) =>
+  request.method === "POST" && routeTest(API_ROUTES.razorpayWebhook)(request);
 
 /** Retry-After, in seconds, for a request the database couldn't take just now. */
 const RETRY_AFTER_SECONDS = 2;
@@ -137,14 +141,14 @@ export function createServerApi(
     fingerprintSecret?: string | null;
     clientIpHeader?: string | null;
     /** Take payment through Razorpay's checkout, instead of the simulated provider's cards. */
-    razorpay?: RazorpayClient | null;
+    razorpay?: { client: RazorpayClient; webhookSecret: string } | null;
   },
 ) {
   // Every context the rules run in knows the provider: what it takes, and Checkout's key.
   const deps: ServerDeps = razorpay
-    ? { ...baseDeps, paymentMethods: ["razorpay"], razorpayKeyId: razorpay.keyId }
+    ? { ...baseDeps, paymentMethods: ["razorpay"], razorpayKeyId: razorpay.client.keyId }
     : baseDeps;
-  const backend = createPostgresBackend(db, deps, { razorpay });
+  const backend = createPostgresBackend(db, deps, { razorpay: razorpay?.client ?? null });
   const options = {
     sleep: () => Promise.resolve(),
     random: deps.random,
@@ -157,6 +161,9 @@ export function createServerApi(
   const handlers = [
     ...createBuyerHandlers(backend, options, kit),
     ...createWebhookHandlers(createWebhookReceiver(db, deps, webhookSecret), kit),
+    ...(razorpay
+      ? createRazorpayWebhookHandlers(createRazorpayWebhookReceiver(db, deps, razorpay.webhookSecret), kit)
+      : []),
     ...sandboxOnlyHandlers(kit),
   ];
 
@@ -175,6 +182,10 @@ export function createServerApi(
   const deliverDueWebhooks = () =>
     sendDueWebhooks(db, deps, { secret: webhookSecret, send: respond, origin: INTERNAL_ORIGIN });
 
+  /** Everything owed to someone: the simulated provider's webhooks, and what Razorpay is to be asked for. */
+  const deliverDue = async () =>
+    (await deliverDueWebhooks()) + (razorpay ? await sendDueCommands(db, deps, razorpay.client) : 0);
+
   /** The scheduler's endpoint: off without a secret, and only for whoever holds it. */
   async function deliverOnSchedule(request: Request): Promise<Response> {
     if (deliverySecret === null || request.method !== "GET") {
@@ -188,7 +199,7 @@ export function createServerApi(
       // RFC 9110: a 401 says how to authenticate.
       return kit.send(request, { ...problem, headers: { "WWW-Authenticate": 'Bearer realm="admit-one"' } });
     }
-    return kit.send(request, { status: 200, body: { delivered: await deliverDueWebhooks() } });
+    return kit.send(request, { status: 200, body: { delivered: await deliverDue() } });
   }
 
   return {
@@ -197,7 +208,7 @@ export function createServerApi(
       // Webhooks go out when due, and at the latest when the buyer next looks: there's
       // no timer on a serverless function, so correctness never waits for one. A
       // delivery that fails is tried again later; it never fails the buyer's read.
-      if (isOrderRead(request)) await deliverDueWebhooks().catch(logDeliveryError);
+      if (isOrderRead(request)) await deliverDue().catch(logDeliveryError);
       return respond(request);
     },
     /**
@@ -206,13 +217,17 @@ export function createServerApi(
      * already fulfilled. Null when there's nothing to do.
      */
     followUp(request: Request, response: Response): (() => Promise<void>) | null {
-      if (!response.ok || !startsPayment(request)) return null;
+      if (!response.ok) return null;
+      // What a Razorpay webhook decided to ask Razorpay for goes at once.
+      if (isRazorpayWebhook(request)) return () => deliverDue().then(() => undefined, logDeliveryError);
+      if (!startsPayment(request)) return null;
       return async () => {
         await new Promise((resolve) => setTimeout(resolve, SERVER_SETTINGS.webhookDelayMs + 100));
-        await deliverDueWebhooks().catch(logDeliveryError);
+        await deliverDue().catch(logDeliveryError);
       };
     },
     deliverDueWebhooks,
+    deliverDue,
   };
 }
 
@@ -247,7 +262,9 @@ export function getServerApi(): Promise<ServerApi> {
         deliverySecret: config.deliverySecret,
         fingerprintSecret: config.fingerprintSecret,
         clientIpHeader: config.clientIpHeader,
-        razorpay: config.razorpay ? createRazorpayClient(config.razorpay) : null,
+        razorpay: config.razorpay
+          ? { client: createRazorpayClient(config.razorpay), webhookSecret: config.razorpay.webhookSecret }
+          : null,
       },
     );
   })().catch((error: unknown) => {

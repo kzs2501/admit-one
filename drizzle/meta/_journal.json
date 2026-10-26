@@ -64,6 +64,13 @@
       "when": 1793015140294,
       "tag": "0008_razorpay_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793015601165,
+      "tag": "0009_provider_commands",
+      "breakpoints": true
     }
   ]
 }

@@ -224,6 +224,40 @@ export const webhookEvents = pgTable("webhook_events", {
 });
 
 /**
+ * What the server has to ask the payment provider for (Razorpay: capture a payment,
+ * refund one), written in the transaction that decided it, and sent after it commits
+ * (`razorpay.ts`). One of each kind per provider payment, so asking twice is impossible.
+ */
+export const providerCommands = pgTable(
+  "provider_commands",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["capture", "refund"] }).notNull(),
+    paymentId: text("payment_id")
+      .notNull()
+      .references(() => payments.id),
+    providerPaymentId: text("provider_payment_id").notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency").notNull(),
+    createdAt: at("created_at").notNull(),
+    doneAt: at("done_at"),
+    /** Failed tries so far; each puts the next further off. A refund is never given up on. */
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: at("next_attempt_at"),
+    lastError: text("last_error"),
+    /** A sender has the command to itself until then, so another doesn't send it too. */
+    leaseUntil: at("lease_until"),
+  },
+  (table) => [
+    uniqueIndex("one_command_per_provider_payment").on(table.kind, table.providerPaymentId),
+    index("provider_commands_due")
+      .on(table.createdAt)
+      .where(sql`${table.doneAt} IS NULL`),
+    check("provider_commands_kind_known", isOneOf(table.kind, ["capture", "refund"])),
+  ],
+);
+
+/**
  * Reservation attempts, per client, for the rate limit (`rate-limit.ts`). Only a
  * client's newest few attempts ever decide an answer, so only those are kept.
  */
