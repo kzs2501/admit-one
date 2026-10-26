@@ -41,6 +41,9 @@ test(
     const response = await page.goto("/");
     const headers = response?.headers() ?? {};
     expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    // No third party is let in unless Razorpay is the provider (e2e/razorpay.spec.ts).
+    expect(headers["content-security-policy"]).not.toContain("razorpay");
+    expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
     expect(headers["strict-transport-security"]).toBe("max-age=63072000; includeSubDomains");

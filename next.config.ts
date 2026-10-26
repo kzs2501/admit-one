@@ -3,6 +3,29 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 /**
+ * Server mode taking payment through Razorpay (its keys are set for the build): its
+ * Checkout is a third party's script, framed pages and calls, so the policy names
+ * Razorpay's origins — on every page, because the checkout is reached without a
+ * document load (from the event page, step to step), and a document keeps the policy
+ * it was loaded with. Those origins serve only Razorpay's code, and its script is
+ * loaded only when a buyer presses Pay. Bank pages open in a popup that reports back
+ * to Checkout, so its opener is kept (ADR 020).
+ */
+const razorpayCheckoutUrl = new URL(
+  process.env["NEXT_PUBLIC_RAZORPAY_CHECKOUT_URL"] ?? "https://checkout.razorpay.com/v1/checkout.js",
+);
+const isRazorpayBuild = process.env["NEXT_PUBLIC_BACKEND"] === "server" && Boolean(process.env["RAZORPAY_KEY_ID"]);
+const RAZORPAY_SOURCES = isRazorpayBuild
+  ? {
+      script: [razorpayCheckoutUrl.origin],
+      frame: [razorpayCheckoutUrl.origin, "https://api.razorpay.com"],
+      connect: [razorpayCheckoutUrl.origin, "https://api.razorpay.com", "https://lumberjack.razorpay.com"],
+      img: ["https://cdn.razorpay.com"],
+    }
+  : { script: [], frame: [], connect: [], img: [] };
+const sources = (list: readonly string[]) => list.map((source) => ` ${source}`).join("");
+
+/**
  * A Content Security Policy without nonces — Next.js's "Without Nonces" recipe, since
  * nonces would force every page to render dynamically. Next's inline bootstrap scripts
  * need 'unsafe-inline'; the rest of the policy does the work: no foreign scripts,
@@ -15,11 +38,12 @@ const isDev = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = ({ isWasmAllowed }: { isWasmAllowed: boolean }) =>
   [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${isWasmAllowed ? " 'wasm-unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${isWasmAllowed ? " 'wasm-unsafe-eval'" : ""}${sources(RAZORPAY_SOURCES.script)}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    `img-src 'self' blob: data:${sources(RAZORPAY_SOURCES.img)}`,
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self'${sources(RAZORPAY_SOURCES.connect)}`,
+    ...(RAZORPAY_SOURCES.frame.length ? [`frame-src 'self'${sources(RAZORPAY_SOURCES.frame)}`] : []),
     // The simulated backend runs in a service worker.
     "worker-src 'self'",
     "object-src 'none'",
@@ -36,7 +60,7 @@ const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: permissionsPolicy({ isCameraAllowed: false }) },
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Opener-Policy", value: isRazorpayBuild ? "same-origin-allow-popups" : "same-origin" },
   // For browsers that predate `frame-ancestors`.
   { key: "X-Frame-Options", value: "DENY" },
   // HTTPS only, for two years, subdomains included. Vercel sends this too; saying it
