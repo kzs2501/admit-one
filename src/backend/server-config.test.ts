@@ -21,6 +21,11 @@ const SECRETS = {
   TICKET_SIGNING_KEY: "VgjR3ifEFNcI1PdhTvaCo_-w09pHOzQ9pGr8xhm6i-Q",
   FINGERPRINT_SECRET: "fingerprint_live",
 };
+const RAZORPAY = {
+  RAZORPAY_KEY_ID: "rzp_test_config",
+  RAZORPAY_KEY_SECRET: "key_secret",
+  RAZORPAY_WEBHOOK_SECRET: "webhook_secret",
+};
 const kidOf = (token: string) => token.split(".")[1];
 
 describe("the server's configuration", () => {
@@ -59,6 +64,33 @@ describe("the server's configuration", () => {
   it("turns the scheduler's delivery endpoint on only with CRON_SECRET", () => {
     expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS }).deliverySecret).toBeNull();
     expect(serverConfigFrom({ NODE_ENV: "production", ...SECRETS, CRON_SECRET: "cron" }).deliverySecret).toBe("cron");
+  });
+
+  it("takes payment through Razorpay with all three of its settings, and the simulated provider with none", () => {
+    const production = { NODE_ENV: "production", ...SECRETS };
+    expect(serverConfigFrom(production).razorpay).toBeNull();
+    expect(serverConfigFrom({ ...production, ...RAZORPAY }).razorpay).toEqual({
+      keyId: RAZORPAY.RAZORPAY_KEY_ID,
+      keySecret: RAZORPAY.RAZORPAY_KEY_SECRET,
+      webhookSecret: RAZORPAY.RAZORPAY_WEBHOOK_SECRET,
+      apiUrl: "https://api.razorpay.com/v1",
+    });
+    expect(
+      serverConfigFrom({ ...production, ...RAZORPAY, RAZORPAY_API_URL: "http://localhost:4190/v1" }).razorpay?.apiUrl,
+    ).toBe("http://localhost:4190/v1");
+  });
+
+  it.each(Object.keys({ RAZORPAY_KEY_ID: 0, RAZORPAY_KEY_SECRET: 0, RAZORPAY_WEBHOOK_SECRET: 0 }))(
+    "won't start with Razorpay's settings but %s, even in development",
+    (name) => {
+      expect(() => serverConfigFrom({ NODE_ENV: "development", ...RAZORPAY, [name]: "" })).toThrow(`${name} isn't set`);
+    },
+  );
+
+  it("takes Razorpay's test-mode keys only", () => {
+    expect(() =>
+      serverConfigFrom({ NODE_ENV: "production", ...SECRETS, ...RAZORPAY, RAZORPAY_KEY_ID: "rzp_live_abc" }),
+    ).toThrow("must be a test-mode key");
   });
 
   it("refuses a key id tokens can't carry, at start-up rather than at the first ticket", () => {
