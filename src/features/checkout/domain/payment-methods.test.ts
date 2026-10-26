@@ -1,22 +1,24 @@
 import { describe, expect, it } from "vitest";
+import type { OrderDto } from "@/contract/dto";
 import { orderWithPayment, UPI_INTENT, upiPaymentDto } from "@/features/checkout/testing/fixtures";
 import { chosenPaymentMethod, offeredPaymentMethods, pendingUpiRequest, upiOutcome } from "./payment-methods";
 
-const inCurrency = (currency: "INR" | "USD") => {
-  const order = orderWithPayment(null);
-  return { ...order, amounts: { ...order.amounts, currency } };
-};
+const offering = (paymentMethods: OrderDto["paymentMethods"]): OrderDto => ({
+  ...orderWithPayment(null),
+  paymentMethods,
+});
 
 describe("payment methods", () => {
-  it("offers UPI for orders in rupees only — card everywhere", () => {
-    expect(offeredPaymentMethods(inCurrency("INR")).map((option) => option.id)).toEqual(["card", "upi"]);
-    expect(offeredPaymentMethods(inCurrency("USD")).map((option) => option.id)).toEqual(["card"]);
+  it("offers what the backend offers for the order, in the registry's order", () => {
+    expect(offeredPaymentMethods(offering(["upi", "card"])).map((option) => option.id)).toEqual(["card", "upi"]);
+    expect(offeredPaymentMethods(offering(["card"])).map((option) => option.id)).toEqual(["card"]);
   });
 
-  it("shows the buyer's choice if it's offered, and card otherwise", () => {
-    expect(chosenPaymentMethod(inCurrency("INR"), "upi")).toBe("upi");
-    expect(chosenPaymentMethod(inCurrency("USD"), "upi")).toBe("card");
-    expect(chosenPaymentMethod(inCurrency("INR"), undefined)).toBe("card");
+  it("shows the buyer's choice if it's offered, and the first offered otherwise", () => {
+    expect(chosenPaymentMethod(offering(["card", "upi"]), "upi")).toBe("upi");
+    expect(chosenPaymentMethod(offering(["card"]), "upi")).toBe("card");
+    expect(chosenPaymentMethod(offering(["card", "upi"]), undefined)).toBe("card");
+    expect(chosenPaymentMethod(offering(["upi"]), undefined)).toBe("upi");
   });
 
   it("finds a UPI request waiting for the buyer, and nothing else", () => {

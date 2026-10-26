@@ -7,6 +7,7 @@
  */
 import { own } from "./state";
 import type { CardDetails } from "@/core/schemas";
+import type { PaymentMethod } from "@/core/statuses";
 import type { BackendContext } from "./context";
 import { isOrderOpen, isPaymentInFlight, resolvePayment, setOrderStatus, settleExpiry } from "./orders";
 import { fail, ok, type Result } from "./errors";
@@ -110,6 +111,10 @@ function requestUpiPayment(context: BackendContext, order: OrderRecord): Payment
   return { payment, order };
 }
 
+/** The ways this order can be paid: what the provider takes, less UPI for anything but rupees. */
+export const offeredPaymentMethods = (context: BackendContext, order: OrderRecord): PaymentMethod[] =>
+  context.paymentMethods.filter((method) => method !== "upi" || order.amounts.currency === "INR");
+
 export function createPayment(context: BackendContext, orderId: string, input: PaymentInput): Result<PaymentAttempt> {
   const order = own(context.state.orders, orderId);
   if (!order) return fail({ code: "not_found", detail: "That order doesn’t exist." });
@@ -123,6 +128,12 @@ export function createPayment(context: BackendContext, orderId: string, input: P
   if (!isOrderOpen(order)) return fail({ code: "already_completed", detail: "This order is already paid." });
   if (input.method === "upi" && order.amounts.currency !== "INR") {
     return fail({ code: "invalid_request", detail: "UPI can only pay in rupees." });
+  }
+  if (!offeredPaymentMethods(context, order).includes(input.method)) {
+    return fail({
+      code: "payment_method_unavailable",
+      detail: "That way to pay isn’t taken here. Choose one of the ways this order offers.",
+    });
   }
 
   if (order.status === "failed") setOrderStatus(context, order, "pending", "retrying payment");

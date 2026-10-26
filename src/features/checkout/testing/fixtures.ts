@@ -37,6 +37,7 @@ export const orderDtoFor = (draft: Draft, status: OrderStatus = "pending"): Orde
   statusReason: null,
   tickets: [],
   payment: null,
+  paymentMethods: ["card", "upi"],
   createdAt: EPOCH,
   updatedAt: EPOCH,
 });

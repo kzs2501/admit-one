@@ -109,6 +109,7 @@ export function orderFor(
         })
       : [],
     payment,
+    paymentMethods: ["card", "upi"],
     createdAt: isoIn(-MINUTE_MS),
     updatedAt: isoIn(0),
   };

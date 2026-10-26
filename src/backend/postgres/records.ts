@@ -12,7 +12,7 @@ import {
   type OutboxItem,
   type PaymentRecord,
 } from "@/backend/domain/state";
-import type { PaymentFailureCode, PaymentStatus } from "@/core/statuses";
+import type { PaymentFailureCode, PaymentMethod, PaymentStatus } from "@/core/statuses";
 import type { holds, orders, payments, providerEvents } from "./schema";
 
 /**
@@ -26,7 +26,15 @@ export const SERVER_SETTINGS: ChaosConfig = {
   extraPaymentLatencyMs: 0,
 };
 
-export type ServerDeps = Omit<Deps, "newToken">;
+export type ServerDeps = Omit<Deps, "newToken"> & {
+  /**
+   * The ways to pay that the server's provider takes. The simulated provider takes cards
+   * only: UPI is approved in the buyer's own app, which only a real provider can reach.
+   */
+  paymentMethods?: readonly PaymentMethod[];
+};
+
+const SIMULATED_PROVIDER_METHODS: readonly PaymentMethod[] = ["card"];
 
 const msOf = (date: Date) => date.getTime();
 
@@ -120,13 +128,17 @@ export interface HoldRecords {
 }
 
 /** The sandbox's context, holding only the given records: enough for its rules and views to run on. */
-export function contextWith(deps: ServerDeps, records: Partial<HoldRecords> = {}): BackendContext {
+export function contextWith(
+  { paymentMethods = SIMULATED_PROVIDER_METHODS, ...deps }: ServerDeps,
+  records: Partial<HoldRecords> = {},
+): BackendContext {
   const state = createInitialState("happy", deps.now());
   if (records.hold) state.holds[records.hold.id] = records.hold;
   for (const order of records.orders ?? []) state.orders[order.id] = order;
   for (const payment of records.payments ?? []) state.payments[payment.id] = payment;
   return {
     state,
+    paymentMethods,
     deps: {
       ...deps,
       newToken: () => {

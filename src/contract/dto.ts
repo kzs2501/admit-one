@@ -173,6 +173,8 @@ export const orderDtoSchema = z.object({
   statusReason: z.string().nullable(),
   tickets: z.array(ticketDtoSchema),
   payment: paymentDtoSchema.nullable(),
+  /** The ways it can be paid: what the backend's payment provider takes for this order. */
+  paymentMethods: z.array(z.enum(PAYMENT_METHODS)),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

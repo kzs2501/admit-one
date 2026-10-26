@@ -1,4 +1,5 @@
 import type { ChaosConfig } from "@/backend/chaos/presets";
+import type { PaymentMethod } from "@/core/statuses";
 import type { TicketClaims } from "@/core/ticket-token";
 import type { HoldRecord, LogKind, ServerState } from "./state";
 
@@ -28,4 +29,6 @@ export interface BackendContext {
    * run out (lazy expiry), the server's keep them until another hold sweeps them up.
    */
   hasItsTickets: (hold: HoldRecord) => boolean;
+  /** The ways to pay that this backend's provider takes: the sandbox simulates more than the server can. */
+  readonly paymentMethods: readonly PaymentMethod[];
 }

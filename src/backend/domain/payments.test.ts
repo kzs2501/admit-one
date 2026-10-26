@@ -211,8 +211,10 @@ describe("UPI payments", () => {
   it("takes UPI in rupees only", () => {
     const { backend } = createTestBackend();
     const order = openOrder(backend);
+    expect(valueOf(backend.getOrder(order.id)).paymentMethods).toEqual(["card", "upi"]);
     const stored = backend.getState().orders[order.id];
     if (stored) stored.amounts.currency = "USD";
+    expect(valueOf(backend.getOrder(order.id)).paymentMethods).toEqual(["card"]);
     expect(backend.createPayment(order.id, UPI)).toMatchObject({
       ok: false,
       error: { code: "invalid_request", detail: "UPI can only pay in rupees." },

@@ -86,6 +86,8 @@ export function createBackend(deps: Deps, initialState: ServerState = createInit
     deps,
     chaos: () => getPreset(context.state.presetId).config,
     hasItsTickets: (hold) => hasItsTicketsInSandbox(context, hold),
+    // The sandbox simulates the buyer's UPI app too, so it takes both.
+    paymentMethods: ["card", "upi"],
     log(kind: LogKind, message: string) {
       const { state } = context;
       state.logSequence += 1;

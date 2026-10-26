@@ -162,7 +162,8 @@ describe("the server API", () => {
         attendees: [{ name: "Asha Rao", email: "asha@example.com" }],
         addOns: {},
       })
-    ).json()) as { id: string };
+    ).json()) as { id: string; paymentMethods: string[] };
+    expect(order.paymentMethods).toEqual(["card"]);
     const upi = await post(
       `/api/orders/${order.id}/payments`,
       { method: "upi" },

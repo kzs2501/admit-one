@@ -128,17 +128,9 @@ export function createPostgresBackend(db: Database, deps: ServerDeps) {
       return result ?? notFound("That order doesn’t exist.");
     },
 
+    // Which ways to pay are taken is the provider's to say (`ServerDeps.paymentMethods`).
     createPayment: (orderId: string, input: PaymentInput) =>
-      // UPI is approved in the buyer's own app, which only a real provider can reach:
-      // the sandbox simulates that app, the server has none, so it takes cards.
-      input.method === "upi"
-        ? Promise.resolve(
-            fail({
-              code: "payment_method_unavailable",
-              detail: "Paying by UPI needs a real payment provider. This server takes cards.",
-            }),
-          )
-        : onPayment({ orderId }, "That order doesn’t exist.", (context) => createPayment(context, orderId, input)),
+      onPayment({ orderId }, "That order doesn’t exist.", (context) => createPayment(context, orderId, input)),
     confirmChallenge: (paymentId: string, decision: ChallengeDecision) =>
       onPayment({ paymentId }, "That payment doesn’t exist.", (context) =>
         confirmChallenge(context, paymentId, decision),

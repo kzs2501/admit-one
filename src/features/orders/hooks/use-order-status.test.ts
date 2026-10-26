@@ -34,6 +34,7 @@ const order = (status: OrderStatus, paymentDto: PaymentDto | null = null): Order
   statusReason: null,
   tickets: [],
   payment: paymentDto,
+  paymentMethods: ["card"],
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 });

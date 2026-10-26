@@ -31,6 +31,7 @@ import type { LineItem } from "@/core/ticketing";
 import type { BackendContext } from "./context";
 import { availableQuantity, isHoldLive } from "./inventory";
 import { resolveOrderStatus, resolvePayment } from "./orders";
+import { offeredPaymentMethods } from "./payments";
 import { placeAt, type QueuePlace } from "./queue";
 import type { HoldRecord, OrderRecord, PaymentRecord, QueueEntryRecord, RefundRecord } from "./state";
 import { buildUpiIntent, UPI_PAYEE } from "./upi";
@@ -114,6 +115,8 @@ export interface OrderView {
   statusReason: string | null;
   tickets: TicketView[];
   payment: PaymentView | null;
+  /** The ways it can be paid, while it's unpaid: the backend's provider decides, not the page. */
+  paymentMethods: PaymentMethod[];
   createdAtMs: number;
   updatedAtMs: number;
 }
@@ -388,6 +391,7 @@ export function toOrderView(context: BackendContext, order: OrderRecord): OrderV
       seat: seatId ? (seatsOf(order.eventSlug, [seatId])[0] ?? null) : null,
     })),
     payment: payment ? toPaymentView(context, payment) : null,
+    paymentMethods: offeredPaymentMethods(context, order),
     createdAtMs: order.createdAtMs,
     updatedAtMs: order.updatedAtMs,
   };

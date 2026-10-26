@@ -1,36 +1,30 @@
 /**
- * The ways to pay, as a registry — like the checkout's steps. Each method says when
- * it's offered; the payment step shows whatever is offered for this order. Adding one
- * (net banking, a wallet) is a new entry and its view, not a rewrite of the step.
+ * The ways to pay, as a registry — like the checkout's steps. The backend says which
+ * are offered for an order; the payment step shows those. Adding one (net banking, a
+ * wallet) is a new entry and its view, not a rewrite of the step.
  */
 import type { OrderDto } from "@/contract/dto";
 import type { PaymentMethod } from "@/core/statuses";
-import { isServerMode } from "@/lib/backend-mode";
 
 export interface PaymentMethodOption {
   id: PaymentMethod;
   label: string;
   hint: string;
-  isOffered: (order: OrderDto) => boolean;
 }
 
 export const PAYMENT_METHOD_OPTIONS: readonly PaymentMethodOption[] = [
-  { id: "card", label: "Card", hint: "Credit or debit card", isOffered: () => true },
-  {
-    id: "upi",
-    label: "UPI",
-    hint: "Any UPI app — scan a QR code, or open the app on this phone",
-    // On the server, UPI comes with a real provider: there's no simulated phone to approve it on.
-    isOffered: (order) => order.amounts.currency === "INR" && !isServerMode,
-  },
+  { id: "card", label: "Card", hint: "Credit or debit card" },
+  { id: "upi", label: "UPI", hint: "Any UPI app — scan a QR code, or open the app on this phone" },
 ];
 
+/** The ways to pay this order, as the backend offers them: its provider decides, not this page. */
 export const offeredPaymentMethods = (order: OrderDto) =>
-  PAYMENT_METHOD_OPTIONS.filter((option) => option.isOffered(order));
+  PAYMENT_METHOD_OPTIONS.filter((option) => order.paymentMethods.includes(option.id));
 
-/** The method to show: the buyer's choice if it's offered for this order, otherwise card, which always is. */
+/** The method to show: the buyer's choice if it's offered for this order, otherwise the first that is. */
 export function chosenPaymentMethod(order: OrderDto, choice: PaymentMethod | undefined): PaymentMethod {
-  return offeredPaymentMethods(order).some((option) => option.id === choice) && choice ? choice : "card";
+  const offered = offeredPaymentMethods(order);
+  return offered.find((option) => option.id === choice)?.id ?? offered[0]?.id ?? "card";
 }
 
 export interface PendingUpiRequest {
