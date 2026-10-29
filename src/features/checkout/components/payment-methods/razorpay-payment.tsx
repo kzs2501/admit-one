@@ -9,9 +9,16 @@ import { Notice } from "@/components/ui/notice";
 import { checkoutOutcome } from "@/features/checkout/domain/payment-methods";
 import { useRazorpayPayment } from "@/features/checkout/hooks/use-razorpay-payment";
 
-/** What Razorpay's test mode takes: no real money moves. */
+/** What Razorpay's test mode takes, from its list of test cards: no real money moves. */
 export const RAZORPAY_TEST_DETAILS = [
-  { label: "Card", value: "4111 1111 1111 1111", isTyped: true, note: "any future expiry, any CVV" },
+  // An Indian card: Razorpay treats 4111 1111 1111 1111 as international, which a test
+  // account may not take.
+  {
+    label: "Card",
+    value: "4100 2800 0000 1007",
+    isTyped: true,
+    note: "an Indian Visa: any future expiry, any CVV, then any 4–10 digit OTP",
+  },
   {
     label: "Net banking",
     value: "Any bank",
