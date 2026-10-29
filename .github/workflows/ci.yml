@@ -101,7 +101,9 @@ jobs:
         if: failure()
         with:
           name: lighthouse-reports
-          path: .lighthouseci
+          path: |
+            .lighthouseci
+            .lighthouseci-mobile
 
   server:
     # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
