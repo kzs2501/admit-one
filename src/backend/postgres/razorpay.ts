@@ -12,6 +12,7 @@
  * work. Each first asks Razorpay how the payment stands, so one that went through but
  * wasn't marked done is never sent twice — and a refund is never given up on.
  */
+import { createHash } from "node:crypto";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { fail, ok, type Result } from "@/backend/domain/errors";
 import { settleObservedPayment, type ObservedPayment, type SettleOutcome } from "@/backend/domain/provider-payments";
@@ -82,6 +83,15 @@ async function actOn(tx: Transaction, deps: ServerDeps, event: RazorpayEvent): P
   }
 }
 
+/**
+ * A webhook refused: said in the log, by its reason alone (never its body, nor a secret),
+ * since Razorpay is the only other party who'd know, and it retries for a day in silence.
+ */
+function refuse(reason: string, problem: Parameters<typeof fail>[0]) {
+  console.warn(`[razorpay] Refused a webhook: ${reason}`);
+  return fail(problem);
+}
+
 /** The Razorpay webhook endpoint's work: check the signature over the raw body, then act on the event once. */
 export function createRazorpayWebhookReceiver(db: Database, deps: ServerDeps, webhookSecret: string) {
   return {
@@ -91,7 +101,12 @@ export function createRazorpayWebhookReceiver(db: Database, deps: ServerDeps, we
       eventId: string | null,
     ): Promise<Result<RazorpayWebhookOutcome>> {
       if (signature === null || !isRazorpaySignature(webhookSecret, rawBody, signature)) {
-        return fail({ code: "invalid_signature", detail: "The webhook’s signature doesn’t match its body." });
+        return refuse(
+          signature === null
+            ? "it has no X-Razorpay-Signature."
+            : "its signature doesn’t match. Is RAZORPAY_WEBHOOK_SECRET the secret this webhook has in Razorpay’s dashboard?",
+          { code: "invalid_signature", detail: "The webhook’s signature doesn’t match its body." },
+        );
       }
       let json: unknown;
       try {
@@ -100,15 +115,24 @@ export function createRazorpayWebhookReceiver(db: Database, deps: ServerDeps, we
         json = null;
       }
       const parsed = razorpayEventSchema.safeParse(json);
-      if (!parsed.success || !eventId) {
-        return fail({ code: "invalid_request", detail: "That isn’t a webhook Razorpay sends." });
+      if (!parsed.success) {
+        const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".") || "(body)"))].join(", ");
+        return refuse(`its body isn’t an event Razorpay sends (${fields}).`, {
+          code: "invalid_request",
+          detail: "That isn’t a webhook Razorpay sends.",
+        });
       }
       const event = parsed.data;
+      // Razorpay names each event in a header. Without one, the body stands in: a retry
+      // resends the same bytes, and settling is idempotent whatever the dedupe says.
+      const dedupeKey = eventId
+        ? `razorpay:${eventId}`
+        : `razorpay:body:${createHash("sha256").update(rawBody).digest("hex")}`;
       const outcome = await withRetries(() =>
         db.transaction(async (tx) => {
           const [first] = await tx
             .insert(webhookEvents)
-            .values({ eventId: `razorpay:${eventId}`, type: event.event, receivedAt: new Date(deps.now()) })
+            .values({ eventId: dedupeKey, type: event.event, receivedAt: new Date(deps.now()) })
             .onConflictDoNothing()
             .returning({ eventId: webhookEvents.eventId });
           return first ? actOn(tx, deps, event) : ("duplicate" as const);

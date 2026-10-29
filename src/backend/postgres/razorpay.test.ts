@@ -3,9 +3,10 @@
  * Razorpay: the checkout the server opens for an order, and what it does when Razorpay
  * can't be reached or the order changes underneath it.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createServerApi } from "@/backend/server";
 import { createRazorpayClient, RazorpayError, type RazorpayClient } from "@/backend/razorpay/client";
+import { razorpaySignature } from "@/backend/razorpay/signatures";
 import { createFakeRazorpay } from "@/backend/razorpay/testing/fake-razorpay";
 import { holdDetailsDtoSchema, orderDtoSchema, paymentResultDtoSchema } from "@/contract/dto";
 import { problemSchema } from "@/contract/problems";
@@ -259,7 +260,8 @@ describe("Razorpay's webhooks", () => {
     expect((await readOrder(order.id)).tickets).toEqual(fulfilled.tickets);
   });
 
-  it("are refused when the signature doesn't match the body, or there's no event id", async () => {
+  it("are refused when the signature doesn't match, saying why in the log and nothing of what they held", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { razorpay, api, openOrder, startCheckout } = setUp();
     const { order } = await openOrder();
     const { providerOrderId } = await startCheckout(order.id);
@@ -271,8 +273,39 @@ describe("Razorpay's webhooks", () => {
     expect(problemSchema.parse(await tampered.json()).code).toBe("invalid_signature");
     const unsigned = await post({ body, headers: { "Content-Type": "application/json" } });
     expect(unsigned.status).toBe(400);
-    const anonymous = await post({ body, headers: { ...headers, "X-Razorpay-Event-Id": "" } });
-    expect(problemSchema.parse(await anonymous.json()).code).toBe("invalid_request");
+    const odd = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: 7 } } } });
+    const oddHeaders = { ...headers, "X-Razorpay-Signature": razorpaySignature(razorpay.settings.webhookSecret, odd) };
+    expect(problemSchema.parse(await (await post({ body: odd, headers: oddHeaders })).json()).code).toBe(
+      "invalid_request",
+    );
+
+    const logged = warn.mock.calls.map(([line]) => String(line));
+    expect(logged).toEqual([
+      expect.stringContaining("its signature doesn’t match. Is RAZORPAY_WEBHOOK_SECRET"),
+      "[razorpay] Refused a webhook: it has no X-Razorpay-Signature.",
+      expect.stringContaining("its body isn’t an event Razorpay sends (payload.payment.entity.id,"),
+    ]);
+    expect(logged.join("\n")).not.toContain(razorpay.settings.webhookSecret);
+    expect(logged.join("\n")).not.toContain(providerOrderId);
+    warn.mockRestore();
+  });
+
+  it("are acted on once when they come without an event id, known by their body instead", async () => {
+    const { razorpay, api, openOrder, startCheckout, readOrder } = setUp();
+    const { order } = await openOrder();
+    const { providerOrderId } = await startCheckout(order.id);
+    const { body, headers } = razorpay.webhook("payment.captured", razorpay.pay(providerOrderId).id);
+    const anonymous = () =>
+      api.handle(
+        new Request(ORIGIN + "/api/webhooks/razorpay", {
+          method: "POST",
+          headers: { ...headers, "X-Razorpay-Event-Id": "" },
+          body,
+        }),
+      );
+    expect(await (await anonymous()).json()).toMatchObject({ outcome: "fulfilled" });
+    expect(await (await anonymous()).json()).toMatchObject({ outcome: "duplicate" });
+    expect((await readOrder(order.id)).tickets).toHaveLength(1);
   });
 
   it("leave the checkout open after a failed attempt, for the buyer to try again", async () => {
