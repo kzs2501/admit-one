@@ -70,9 +70,23 @@ questions general admission never did:
   simulated phone, Lighthouse counts every script and font requested before the largest
   paint against it, though the page's text paints at once. Mobile performance was 88;
   numbers in Inter rather than a mono font (no font for ₹ either), and Zod imported so
-  it tree-shakes, took it to 93, with the home and summit pages at 94 (2026-10-24). The
-  budget is 0.90 on all three, and 420 KB of script. If halls grow, sections can render
-  as they near the viewport, behind placeholders of known size.
+  it tree-shakes, took it to 93, with the home and summit pages at 94 (2026-10-24).
+- GitHub's runners score lower, and differently: 0.81 to 0.88 a run on the seat map, with
+  the same requests, and blocking time (TBT) of 300 to 450 ms against 10 to 60 on a
+  laptop. Its main thread is about 3.4 times slower than the laptop's, though its
+  benchmarkIndex (about 2,470) says 1.7. With every seat in the DOM (1,896 elements against
+  about 190 on the other pages), style, layout and painting cost the runner some 400 ms
+  more. So each row has `content-visibility: auto` and the size it would have: the rows
+  below the fold aren't styled, laid out or painted until they're scrolled near, and stay
+  in the accessibility tree. That clips what a row paints, so it applies only where
+  `overflow-clip-margin` can widen the clip to fit a focused seat's ring (not yet WebKit).
+  Painting fell from about 75 ms to 18 on the runner.
+- What's left is common to every page: React and Next starting up and hydrating (a task
+  of 200 to 260 ms on the runner) and the sandbox's backend starting (about 100 ms).
+  The three pages score 0.84 to 0.92 a run there, so the mobile budget is 0.85 on all
+  three (the best of three runs; each page's best is 0.88 to 0.92), with 420 KB of
+  script. Calibrating the simulated phone's CPU for the runner isn't a way out:
+  Lighthouse's calculator puts a benchmarkIndex of 2,470 at 8x, not the default 4x.
 - Availability can be up to 5 seconds stale. That's safe, because the hold is the
   check: a seat taken in the meantime comes back as `seats_unavailable`, by name.
 - Checked so far: axe in both themes with seats chosen, the accessibility tree,
