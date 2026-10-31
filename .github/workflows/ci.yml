@@ -97,8 +97,10 @@ jobs:
       # paint against it (ADR 010); and a budget on the scripts' total size.
       - name: Lighthouse budgets, mobile (buyer pages)
         run: npm run lhci:mobile
+      # Kept on a pass too: LHCI prints scores only when one fails, and the reports say
+      # how close a pass was and how fast the runner measured (its benchmarkIndex).
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: failure()
+        if: always()
         with:
           name: lighthouse-reports
           path: |
@@ -106,6 +108,7 @@ jobs:
             .lighthouseci-mobile
           # Both start with a dot, which upload-artifact skips unless told otherwise.
           include-hidden-files: true
+          retention-days: 14
 
   server:
     # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
