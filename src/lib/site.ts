@@ -2,7 +2,7 @@
 export const SITE = {
   author: "Kshitiz Sonakiya",
   authorUrl: "https://github.com/kzs2501",
-  repoUrl: "https://github.com/kzs2501/admit-one",
+  repoUrl: "https://github.com/kzs2501/dresscircle",
 } as const;
 
 /** Where the sandbox's simulated phone sits on the page, for the payment step to link to. */

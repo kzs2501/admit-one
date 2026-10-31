@@ -12,9 +12,9 @@ mode, and a door scanner checks them with no connection at all. Pick a failure f
 card, a webhook that arrives twice, a hold that expires mid-payment, a crowd buying the
 last ticket — and watch the checkout handle it while the server log explains why.
 
-**[Live demo](https://admit-one-ten.vercel.app)** · No sign-up, no keys, no real payments. The backend runs in your
+**[Live demo](https://dresscircle.vercel.app)** · No sign-up, no keys, no real payments. The backend runs in your
 browser, so your sandbox is yours alone. The same checkout in server mode, on Postgres:
-**[admit-one-server](https://admit-one-server.vercel.app)**.
+**[dresscircle-server](https://dresscircle-server.vercel.app)**.
 
 ![A completed order with the chaos panel open: the server log shows a duplicate webhook being ignored](docs/images/chaos-panel.png)
 
@@ -228,7 +228,7 @@ Doors are where networks fail, so neither the ticket nor the check needs one.
 
 ### 15. A real payment provider, and money that can't stay
 
-[Server mode](https://admit-one-server.vercel.app) takes payment through Razorpay's test
+[Server mode](https://dresscircle-server.vercel.app) takes payment through Razorpay's test
 mode: no real money moves.
 
 - **Card details never reach this server.** Checkout is Razorpay's page, in a frame of
