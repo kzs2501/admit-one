@@ -27,8 +27,11 @@ type Story = StoryObj<typeof meta>;
 
 async function stallsGrid(canvasElement: HTMLElement) {
   const grid = await within(canvasElement).findByRole("grid", { name: "Stalls" });
-  // Availability arrives after the hall's layout: wait until a seat is offered.
-  await waitFor(() => expect(within(grid).getAllByRole("gridcell", { name: /Premium/ }).length).toBeGreaterThan(0));
+  // Availability arrives after the hall's layout: wait until a seat is offered. Every
+  // seat has its name from the start, so it's a seat that can be chosen that says so.
+  await waitFor(() => expect(grid.querySelector('[role="gridcell"]:not([aria-disabled])')).not.toBeNull());
+  // Moving focus scrolls the page, so the page has its final layout first: its fonts.
+  await canvasElement.ownerDocument.fonts.ready;
   return grid;
 }
 
