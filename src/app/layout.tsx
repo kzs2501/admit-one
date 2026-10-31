@@ -5,13 +5,21 @@ import { fontVariables } from "./fonts";
 import { Providers } from "./providers";
 import { WebVitals } from "./web-vitals";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { Wordmark } from "@/components/ui/wordmark";
 import { ChaosPanel } from "@/features/sandbox/components/chaos-panel";
 import { SimulatedPhone } from "@/features/sandbox/components/simulated-phone";
 import { isServerMode } from "@/lib/backend-mode";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
+/** Where the site lives, so a shared link's image has a full address: Vercel says which
+ * project this build is for (dresscircle or dresscircle-server). */
+const SITE_ORIGIN = process.env["VERCEL_PROJECT_PRODUCTION_URL"]
+  ? `https://${process.env["VERCEL_PROJECT_PRODUCTION_URL"]}`
+  : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_ORIGIN),
   title: { default: "Dress Circle · A ticket box office you can try", template: "%s · Dress Circle" },
   description:
     "A demo ticket box office with reserved seats, a fair queue for flash sales, card and UPI payments, offline tickets and a door scanner. Nothing is charged.",
@@ -19,8 +27,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbf8f3" },
-    { media: "(prefers-color-scheme: dark)", color: "#1b1714" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f7f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#081714" },
   ],
 };
 
@@ -37,10 +45,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <Providers>
-          <header className="border-b border-line">
+          <header className="border-b-4 border-double border-action">
             <div className="mx-auto flex h-16 max-w-5xl items-center gap-2 px-5 sm:gap-4 sm:px-8">
-              <Link href="/" className="font-display text-lg font-semibold tracking-tight">
-                Dress Circle
+              <Link href="/" className="text-lg text-accent">
+                <Wordmark />
               </Link>
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
                 Demo, no real payments

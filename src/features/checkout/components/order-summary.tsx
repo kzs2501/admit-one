@@ -45,7 +45,7 @@ export function OrderSummary({
   ];
 
   return (
-    <aside aria-labelledby="summary-title" className="rounded-xl border border-line bg-card p-5">
+    <aside aria-labelledby="summary-title" className="rounded-xl border-4 border-double border-line bg-card p-5">
       <h2 id="summary-title" className="font-display font-semibold">
         {event.name}
       </h2>

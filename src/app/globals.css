@@ -1,48 +1,68 @@
 @import "tailwindcss";
 
 /* ── Tokens ────────────────────────────────────────────────────────────────
-   Light is the base; dark follows the OS. One accent ("ticket orange"), used for
-   the primary action and nothing decorative. */
+   Regal: the Art Deco single-screen cinemas Dress Circle is named for (ADR 022). Jade
+   for links and focus, brass for the primary action, oxblood for the seats you choose,
+   on terrazzo grey. Light is the base; dark follows the OS. Every text colour is
+   checked against its backgrounds in both themes (src/app/tokens.test.ts). */
 :root {
-  --paper: oklch(0.982 0.008 80);
-  --card: oklch(0.996 0.003 80);
-  --sunk: oklch(0.955 0.01 80);
-  --ink: oklch(0.21 0.015 60);
-  --ink-2: oklch(0.42 0.015 60);
-  --ink-3: oklch(0.5 0.012 60);
-  --line: oklch(0.88 0.012 75);
-  --accent: oklch(0.55 0.17 42);
+  --paper: oklch(0.972 0.007 165);
+  --card: oklch(0.994 0.003 165);
+  --sunk: oklch(0.946 0.009 165);
+  --ink: oklch(0.24 0.035 178);
+  --ink-2: oklch(0.41 0.03 178);
+  --ink-3: oklch(0.5 0.025 178);
+  --line: oklch(0.87 0.012 170);
+  --accent: oklch(0.46 0.083 180);
   /* Hover moves away from the page colour, so contrast with the label only improves. */
-  --accent-hover: oklch(0.49 0.16 42);
-  --accent-ink: oklch(0.99 0.01 80);
-  --accent-soft: oklch(0.94 0.04 55);
-  --ok: oklch(0.5 0.12 150);
-  --ok-soft: oklch(0.94 0.04 150);
-  --warn: oklch(0.52 0.13 70);
-  --warn-soft: oklch(0.95 0.05 85);
-  --bad: oklch(0.52 0.18 27);
-  --bad-soft: oklch(0.95 0.035 27);
+  --accent-hover: oklch(0.4 0.073 180);
+  --accent-ink: oklch(0.985 0.008 165);
+  --accent-soft: oklch(0.93 0.035 178);
+  --action: oklch(0.78 0.115 82);
+  --action-hover: oklch(0.84 0.1 84);
+  --action-ink: oklch(0.27 0.045 70);
+  --chosen: oklch(0.42 0.13 18);
+  --chosen-ink: oklch(0.985 0.008 165);
+  --tier-1: oklch(0.8 0.105 84);
+  --tier-2: oklch(0.83 0.06 178);
+  --tier-3: oklch(0.82 0.055 250);
+  --tier-ink: oklch(0.24 0.035 178);
+  --ok: oklch(0.5 0.12 145);
+  --ok-soft: oklch(0.95 0.035 145);
+  --warn: oklch(0.54 0.119 68);
+  --warn-soft: oklch(0.95 0.045 80);
+  --bad: oklch(0.52 0.17 27);
+  --bad-soft: oklch(0.95 0.03 27);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: oklch(0.18 0.01 60);
-    --card: oklch(0.215 0.011 60);
-    --sunk: oklch(0.16 0.01 60);
-    --ink: oklch(0.94 0.008 80);
-    --ink-2: oklch(0.78 0.01 75);
-    --ink-3: oklch(0.68 0.01 70);
-    --line: oklch(0.32 0.012 60);
-    --accent: oklch(0.72 0.15 50);
-    --accent-hover: oklch(0.78 0.13 52);
-    --accent-ink: oklch(0.18 0.02 50);
-    --accent-soft: oklch(0.3 0.06 50);
-    --ok: oklch(0.76 0.13 150);
-    --ok-soft: oklch(0.28 0.05 150);
-    --warn: oklch(0.8 0.13 80);
+    --paper: oklch(0.19 0.022 180);
+    --card: oklch(0.23 0.025 180);
+    --sunk: oklch(0.16 0.02 180);
+    --ink: oklch(0.945 0.01 160);
+    --ink-2: oklch(0.87 0.014 165);
+    --ink-3: oklch(0.79 0.016 170);
+    --line: oklch(0.35 0.025 180);
+    --accent: oklch(0.78 0.1 176);
+    --accent-hover: oklch(0.84 0.09 176);
+    --accent-ink: oklch(0.2 0.03 180);
+    --accent-soft: oklch(0.32 0.05 178);
+    --action: oklch(0.8 0.12 84);
+    --action-hover: oklch(0.85 0.105 84);
+    --action-ink: oklch(0.22 0.04 70);
+    --chosen: oklch(0.6 0.14 18);
+    --chosen-ink: oklch(0.16 0.02 180);
+    --tier-1: oklch(0.8 0.11 84);
+    --tier-2: oklch(0.78 0.08 178);
+    --tier-3: oklch(0.77 0.07 250);
+    --tier-ink: oklch(0.2 0.03 180);
+    --ok: oklch(0.8 0.13 145);
+    --ok-soft: oklch(0.29 0.05 145);
+    --warn: oklch(0.84 0.12 80);
     --warn-soft: oklch(0.3 0.05 80);
-    --bad: oklch(0.74 0.15 27);
+    --bad: oklch(0.8 0.114 27);
     --bad-soft: oklch(0.3 0.06 27);
     color-scheme: dark;
   }
@@ -60,6 +80,15 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-action-ink: var(--action-ink);
+  --color-chosen: var(--chosen);
+  --color-chosen-ink: var(--chosen-ink);
+  --color-tier-1: var(--tier-1);
+  --color-tier-2: var(--tier-2);
+  --color-tier-3: var(--tier-3);
+  --color-tier-ink: var(--tier-ink);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -67,24 +96,42 @@
   --color-bad: var(--bad);
   --color-bad-soft: var(--bad-soft);
 
-  --font-sans: "Rupee sign", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Rupee sign", var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
-  /* Code-like text only (order ids, the server log): the system's own monospace, so
-     buyers' pages fetch no font for it. */
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: "Rupee sign", var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Rupee sign", var(--font-josefin), var(--font-mukta), ui-sans-serif, sans-serif;
+  --font-wordmark: var(--font-limelight), var(--font-josefin), serif;
+  /* Code-like text only (order ids, ticket codes, the server log). */
+  --font-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Deco corners: square, with just enough softening not to look unfinished. Pills
+     (rounded-full) stay round. */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* The rupee sign, from a font the device already has. Inter keeps ₹ in its Latin
-   Extended file (85 KB), which every page with a price would fetch for this one glyph.
-   If none of these is installed, the browser falls back to Inter's file. */
+/* The rupee sign, from a font the device already has. Mukta keeps ₹ only in its
+   Devanagari file (60 KB a weight), which every page with a price would fetch for this
+   one glyph. If none of these is installed, the browser falls back to Mukta's file. */
 @font-face {
   font-family: "Rupee sign";
   src:
     local("Segoe UI"), local("Roboto"), local("Noto Sans"), local("Helvetica Neue"), local("Arial"),
     local("DejaVu Sans"), local("Liberation Sans");
   unicode-range: U+20B9;
+}
+
+/* Display type is set in capitals, as on a cinema's marquee: Josefin's capitals are its
+   Deco face, and its lowercase is less readable at small sizes. Screen readers read the
+   text as written. In the base layer, so `normal-case` can still opt out. */
+@layer base {
+  .font-display {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
 }
 
 html {
@@ -106,7 +153,7 @@ body {
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 2px;
   }
 }
 

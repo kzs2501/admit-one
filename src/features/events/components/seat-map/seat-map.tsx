@@ -8,6 +8,7 @@ import { MAX_TICKETS_PER_ORDER } from "@/core/ticketing";
 import { formatMoney } from "@/lib/format";
 import { Notice } from "@/components/ui/notice";
 import { RetryNotice } from "@/components/ui/retry-notice";
+import { tierTones } from "@/features/events/domain/tier-tones";
 import { useSeatMap } from "@/features/events/hooks/use-seat-map";
 import type { SeatCellState } from "./seat-cell";
 import { SeatGrid, type TierLabels } from "./seat-grid";
@@ -72,17 +73,14 @@ export function SeatMap({ slug }: { slug: string }) {
       ),
     [event],
   );
-  // The most expensive tier is tinted on the map; the legend says which rows it is.
-  const featuredTierId = useMemo(
-    () => [...event.tiers].sort((left, right) => right.priceMinor - left.priceMinor)[0]?.id ?? null,
-    [event],
-  );
+  // Each tier has its colour on the map, dearest first; the legend says which rows, in words.
+  const tones = useMemo(() => tierTones(event.tiers), [event]);
   const tierKeys: TierKey[] = event.tiers.map((tier) => ({
     id: tier.id,
     name: tier.name,
     price: formatMoney(allInTicketPriceMinor(event, tier.id), event.currency),
     description: tier.description,
-    isFeatured: tier.id === featuredTierId,
+    tone: tones.get(tier.id) ?? 3,
   }));
   const selectedSeatIds = useMemo(() => new Set(selection.seats.map((seat) => seat.id)), [selection.seats]);
   const unavailable = availability.kind === "ready" ? availability.unavailableSeatIds : null;
@@ -174,7 +172,7 @@ export function SeatMap({ slug }: { slug: string }) {
                 section={section}
                 stateOf={stateOf}
                 tiers={tiers}
-                featuredTierId={featuredTierId}
+                tones={tones}
                 onToggle={model.toggle}
                 isLoading={!unavailable}
               />

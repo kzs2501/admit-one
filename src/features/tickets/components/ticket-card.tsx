@@ -7,7 +7,7 @@ export function TicketCard({ ticket }: { ticket: WalletTicket }) {
   return (
     <article
       aria-label={`Ticket for ${ticket.attendeeName}, ${ticket.eventName}`}
-      className="overflow-hidden rounded-xl border border-line bg-card"
+      className="overflow-hidden rounded-xl border-4 border-double border-line bg-card"
     >
       <div className="grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
         <div>

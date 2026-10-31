@@ -1,16 +1,20 @@
 import { memo, type ReactNode } from "react";
 import type { Seat } from "@/core/seating";
+import type { TierTone } from "@/features/events/domain/tier-tones";
 
 export type SeatCellState = "free" | "selected" | "taken" | "loading";
 
 const STATE_CLASSES: Record<SeatCellState, string> = {
-  free: "cursor-pointer border-ink-3 text-ink-3 hover:border-accent hover:text-accent forced-colors:border-[ButtonText]",
+  free: "cursor-pointer border-ink-3 text-tier-ink hover:border-ink forced-colors:border-[ButtonText]",
   selected:
-    "cursor-pointer border-accent bg-accent text-accent-ink forced-colors:border-[Highlight] forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]",
+    "cursor-pointer border-chosen bg-chosen text-chosen-ink forced-colors:border-[Highlight] forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]",
   taken:
     "cursor-not-allowed border-transparent bg-sunk text-ink-3 forced-colors:border-[GrayText] forced-colors:text-[GrayText]",
   loading: "border-line bg-card text-transparent",
 };
+
+/** A free seat's fill: its price tier's colour. */
+export const TONE_FILLS: Record<TierTone, string> = { 1: "bg-tier-1", 2: "bg-tier-2", 3: "bg-tier-3" };
 
 function Glyph({ children }: { children: ReactNode }) {
   return (
@@ -69,14 +73,14 @@ export const SeatCell = memo(function SeatCell({
   seat,
   state,
   isTabStop,
-  isFeaturedTier,
+  tone,
   label,
 }: {
   seat: Seat;
   state: SeatCellState;
   isTabStop: boolean;
-  /** The event's top price tier, tinted so its rows stand out (the legend says which rows, in words). */
-  isFeaturedTier: boolean;
+  /** Its price tier's colour, while it's free (the legend says which rows, in words). */
+  tone: TierTone;
   label: string;
 }) {
   return (
@@ -90,7 +94,7 @@ export const SeatCell = memo(function SeatCell({
       style={{ gridColumnStart: seat.column + 2 }}
       // scroll-mb: a seat scrolled into view by the keyboard stops above the sticky
       // "Your seats" bar, so focus is never hidden behind it (WCAG 2.2, SC 2.4.11).
-      className={`grid size-(--seat-size) scroll-mb-64 place-items-center rounded-t-lg rounded-b-sm border-2 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${STATE_CLASSES[state]} ${state === "free" ? (isFeaturedTier ? "bg-accent-soft" : "bg-card") : ""}`}
+      className={`grid size-(--seat-size) scroll-mb-64 place-items-center rounded-t-lg rounded-b-sm border-2 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${STATE_CLASSES[state]} ${state === "free" ? TONE_FILLS[tone] : ""}`}
     >
       <SeatGlyph state={state} isWheelchairSpace={seat.isWheelchairSpace} />
     </div>

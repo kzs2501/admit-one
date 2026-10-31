@@ -31,7 +31,7 @@ const renderGrid = ({ taken = [], selected = [] }: { taken?: string[]; selected?
       section={section}
       stateOf={stateOf}
       tiers={tiers}
-      featuredTierId={null}
+      tones={new Map()}
       onToggle={onToggle}
       isLoading={false}
     />,

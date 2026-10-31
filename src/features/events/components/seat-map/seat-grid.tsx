@@ -3,6 +3,7 @@
 import { useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react";
 import type { Seat, SeatSection } from "@/core/seating";
 import { isGridKey, nextSeat } from "@/features/events/domain/seat-grid";
+import type { TierTone } from "@/features/events/domain/tier-tones";
 import { SeatCell, type SeatCellState } from "./seat-cell";
 
 /** Tier id → what a seat's name says about it. */
@@ -21,14 +22,15 @@ export function SeatGrid({
   section,
   stateOf,
   tiers,
-  featuredTierId,
+  tones,
   onToggle,
   isLoading,
 }: {
   section: SeatSection;
   stateOf: (seat: Seat) => SeatCellState;
   tiers: TierLabels;
-  featuredTierId: string | null;
+  /** Each tier's colour (`tierTones`). */
+  tones: ReadonlyMap<string, TierTone>;
   onToggle: (seatId: string) => void;
   isLoading: boolean;
 }) {
@@ -134,7 +136,7 @@ export function SeatGrid({
                   seat={seat}
                   state={state}
                   isTabStop={seat.id === tabStopId}
-                  isFeaturedTier={seat.tierId === featuredTierId}
+                  tone={tones.get(seat.tierId) ?? 3}
                   label={labelOf(seat, state)}
                 />
               );

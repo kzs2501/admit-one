@@ -5,7 +5,7 @@ type Variant = "primary" | "secondary" | "ghost";
 
 // Busy looks like disabled; see below for why it isn't `disabled`.
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent-hover disabled:opacity-60 aria-busy:opacity-60",
+  primary: "bg-action text-action-ink hover:bg-action-hover disabled:opacity-60 aria-busy:opacity-60",
   secondary: "border border-line bg-card text-ink hover:bg-sunk disabled:opacity-60 aria-busy:opacity-60",
   ghost: "text-ink-2 hover:bg-sunk hover:text-ink disabled:opacity-60 aria-busy:opacity-60",
 };

@@ -133,7 +133,7 @@ function PendingRequest({
           </p>
           <a
             href={request.intentUri}
-            className="inline-flex min-h-11 press items-center justify-center rounded-lg bg-accent px-5 font-medium text-accent-ink hover:bg-accent-hover sm:hidden"
+            className="inline-flex min-h-11 press items-center justify-center rounded-lg bg-action px-5 font-medium text-action-ink hover:bg-action-hover sm:hidden"
           >
             Open your UPI app
           </a>
