@@ -200,7 +200,7 @@ export function createKit(
           request,
         );
       }
-      backend.log("payment", "Idempotency-Key replayed — returning the original response, nothing done twice.");
+      backend.log("payment", "Idempotency-Key replayed: the original response, and nothing done twice.");
       return { status: claim.record.status, body: claim.record.body };
     }
     try {

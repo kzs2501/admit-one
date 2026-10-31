@@ -155,7 +155,7 @@ export function CardPayment({
         )}
         {payment.hasConnectionProblem && (
           <Notice tone="warn" title="Connection problem" role="alert">
-            Nothing was charged twice — press Pay again to retry safely.
+            Nothing was charged twice. Press Pay again to retry safely.
           </Notice>
         )}
 
@@ -182,7 +182,7 @@ export function CardPayment({
           Confirm it’s you
         </h2>
         <p className="mt-2 text-sm text-ink-2">
-          Your bank wants to check this {total} payment. (Simulated 3-D Secure — choose an outcome.)
+          Your bank wants to check this {total} payment. (Simulated 3-D Secure: choose an outcome.)
         </p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button

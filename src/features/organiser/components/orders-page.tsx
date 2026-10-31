@@ -241,7 +241,7 @@ export function OrdersPage() {
         </p>
         {list.newOrders && (
           <Button type="button" variant="secondary" onClick={list.showNewOrders} className="min-h-9 px-3">
-            {list.newOrders === "changed" ? "Orders have changed" : "Orders may have changed"} — show the latest
+            {list.newOrders === "changed" ? "Orders have changed" : "Orders may have changed"}: show the latest
           </Button>
         )}
       </div>

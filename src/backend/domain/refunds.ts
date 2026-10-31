@@ -44,7 +44,7 @@ export function requestRefund(
   if (context.chaos().shouldFailRefunds) {
     return fail({
       code: "refund_failed",
-      detail: "The payment provider couldn’t start the refund. Nothing was refunded — try again later.",
+      detail: "The payment provider couldn’t start the refund. Nothing was refunded. Try again later.",
     });
   }
 

@@ -68,6 +68,20 @@ const LAYER_RULES = [
   })),
 ];
 
+/** Zod's own `z` is one object holding all of it, every locale included, so a bundler
+ * keeps it all (90 KB gzip). Through the namespace, only what's used ships. */
+const ZOD_AS_NAMESPACE = {
+  selector: "ImportDeclaration[source.value='@/core/zod'] > ImportSpecifier[imported.name='z']",
+  message: 'Import Zod as a namespace: `import * as z from "@/core/zod"`.',
+};
+
+/** What people read uses plain punctuation (docs/conventions.md): no em dashes in strings
+ * or JSX. Comments are free. */
+const NO_EM_DASH = ["JSXText[value=/—/]", "Literal[value=/—/]", "TemplateElement[value.raw=/—/]"].map((selector) => ({
+  selector,
+  message: "Use plain punctuation (a comma, colon, full stop or brackets) instead of an em dash.",
+}));
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -90,15 +104,7 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          // Zod's own `z` is one object holding all of it, every locale included, so a
-          // bundler keeps it all (90 KB gzip). Through the namespace, only what's used ships.
-          selector: "ImportDeclaration[source.value='@/core/zod'] > ImportSpecifier[imported.name='z']",
-          message: 'Import Zod as a namespace: `import * as z from "@/core/zod"`.',
-        },
-      ],
+      "no-restricted-syntax": ["error", ZOD_AS_NAMESPACE, ...NO_EM_DASH],
 
       "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
       "@typescript-eslint/switch-exhaustiveness-check": [
@@ -139,6 +145,20 @@ const eslintConfig = defineConfig([
         },
       ],
     },
+  },
+  {
+    // Tests, stories and tooling aren't what people read: em dashes are allowed there.
+    files: [
+      "**/*.test.{ts,tsx}",
+      "**/*.stories.tsx",
+      "src/**/testing/**",
+      "e2e/**",
+      "visual/**",
+      ".storybook/**",
+      "scripts/**",
+      "*.config.{ts,mts,mjs}",
+    ],
+    rules: { "no-restricted-syntax": ["error", ZOD_AS_NAMESPACE] },
   },
   {
     // Razorpay's Checkout API, typed as Razorpay names it: snake_case options, and a global.

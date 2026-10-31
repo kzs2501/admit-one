@@ -85,7 +85,7 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
   not_found: {
     status: 404,
     title: "Not found",
-    description: "The event, reservation, order or payment doesn’t exist — or it belongs to another sandbox.",
+    description: "The event, reservation, order or payment doesn’t exist, or it belongs to another sandbox.",
   },
   invalid_request: {
     status: 422,
@@ -119,7 +119,7 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
     status: 403,
     title: "It isn’t your turn yet",
     description:
-      "This sale has a waiting room. Reserving needs a `Queue-Token` for a place in this sale’s queue whose turn has come — and not yet gone. `eventSlug` says which queue to join.",
+      "This sale has a waiting room. Reserving needs a `Queue-Token` for a place in this sale’s queue whose turn has come and not yet gone. `eventSlug` says which queue to join.",
   },
   hold_expired: {
     status: 410,
@@ -155,7 +155,7 @@ export const PROBLEM_CATALOG: Record<ProblemCode, ProblemDefinition> = {
   invalid_card: {
     status: 422,
     title: "Invalid card details",
-    description: "The card details failed validation — for example, the number doesn’t pass its checksum.",
+    description: "The card details failed validation. For example, the number doesn’t pass its checksum.",
   },
   card_declined: {
     status: 402,

@@ -11,7 +11,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]/queue">): Promise<Metadata> {
   const event = findEvent((await params).slug);
-  return event ? { title: `Queue — ${event.name}`, robots: { index: false } } : {};
+  return event ? { title: `Queue for ${event.name}`, robots: { index: false } } : {};
 }
 
 /** A sale's waiting room. */

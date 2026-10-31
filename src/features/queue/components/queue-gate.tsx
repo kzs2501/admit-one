@@ -75,7 +75,7 @@ export function QueueGate({
         <>
           <p className="mt-1 text-sm text-ink-2">
             So many people (simulated) want tickets that they’re let in a few thousand at a time. Join the queue, and
-            you can choose tickets when it’s your turn{view?.kind === "expired" ? " — your last turn has passed" : ""}.
+            you can choose tickets when it’s your turn{view?.kind === "expired" ? ". Your last turn has passed" : ""}.
           </p>
           {queue.joinError && (
             <div className="mt-3">

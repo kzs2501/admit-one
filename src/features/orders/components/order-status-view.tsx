@@ -96,7 +96,7 @@ export function OrderStatusScreen({
             </p>
             {state.isSlow && (
               <p className="mx-auto mt-6 max-w-md rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink-2">
-                This is taking longer than usual. Your payment is safe — you won’t be charged twice, and you don’t need
+                This is taking longer than usual. Your payment is safe. You won’t be charged twice, and you don’t need
                 to do anything.
               </p>
             )}
@@ -179,8 +179,8 @@ export function OrderStatusScreen({
           <Outcome headingRef={heading} tone="bad" title="Payment didn’t go through" reason={state.order.statusReason}>
             <Link href={routes.checkoutStep(state.order.holdId, "payment")} className="underline underline-offset-4">
               Try another card
-            </Link>{" "}
-            — your tickets are still held for now.
+            </Link>
+            . Your tickets are still held for now.
           </Outcome>
         </Shell>
       );

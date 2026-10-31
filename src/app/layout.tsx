@@ -43,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 Dress Circle
               </Link>
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
-                Demo — no real payments
+                Demo, no real payments
               </span>
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
                 <Link
@@ -66,7 +66,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   </Link>
                   {/* The panel lives in the root layout, which no error.tsx covers: contain it here. */}
                   <ErrorBoundary
-                    fallback={<span className="text-xs text-ink-3">Chaos panel unavailable — reload to retry</span>}
+                    fallback={<span className="text-xs text-ink-3">Chaos panel unavailable. Reload to retry.</span>}
                   >
                     <ChaosPanel />
                   </ErrorBoundary>

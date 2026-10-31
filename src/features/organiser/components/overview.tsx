@@ -31,7 +31,7 @@ function Kpis({ metrics }: { metrics: SalesMetricsDto }) {
     },
     {
       label: "Webhook lag",
-      value: webhookLag.p50Ms === null ? "—" : formatDuration(webhookLag.p50Ms),
+      value: webhookLag.p50Ms === null ? "None yet" : formatDuration(webhookLag.p50Ms),
       detail: webhookLag.p95Ms === null ? "No payments yet" : `p95 ${formatDuration(webhookLag.p95Ms)}`,
     },
   ];

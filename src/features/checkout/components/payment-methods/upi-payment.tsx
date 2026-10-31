@@ -72,7 +72,7 @@ export function UpiPayment({
       )}
       {upi.hasConnectionProblem && (
         <Notice tone="warn" title="Connection problem" role="alert">
-          Nothing was requested twice — press Pay again to retry safely.
+          Nothing was requested twice. Press Pay again to retry safely.
         </Notice>
       )}
       <div className="pt-1">

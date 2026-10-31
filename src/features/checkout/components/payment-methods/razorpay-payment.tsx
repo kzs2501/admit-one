@@ -91,7 +91,7 @@ export function RazorpayPayment({
       )}
       {razorpay.hasConnectionProblem && (
         <Notice tone="warn" title="Connection problem" role="alert">
-          Nothing was opened twice — press Pay again to retry safely.
+          Nothing was opened twice. Press Pay again to retry safely.
         </Notice>
       )}
       {razorpay.requestProblem && (

@@ -133,8 +133,7 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
   },
   "connection-drops": {
     label: "Connection drops",
-    description:
-      "The server takes your payment, but its answer is lost on the way back — and a few status checks fail.",
+    description: "The server takes your payment, but its answer is lost on the way back, and a few status checks fail.",
     expectation:
       "Paying again is safe: the same Idempotency-Key replays the first answer, so you’re charged once. While status checks fail, the order page keeps what it knows and says so.",
     config: { shouldDropFirstPaymentResponse: true, droppedStatusChecks: 3, webhookDelayMs: 8_000 },
@@ -148,7 +147,7 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
   "webhook-first": {
     label: "Webhook before redirect",
     description: "The webhook lands before your browser gets the payment response.",
-    expectation: "The order page opens already confirmed — the redirect isn’t the source of truth.",
+    expectation: "The order page opens already confirmed, because the redirect isn’t the source of truth.",
     config: { webhookDelayMs: 0, extraPaymentLatencyMs: 1_800 },
   },
   "webhook-delayed": {
@@ -221,7 +220,7 @@ const DEFINITIONS: Record<PresetId, PresetDefinition> = {
     label: "Busy on-sale",
     description: "Other buyers (simulated) buy a ticket every second and a half while you watch.",
     expectation:
-      "The organisers’ dashboard updates live — tickets sold, revenue, the day’s sales — without a reload, and offers new orders in the table rather than moving it under you.",
+      "The organisers’ dashboard updates tickets sold, revenue and the day’s sales live, without a reload, and offers new orders in the table rather than moving it under you.",
     config: { isCrowdEnabled: true, crowdIntervalMs: 1_500 },
   },
 };

@@ -14,7 +14,7 @@ export interface PaymentMethodOption {
 
 export const PAYMENT_METHOD_OPTIONS: readonly PaymentMethodOption[] = [
   { id: "card", label: "Card", hint: "Credit or debit card" },
-  { id: "upi", label: "UPI", hint: "Any UPI app — scan a QR code, or open the app on this phone" },
+  { id: "upi", label: "UPI", hint: "Any UPI app: scan a QR code, or open the app on this phone" },
   { id: "razorpay", label: "Razorpay", hint: "Card, net banking or a wallet, on Razorpay’s secure checkout" },
 ];
 

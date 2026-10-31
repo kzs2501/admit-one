@@ -186,7 +186,7 @@ export const CATALOG: EventInfo[] = [
     slug: "monsoon-strings",
     organiserId: "rangmanch-arts",
     name: "Monsoon Strings",
-    tagline: "A chamber orchestra plays The Four Seasons — and four new ones, written for the monsoon.",
+    tagline: "A chamber orchestra plays The Four Seasons, and four new ones written for the monsoon.",
     startsAt: "2026-12-12T19:00:00+05:30",
     timeZone: "Asia/Kolkata",
     currency: "INR",

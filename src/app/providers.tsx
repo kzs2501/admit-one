@@ -23,7 +23,7 @@ const createQueryClient = () =>
       onError: (error, query) => {
         reportUnlessAnswer(error, "query");
         if (query.state.data !== undefined && isTransientError(error)) {
-          showToast("Couldn’t refresh — showing the last update", error.message);
+          showToast("Couldn’t refresh. Showing the last update.", error.message);
         }
       },
     }),

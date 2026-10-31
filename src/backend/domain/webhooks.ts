@@ -60,7 +60,7 @@ export const enqueuePaymentSucceeded = (context: BackendContext, payment: Paymen
 function isFirstDelivery(context: BackendContext, { eventId, type }: OutboxItem) {
   const { state } = context;
   if (state.processedEventIds.includes(eventId)) {
-    context.log("webhook", `${type} ${eventId} arrived again — already processed, ignored.`);
+    context.log("webhook", `${type} ${eventId} arrived again: already processed, ignored.`);
     return false;
   }
   state.processedEventIds.push(eventId);

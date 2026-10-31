@@ -15,7 +15,7 @@ function ToastTrigger({ title, detail }: { title: string; detail: string }) {
 const meta = {
   title: "UI/Toast",
   component: ToastTrigger,
-  args: { title: "Couldn’t refresh — showing the last update", detail: "Network error: the request didn’t complete." },
+  args: { title: "Couldn’t refresh. Showing the last update.", detail: "Network error: the request didn’t complete." },
   // One toast lives for the whole page; don't let it outlast the story.
   beforeEach: () => dismissToast,
 } satisfies Meta<typeof ToastTrigger>;
@@ -38,7 +38,7 @@ export const Shown: Story = {
       if (!status) throw new Error("No toast in a status region");
       return status;
     });
-    await expect(region).toHaveTextContent("Couldn’t refresh — showing the last update");
+    await expect(region).toHaveTextContent("Couldn’t refresh. Showing the last update.");
     await expect(trigger).toHaveFocus();
   },
 };

@@ -1,5 +1,8 @@
 // @vitest-environment node
-/** Copy standards for everything a visitor can read: curly quotes and real ellipses. */
+/**
+ * Copy standards for everything a visitor can read: curly quotes, real ellipses, and plain
+ * punctuation in place of em dashes. (Strings in components are held to the last by lint.)
+ */
 import { describe, expect, it } from "vitest";
 import { PRESETS } from "@/backend/chaos/presets";
 import { PROBLEM_CATALOG } from "@/contract/problems";
@@ -49,6 +52,10 @@ describe("visible copy", () => {
 
   it("uses a real ellipsis", () => {
     expect(copy.filter(({ text }) => text.includes("...")).map(({ path }) => path)).toEqual([]);
+  });
+
+  it("uses commas, colons and full stops, never an em dash", () => {
+    expect(copy.filter(({ text }) => text.includes("—")).map(({ path, text }) => `${path}: ${text}`)).toEqual([]);
   });
 
   it("actually checks something", () => {

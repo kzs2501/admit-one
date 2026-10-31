@@ -17,7 +17,7 @@ export function useReserveTickets(slug: string) {
     setSoldOutNotice(
       available === 0
         ? "Someone just got the last of those tickets."
-        : `Someone got there first — only ${available} left now.`,
+        : `Someone got there first. Only ${available} left now.`,
     );
   });
 

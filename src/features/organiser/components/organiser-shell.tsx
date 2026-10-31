@@ -13,7 +13,7 @@ import { useOrganiserSession } from "@/features/organiser/hooks/use-organiser-se
 const STATUS_LABELS: Record<LiveStatus, string> = {
   connecting: "Connecting…",
   live: "Live",
-  reconnecting: "Reconnecting — refreshing every 15 s meanwhile",
+  reconnecting: "Reconnecting. Refreshing every 15 s until then",
   paused: "Paused",
 };
 

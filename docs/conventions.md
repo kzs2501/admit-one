@@ -98,6 +98,13 @@ checked by a tool it is; the rest is for review.
   assertion, an animation's `finished`). `eslint-plugin-playwright` enforces this, and
   catches floating promises and conditional assertions.
 
+## Copy
+
+- What people read uses plain punctuation: commas, colons, full stops and brackets, not em
+  dashes. Curly quotes and apostrophes, and a real ellipsis. Lint holds strings and JSX in
+  `src` to it; `src/typography.test.ts` holds the catalogue, the chaos presets, the
+  problem types and the validation messages.
+
 ## Formatting and commits
 
 - Prettier, 120 columns, Tailwind classes sorted — `format:check` in CI, `lint-staged`

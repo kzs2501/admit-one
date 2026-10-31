@@ -83,7 +83,7 @@ export function SelectedSeats({
       )}
       {gapSeats.length > 0 && (
         <p id={gapId} className="mt-2 text-sm text-warn">
-          That would leave {formatSeatList(gapSeats)} on {gapSeats.length === 1 ? "its" : "their"} own — choose it too,
+          That would leave {formatSeatList(gapSeats)} on {gapSeats.length === 1 ? "its" : "their"} own. Choose it too,
           or move over by one seat.
         </p>
       )}
