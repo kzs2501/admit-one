@@ -104,6 +104,8 @@ jobs:
           path: |
             .lighthouseci
             .lighthouseci-mobile
+          # Both start with a dot, which upload-artifact skips unless told otherwise.
+          include-hidden-files: true
 
   server:
     # The buyer's checkout in server mode, on Postgres (ADR 018). Postgres comes from the
