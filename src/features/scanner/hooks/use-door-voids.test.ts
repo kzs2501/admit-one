@@ -8,7 +8,7 @@ import { saveOrganiserToken } from "@/lib/organiser-session";
 import { useDoorVoids } from "./use-door-voids";
 
 const problem = (code: "not_in_server_mode" | "unauthenticated", status: number) =>
-  new ApiError({ type: "https://admit-one.test/p", title: code, status, detail: code, code }, null);
+  new ApiError({ type: "https://dresscircle.test/p", title: code, status, detail: code, code }, null);
 
 afterEach(() => {
   vi.restoreAllMocks();

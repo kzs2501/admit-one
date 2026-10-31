@@ -46,7 +46,7 @@ describe("UpiPayment", () => {
     renderUpi(orderWithPayment(upiPaymentDto()));
 
     expect(screen.getByRole("heading", { name: "Approve ₹303.73 in your UPI app" })).toHaveFocus();
-    expect(screen.getByRole("img", { name: "QR code to pay ₹303.73 to admit-one with UPI" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "QR code to pay ₹303.73 to Dress Circle with UPI" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open your UPI app" })).toHaveAttribute("href", UPI_INTENT);
     expect(screen.getByText("5:00")).toBeInTheDocument();
     act(() => {

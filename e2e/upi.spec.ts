@@ -17,7 +17,7 @@ test("approved on the phone: the order page waits for the webhook, then the tick
   await buyer.goToPayment(1);
   const total = (await page.getByRole("button", { name: /^Pay ₹/ }).textContent())?.replace(/^Pay /, "") ?? "";
   await buyer.payByUpi();
-  await expect(page.getByRole("img", { name: `QR code to pay ${total} to admit-one with UPI` })).toBeVisible();
+  await expect(page.getByRole("img", { name: `QR code to pay ${total} to Dress Circle with UPI` })).toBeVisible();
   await expect(buyer.phone).toContainText(total);
 
   await buyer.phone.getByRole("button", { name: "Approve" }).click();

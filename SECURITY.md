@@ -8,7 +8,7 @@ within a week.
 
 ## What's in scope
 
-admit-one is a demo with no real payments or accounts. Its public build runs its
+Dress Circle is a demo with no real payments or accounts. Its public build runs its
 backend in the visitor's own browser; built in server mode, it runs the same API on a
 server, over Postgres ([ADR 018](docs/decisions/018-server-mode.md)). The reports that
 matter most are anything that runs script in another visitor's page, lets one client

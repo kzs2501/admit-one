@@ -39,7 +39,7 @@ const inputs = (overrides: Partial<CheckoutInputs> = {}): CheckoutInputs => ({
 });
 
 const notFound = new ApiError({
-  type: "https://admit-one.test/problems/not-found",
+  type: "https://dresscircle.test/problems/not-found",
   title: "",
   status: 404,
   detail: "",

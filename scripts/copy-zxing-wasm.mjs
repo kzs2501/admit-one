@@ -2,7 +2,7 @@
 /**
  * The door scanner reads QR codes with ZXing's WebAssembly build where the browser has
  * no BarcodeDetector of its own (iPhone Safari, desktop Firefox, Linux). The package
- * fetches its .wasm from a CDN by default; admit-one serves its own copy instead, so
+ * fetches its .wasm from a CDN by default; Dress Circle serves its own copy instead, so
  * the content security policy stays 'self' and the scanner works offline.
  *
  * Runs after every install. The file is named by its version, so it can be cached

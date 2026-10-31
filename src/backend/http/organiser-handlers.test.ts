@@ -41,7 +41,7 @@ describe("organisers' API", () => {
   it("answers 401 without a token, and says the token is invalid once it's signed out or expired", async () => {
     const missing = await call("/api/organiser/account");
     await expectProblem(missing, 401, "unauthenticated");
-    expect(missing.headers.get("WWW-Authenticate")).toBe('Bearer realm="admit-one"');
+    expect(missing.headers.get("WWW-Authenticate")).toBe('Bearer realm="Dress Circle"');
     expect(missing.headers.get("Cache-Control")).toBe("no-store");
 
     const { token } = await signIn("acc-lakeside-owner");
@@ -54,7 +54,7 @@ describe("organisers' API", () => {
     expect((await call("/api/session", { method: "DELETE", headers: bearer(token) })).status).toBe(204);
     const signedOut = await call("/api/organiser/account", { headers: bearer(token) });
     await expectProblem(signedOut, 401, "unauthenticated");
-    expect(signedOut.headers.get("WWW-Authenticate")).toBe('Bearer realm="admit-one", error="invalid_token"');
+    expect(signedOut.headers.get("WWW-Authenticate")).toBe('Bearer realm="Dress Circle", error="invalid_token"');
 
     const { token: later } = await signIn("acc-lakeside-owner");
     clock.advance(SESSION_TTL_MS);

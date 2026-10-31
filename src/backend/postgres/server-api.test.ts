@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => database.drop());
 
-const ORIGIN = "http://admit-one.test";
+const ORIGIN = "http://dresscircle.test";
 
 describe("the server API", () => {
   it("answers a buyer's read while a webhook keeps failing, and acts on it once it can", async () => {

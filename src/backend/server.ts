@@ -26,7 +26,7 @@ import { createRazorpayWebhookReceiver, sendDueCommands, sweepClosedCheckouts } 
 import { serverConfigFrom } from "./server-config";
 
 /** Where the simulated provider's webhooks are addressed: they're handled in-process. */
-const INTERNAL_ORIGIN = "http://admit-one.internal";
+const INTERNAL_ORIGIN = "http://dresscircle.internal";
 
 /** The sandbox's alone: the organisers' dashboard and the waiting room. */
 const SANDBOX_ONLY = [API_ROUTES.joinQueue, API_ROUTES.getQueueEntry, API_ROUTES.session, "/api/organiser/*"];
@@ -207,7 +207,7 @@ export function createServerApi(
         request,
       );
       // RFC 9110: a 401 says how to authenticate.
-      return kit.send(request, { ...problem, headers: { "WWW-Authenticate": 'Bearer realm="admit-one"' } });
+      return kit.send(request, { ...problem, headers: { "WWW-Authenticate": 'Bearer realm="Dress Circle"' } });
     }
     // Checkouts first: whatever the sweep settles is then sent with everything else due.
     const swept = razorpay ? await sweepClosedCheckouts(db, deps, razorpay.client) : 0;

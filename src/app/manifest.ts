@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 /** Installable: it opens on your tickets, which work offline. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "admit-one",
-    short_name: "admit-one",
-    description: "Your tickets, offline, and a ticketing checkout done properly.",
+    name: "Dress Circle",
+    short_name: "Dress Circle",
+    description: "Your tickets, even offline. Dress Circle is a demo box office, so nothing is charged.",
     start_url: "/tickets",
     scope: "/",
     display: "standalone",

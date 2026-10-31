@@ -5,7 +5,7 @@ with retries, payments judged when they happened, one lock order, and limits on 
 
 ## Context
 
-admit-one's backend runs in the browser ([001](001-simulated-backend.md)), which makes
+Dress Circle's backend runs in the browser ([001](001-simulated-backend.md)), which makes
 the demo free to run and lets the chaos panel control the server. But it can't show
 what a real backend has to get right: many buyers at once, retries across processes,
 and webhooks a stranger could forge. `architecture.md` described what a production

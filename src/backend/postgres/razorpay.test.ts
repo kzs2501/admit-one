@@ -25,7 +25,7 @@ beforeAll(async () => {
 });
 afterAll(() => database.drop());
 
-const ORIGIN = "http://admit-one.test";
+const ORIGIN = "http://dresscircle.test";
 const MINUTE_MS = 60_000;
 
 type ClientWrapper = (client: RazorpayClient) => RazorpayClient;

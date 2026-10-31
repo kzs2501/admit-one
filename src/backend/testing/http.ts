@@ -10,7 +10,7 @@ import { PROBLEM_CONTENT_TYPE, problemSchema } from "@/contract/problems";
 import { AUTHORIZATION_HEADER } from "@/contract/routes";
 import { createTestBackend } from "./fixtures";
 
-export const BASE_URL = "http://admit-one.test";
+export const BASE_URL = "http://dresscircle.test";
 
 export function createHttpHarness(presetId: PresetId = "happy") {
   const { backend, clock } = createTestBackend(presetId);

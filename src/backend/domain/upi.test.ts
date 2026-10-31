@@ -12,19 +12,19 @@ describe("buildUpiIntent", () => {
     expect(url.host).toBe("pay");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       pa: UPI_PAYEE.address,
-      pn: "admit-one",
+      pn: "Dress Circle",
       mc: "7922",
       tr: "pay_7", // unique per payment, so the confirmation matches it
-      tn: "admit-one order ord_3",
+      tn: "Dress Circle order ord_3",
       am: "3037.29",
       cu: "INR",
     });
   });
 
   it("encodes spaces as %20, never +, and leaves the address readable", () => {
-    expect(intent).toContain("tn=admit-one%20order%20ord_3");
+    expect(intent).toContain("tn=Dress%20Circle%20order%20ord_3");
     expect(intent).not.toContain("+");
-    expect(intent).toContain("pa=admit-one@example&");
+    expect(intent).toContain("pa=dresscircle@example&");
   });
 
   it("pays an address no bank can resolve", () => {

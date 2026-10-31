@@ -1,5 +1,5 @@
 /**
- * admit-one's one service worker. A scope has one worker, and the sandbox's API already
+ * Dress Circle's one service worker. A scope has one worker, and the sandbox's API already
  * runs in one (MSW's), so this worker does both jobs, as MSW's docs suggest ("Merging
  * service workers"). What it does is in its URL, so each build registers one URL:
  *
@@ -224,7 +224,7 @@ function offlineFallback() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>You’re offline · admit-one</title>
+<title>You’re offline · Dress Circle</title>
 <style>
   :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
   body { margin: 0; min-height: 100vh; display: grid; place-content: center; padding: 1rem; text-align: center; }

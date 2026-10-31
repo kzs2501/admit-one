@@ -151,7 +151,7 @@ export const pendingUpiPayment = (order: Pick<OrderDto, "amounts">, minutesLeft 
   failureCode: null,
   nextAction: {
     type: "upi",
-    intentUri: `upi://pay?pa=admit-one@example&pn=admit-one&mc=7922&tr=pay_story&tn=Order%20ord_story&am=${(
+    intentUri: `upi://pay?pa=dresscircle@example&pn=Dress%20Circle&mc=7922&tr=pay_story&tn=Order%20ord_story&am=${(
       order.amounts.totalMinor / 100
     ).toFixed(2)}&cu=INR`,
     expiresAt: isoIn(minutesLeft * MINUTE_MS),

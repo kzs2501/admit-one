@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
 const isCI = Boolean(process.env["CI"]);
 const PORT = 4182;
 const server = process.env["DATABASE_SERVER_URL"] ?? "postgres://admit@localhost:54329";
-const databaseUrl = `${server}/admit_one_e2e`;
+const databaseUrl = `${server}/dresscircle_e2e`;
 
 /** The worker option `e2e/fixtures.ts` restores stock with. */
 interface ServerModeOptions {
@@ -32,7 +32,7 @@ export default defineConfig<object, ServerModeOptions>({
     databaseUrl,
   },
   webServer: {
-    command: `node scripts/db.mjs reset admit_one_e2e && npx drizzle-kit migrate && npx next start -p ${String(PORT)}`,
+    command: `node scripts/db.mjs reset dresscircle_e2e && npx drizzle-kit migrate && npx next start -p ${String(PORT)}`,
     port: PORT,
     reuseExistingServer: false,
     env: {

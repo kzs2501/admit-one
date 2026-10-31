@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OrganiserShell } from "@/features/organiser/components/organiser-shell";
 
 export const metadata: Metadata = {
-  title: { default: "Organisers", template: "%s · Organisers · admit-one" },
+  title: { default: "Organisers", template: "%s · Organisers · Dress Circle" },
   robots: { index: false },
 };
 

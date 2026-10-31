@@ -7,10 +7,10 @@ import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import { connect } from "@/backend/postgres/db";
 
-export const TEMPLATE_DATABASE = "admit_one_template";
+export const TEMPLATE_DATABASE = "dresscircle_template";
 
 /** The server to create databases on: `DATABASE_URL`, or the one `npm run db:up` starts. */
-export const serverUrl = () => process.env["DATABASE_URL"] ?? "postgres://admit@localhost:54329/admit_one";
+export const serverUrl = () => process.env["DATABASE_URL"] ?? "postgres://admit@localhost:54329/dresscircle";
 
 export function urlFor(database: string) {
   const url = new URL(serverUrl());
@@ -32,7 +32,7 @@ let created = 0;
 
 /** A database of its own, with the schema and the catalogue's stock; `drop` it afterwards. */
 export async function createTestDatabase({ poolSize = 20 }: { poolSize?: number } = {}) {
-  const name = `admit_one_test_${String(process.pid)}_${String(++created)}`;
+  const name = `dresscircle_test_${String(process.pid)}_${String(++created)}`;
   await asAdmin((sql) => sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${TEMPLATE_DATABASE}"`));
   const connection = connect(urlFor(name), { max: poolSize });
   // Open every connection now. Opening one takes longer than a whole short transaction,

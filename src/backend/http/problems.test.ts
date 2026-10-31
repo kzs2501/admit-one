@@ -27,20 +27,20 @@ function sampleError(code: (typeof PROBLEM_CODES)[number]): DomainError {
 describe("domain errors as problem details", () => {
   it("gives every code its catalogued status, title and type, and a valid body", () => {
     for (const code of PROBLEM_CODES) {
-      const problem = toProblem(sampleError(code), "https://admit-one.test/api/somewhere?x=1");
+      const problem = toProblem(sampleError(code), "https://dresscircle.test/api/somewhere?x=1");
       expect(problem).toMatchObject({
         code,
         status: PROBLEM_CATALOG[code].status,
         title: PROBLEM_CATALOG[code].title,
-        type: `https://admit-one.test/problems/${code.replaceAll("_", "-")}`,
-        instance: "https://admit-one.test/api/somewhere?x=1",
+        type: `https://dresscircle.test/problems/${code.replaceAll("_", "-")}`,
+        instance: "https://dresscircle.test/api/somewhere?x=1",
       });
       expect(problemSchema.safeParse(problem).success, code).toBe(true);
     }
   });
 
   it("keeps extension members and the buyer-facing detail", () => {
-    expect(toProblem(sampleError("sold_out"), "https://admit-one.test/api/holds")).toMatchObject({
+    expect(toProblem(sampleError("sold_out"), "https://dresscircle.test/api/holds")).toMatchObject({
       available: 2,
       detail: "Only 2 left.",
     });

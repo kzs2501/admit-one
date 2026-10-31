@@ -47,7 +47,7 @@ export const withoutNativeDetector = (page: Page) =>
 
 /** The ticket in front of the fake camera, and the feed Chromium plays (see playwright.config.ts). */
 export const CAMERA_TICKET = ticketClaims({ code: "AO-CAMERA-1", attendeeName: "Ravi Menon" });
-export const CAMERA_FEED = join(tmpdir(), "admit-one-door-camera.y4m");
+export const CAMERA_FEED = join(tmpdir(), "dresscircle-door-camera.y4m");
 
 /**
  * A camera feed of one QR code on white, in YUV4MPEG2: the format Chromium's fake

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { findProblemCodeBySlug, PROBLEM_CATALOG, PROBLEM_CODES, problemSchema, problemTypeFor } from "./problems";
 
-const ORIGIN = "https://admit-one.test";
+const ORIGIN = "https://dresscircle.test";
 
 describe("problem types", () => {
   it("documents every code, with a client- or server-error status", () => {

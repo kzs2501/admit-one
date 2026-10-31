@@ -90,7 +90,7 @@ describe("paying by card, attempt by attempt", () => {
     vi.spyOn(apiClient, "createPayment").mockRejectedValue(
       new ApiError(
         {
-          type: "https://admit-one.test/problems/rate-limited",
+          type: "https://dresscircle.test/problems/rate-limited",
           title: "Too many attempts",
           status: 429,
           detail: "Try again in 10 seconds.",

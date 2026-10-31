@@ -29,7 +29,7 @@ export interface ApiHarness {
   settle: () => Promise<void>;
 }
 
-const BASE_URL = "http://admit-one.test";
+const BASE_URL = "http://dresscircle.test";
 const HOLD_MS = 5 * 60_000;
 const WEBHOOK_DELAY_MS = 1_500;
 const WORKSHOP = "fss-workshop";

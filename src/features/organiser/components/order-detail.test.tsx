@@ -19,7 +19,7 @@ vi.mock("@/features/organiser/hooks/use-live-updates", async (importOriginal) =>
 }));
 
 const notFound = new ApiError({
-  type: "https://admit-one.test/problems/not-found",
+  type: "https://dresscircle.test/problems/not-found",
   title: "Not found",
   status: 404,
   detail: "There's no such order.",

@@ -1,6 +1,6 @@
 # Architecture
 
-admit-one is an event-ticketing checkout whose backend runs in the visitor's browser,
+Dress Circle is an event-ticketing checkout whose backend runs in the visitor's browser,
 behind a real HTTP boundary. This page describes the system at three zoom levels
 (after the [C4 model](https://c4model.com)), then the rules that keep it that way.
 Decisions and their reasons live in [`decisions/`](decisions).
@@ -9,7 +9,7 @@ Decisions and their reasons live in [`decisions/`](decisions).
 
 ```mermaid
 flowchart LR
-  visitor(["Visitor"]) -->|browses, buys tickets,\nbreaks things on purpose| app["admit-one\n(one browser tab)"]
+  visitor(["Visitor"]) -->|browses, buys tickets,\nbreaks things on purpose| app["Dress Circle\n(one browser tab)"]
   app -.->|"would be, in production"| provider[("Payment provider\n(simulated inside the backend)")]
 ```
 

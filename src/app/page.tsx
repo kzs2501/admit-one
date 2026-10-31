@@ -10,12 +10,12 @@ export default function Home() {
     <div className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
       <p className="tabular text-xs tracking-[0.16em] text-ink-3 uppercase">Upcoming</p>
       <h1 className="mt-3 max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        Get tickets — and try to break the checkout.
+        Find a seat for tonight.
       </h1>
       <p className="mt-4 max-w-2xl text-lg text-pretty text-ink-2">
-        A demo checkout with timed holds, idempotent payments and webhooks. Open the{" "}
-        <strong className="font-medium text-ink">Chaos panel</strong> to decline cards, duplicate webhooks or let a
-        crowd buy the last ticket, then see how it copes.
+        Concerts, talks and workshops across five Indian cities. Everything here works the way a real box office does,
+        and nothing is charged. Open the <strong className="font-medium text-ink">Chaos panel</strong> to decline a
+        card, send a webhook twice, or let a crowd chase the last seat.
       </p>
 
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

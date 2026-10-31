@@ -15,7 +15,7 @@ function streamedBody(chunkCount: number, chunk: Uint8Array) {
       controller.enqueue(chunk);
     },
   });
-  const request = new Request("https://admit-one.test/api/holds", {
+  const request = new Request("https://dresscircle.test/api/holds", {
     method: "POST",
     body,
     // Node's fetch needs this for a streamed body.
@@ -44,7 +44,7 @@ describe("reading a request body", () => {
         else controller.close();
       },
     });
-    const request = new Request("https://admit-one.test/api/holds", {
+    const request = new Request("https://dresscircle.test/api/holds", {
       method: "POST",
       body,
       duplex: "half",
@@ -53,6 +53,6 @@ describe("reading a request body", () => {
   });
 
   it("reads an empty body as empty", async () => {
-    expect(await readText(new Request("https://admit-one.test/api/holds", { method: "POST" }))).toBe("");
+    expect(await readText(new Request("https://dresscircle.test/api/holds", { method: "POST" }))).toBe("");
   });
 });

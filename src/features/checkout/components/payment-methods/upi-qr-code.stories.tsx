@@ -5,7 +5,8 @@ const meta = {
   title: "Features/Checkout/UPI QR code",
   component: QrCode,
   args: {
-    value: "upi://pay?pa=admit-one@example&pn=admit-one&mc=7922&tr=pay_story&tn=Order%20ord_story&am=12151.58&cu=INR",
+    value:
+      "upi://pay?pa=dresscircle@example&pn=Dress%20Circle&mc=7922&tr=pay_story&tn=Order%20ord_story&am=12151.58&cu=INR",
     label: "QR code to pay ₹12,151.58 by UPI",
     className: "size-56",
   },

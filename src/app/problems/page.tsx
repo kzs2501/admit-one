@@ -5,7 +5,7 @@ import { routes } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "API problem types",
-  description: "Every error the admit-one API can return, as RFC 9457 problem details.",
+  description: "Every error the Dress Circle API can return, as RFC 9457 problem details.",
 };
 
 /** The index of problem types: where a `type` URI's documentation lives. */

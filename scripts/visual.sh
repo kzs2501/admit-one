@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 version=$(node -p "require('@playwright/test/package.json').version")
 image="mcr.microsoft.com/playwright:v${version}-noble"
-name="admit-one-visual-$$"
+name="dresscircle-visual-$$"
 
 npm run build-storybook
 

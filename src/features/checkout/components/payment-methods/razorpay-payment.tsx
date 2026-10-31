@@ -70,7 +70,7 @@ export function RazorpayPayment({
     <div className="space-y-4 rounded-xl border border-line bg-card p-5">
       <p className="text-sm text-ink-2">
         You’ll pay {total} on Razorpay’s secure checkout, by card, net banking or a wallet. Your card details go to
-        Razorpay, never to admit-one.
+        Razorpay, never to Dress Circle.
       </p>
       {outcome && (
         <div ref={outcomeNotice} tabIndex={-1} className="outline-none">

@@ -16,7 +16,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
   return (
     <html lang="en">
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, padding: "4rem 1.25rem", textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.75rem" }}>admit·one couldn’t load</h1>
+        <h1 style={{ fontSize: "1.75rem" }}>Dress Circle couldn’t load</h1>
         <p style={{ color: "#555" }}>Something went wrong while starting the app.</p>
         <button type="button" onClick={retry} style={{ marginTop: "1rem", padding: "0.75rem 1.25rem" }}>
           Try again

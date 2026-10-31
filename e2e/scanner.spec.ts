@@ -105,7 +105,7 @@ test("turns away a changed ticket, one for another event, and a code that isn't 
   await door.scan(otherEvent);
   await expect(door.result).toContainText("This ticket is for Monsoon Strings.");
   await door.scan(notATicket);
-  await expect(door.result).toContainText("This isn’t an admit-one ticket.");
+  await expect(door.result).toContainText("This isn’t a Dress Circle ticket.");
 });
 
 test("reached by its link from the shop, the door still has its own headers, and reads codes", async ({ page }) => {

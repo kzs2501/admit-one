@@ -48,7 +48,7 @@ afterEach(() => {
 });
 afterAll(() => network.close());
 
-const BASE_URL = "http://admit-one.test";
+const BASE_URL = "http://dresscircle.test";
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   fetch(BASE_URL + path, {
     method: "POST",

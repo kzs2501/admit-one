@@ -11,7 +11,7 @@ const isCI = Boolean(process.env["CI"]);
 const PORT = 4183;
 const FAKE_PORT = 4191;
 const server = process.env["DATABASE_SERVER_URL"] ?? "postgres://admit@localhost:54329";
-const databaseUrl = `${server}/admit_one_razorpay_e2e`;
+const databaseUrl = `${server}/dresscircle_razorpay_e2e`;
 const { settings } = createFakeRazorpay();
 
 export default defineConfig<object, { databaseUrl: string | null }>({
@@ -36,7 +36,7 @@ export default defineConfig<object, { databaseUrl: string | null }>({
       env: { FAKE_RAZORPAY_PORT: String(FAKE_PORT), APP_URL: `http://localhost:${String(PORT)}` },
     },
     {
-      command: `node scripts/db.mjs reset admit_one_razorpay_e2e && npx drizzle-kit migrate && npx next start -p ${String(PORT)}`,
+      command: `node scripts/db.mjs reset dresscircle_razorpay_e2e && npx drizzle-kit migrate && npx next start -p ${String(PORT)}`,
       port: PORT,
       reuseExistingServer: false,
       env: {

@@ -5,7 +5,13 @@ import { ApiError, NetworkError } from "./api-client";
 import { holdQueries, patchHoldDetails, retryDelay, retryPolicy, shouldShowQueryError } from "./queries";
 
 const problem = (status: number) =>
-  new ApiError({ type: "https://admit-one.test/problems/not-found", title: "", status, detail: "", code: "not_found" });
+  new ApiError({
+    type: "https://dresscircle.test/problems/not-found",
+    title: "",
+    status,
+    detail: "",
+    code: "not_found",
+  });
 
 describe("shouldShowQueryError", () => {
   it("shows nothing when nothing failed", () => {
@@ -32,7 +38,7 @@ describe("retrying", () => {
   const rateLimited = (retryAfterMs: number | null) =>
     new ApiError(
       {
-        type: "https://admit-one.test/problems/rate-limited",
+        type: "https://dresscircle.test/problems/rate-limited",
         title: "",
         status: 429,
         detail: "",

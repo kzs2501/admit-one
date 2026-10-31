@@ -85,7 +85,7 @@ describe("UPI payments", () => {
     expect(backend.getState().holds[order.holdId]?.expiresAtMs).toBe(expiresAtMs);
     expect(backend.getPendingUpiRequest()).toEqual({
       paymentId: payment.id,
-      payeeName: "admit-one",
+      payeeName: "Dress Circle",
       amountMinor: order.amounts.totalMinor,
       expiresAtMs,
     });

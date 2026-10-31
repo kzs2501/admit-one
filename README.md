@@ -1,6 +1,7 @@
-# admit-one
+# Dress Circle
 
-**An event-ticketing checkout, done properly — with a chaos panel to break it on purpose.**
+**A ticket box office you can try for free, and break on purpose.** Formerly admit-one
+([why the name changed, and what kept the old one](docs/decisions/021-renamed-dress-circle.md)).
 
 Timed ticket holds that can't oversell, a seat map you can use with a keyboard, prices
 that are all in from the first screen, card or UPI, a typed step registry driven by the

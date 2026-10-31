@@ -58,7 +58,7 @@ export const studioContext = (draft: Draft): StepContext => ({
   order: null,
 });
 
-export const UPI_INTENT = "upi://pay?pa=admit-one@example&pn=admit-one&mc=7922&tr=pay_1&tn=x&am=303.73&cu=INR";
+export const UPI_INTENT = "upi://pay?pa=dresscircle@example&pn=Dress%20Circle&mc=7922&tr=pay_1&tn=x&am=303.73&cu=INR";
 
 /** A UPI payment as the API sends it: waiting for the buyer, unless it says otherwise. */
 export const upiPaymentDto = (overrides: Partial<PaymentDto> = {}): PaymentDto => ({

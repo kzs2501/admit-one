@@ -24,7 +24,7 @@ const page: InfiniteData<OrderPageDto, string | undefined> = {
 };
 
 const refundFailed = new ApiError({
-  type: "https://admit-one.test/problems/refund-failed",
+  type: "https://dresscircle.test/problems/refund-failed",
   title: "The refund couldn’t start",
   status: 502,
   detail: "The payment provider couldn’t start the refund.",

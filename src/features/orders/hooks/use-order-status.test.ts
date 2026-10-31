@@ -72,7 +72,7 @@ describe("order page state", () => {
 
   it("believes the server when it says the order is gone", () => {
     const notFound = new ApiError({
-      type: "https://admit-one.test/problems/not-found",
+      type: "https://dresscircle.test/problems/not-found",
       title: "",
       status: 404,
       detail: "",
@@ -86,7 +86,7 @@ describe("when the order page looks again", () => {
   const counts = { dataUpdateCount: 2, errorUpdateCount: 3 };
   const notFound = new ApiError(
     {
-      type: "https://admit-one.test/problems/not-found",
+      type: "https://dresscircle.test/problems/not-found",
       title: "Not found",
       status: 404,
       detail: "No such order.",

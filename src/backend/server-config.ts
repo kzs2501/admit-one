@@ -36,7 +36,7 @@ export interface ServerConfig {
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
-const LOCAL_DATABASE_URL = "postgres://admit@localhost:54329/admit_one";
+const LOCAL_DATABASE_URL = "postgres://admit@localhost:54329/dresscircle";
 const LOCAL_WEBHOOK_SECRET = "whsec_development_only";
 const LOCAL_FINGERPRINT_SECRET = "fingerprint_development_only";
 const REQUIRED = ["DATABASE_URL", "WEBHOOK_SECRET", "TICKET_SIGNING_KEY", "FINGERPRINT_SECRET"] as const;

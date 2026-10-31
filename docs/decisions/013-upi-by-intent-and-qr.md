@@ -32,7 +32,7 @@ Two facts shaped how to add it:
   - the amount, always with two decimals (`am`);
   - the currency (`cu=INR`).
 
-  The QR code encodes the same link. The payee is `admit-one@example`, a handle no bank
+  The QR code encodes the same link. The payee is `dresscircle@example`, a handle no bank
   issues, so scanning the demo's code with a real UPI app can't pay anyone.
 
 - **The webhook decides.** Approving schedules `payment.succeeded`. Declining, by the

@@ -65,7 +65,7 @@ describe("the door scanner", () => {
     await scanPhoto(signDemoTicket(claims("AO-PAGE-2", "monsoon-strings")));
     expect(await screen.findByText("This ticket is for Monsoon Strings.")).toBeInTheDocument();
     await scanPhoto("https://example.com");
-    expect(await screen.findByText("This isn’t an admit-one ticket.")).toBeInTheDocument();
+    expect(await screen.findByText("This isn’t a Dress Circle ticket.")).toBeInTheDocument();
   });
 
   it("checks tickets for the event chosen at this door", async () => {

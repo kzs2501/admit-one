@@ -36,10 +36,10 @@ if (action === "up") {
   const options = `-p ${PORT} -k /tmp -c max_connections=200 -c fsync=off -c synchronous_commit=off -c full_page_writes=off`;
   run("pg_ctl", [`--pgdata=${DATA}`, "--log=.postgres/server.log", "--wait", "start", "-o", options]);
   const sql = postgres(`${URL}/postgres`, { max: 1, onnotice: () => undefined });
-  const [found] = await sql`SELECT 1 FROM pg_database WHERE datname = 'admit_one'`;
-  if (!found) await sql`CREATE DATABASE admit_one`;
+  const [found] = await sql`SELECT 1 FROM pg_database WHERE datname = 'dresscircle'`;
+  if (!found) await sql`CREATE DATABASE dresscircle`;
   await sql.end();
-  console.log(`Postgres is up: ${URL}/admit_one`);
+  console.log(`Postgres is up: ${URL}/dresscircle`);
 } else if (action === "reset") {
   // A database of its own, empty: for a run of the server-mode end-to-end tests.
   const name = process.argv[3];

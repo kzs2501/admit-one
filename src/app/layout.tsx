@@ -12,9 +12,9 @@ import { SITE } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "admit-one — a ticketing checkout, done properly", template: "%s · admit-one" },
+  title: { default: "Dress Circle · A ticket box office you can try", template: "%s · Dress Circle" },
   description:
-    "A demo event-ticketing checkout with timed holds, a typed step registry, idempotent payments and webhooks — plus a chaos panel to break it on purpose.",
+    "A demo ticket box office with reserved seats, a fair queue for flash sales, card and UPI payments, offline tickets and a door scanner. Nothing is charged.",
 };
 
 export const viewport: Viewport = {
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <header className="border-b border-line">
             <div className="mx-auto flex h-16 max-w-5xl items-center gap-2 px-5 sm:gap-4 sm:px-8">
               <Link href="/" className="font-display text-lg font-semibold tracking-tight">
-                admit<span className="text-accent">·</span>one
+                Dress Circle
               </Link>
               <span className="hidden rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-3 sm:inline">
                 Demo — no real payments

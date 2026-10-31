@@ -9,7 +9,7 @@ import type { ScanMemory } from "@/lib/scan-log";
 
 /** Why a code doesn't get someone in. */
 export type Rejection =
-  /** Not an admit-one ticket at all: some other QR code, or a damaged one. */
+  /** Not a Dress Circle ticket at all: some other QR code, or a damaged one. */
   | { reason: "not-a-ticket" }
   /** Signed, but with a key this door doesn't trust (another deployment's, or an old one). */
   | { reason: "unknown-key" }

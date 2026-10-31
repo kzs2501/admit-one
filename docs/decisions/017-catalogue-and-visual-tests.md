@@ -4,7 +4,7 @@
 
 ## Context
 
-admit-one's screens are driven by view-model hooks that return one state at a time
+Dress Circle's screens are driven by view-model hooks that return one state at a time
 (`CheckoutState`, `OrderPageState`). Many of those states are hard to reach by clicking:
 a failed load, a hold in its last minute, a payment slow to confirm, a UPI request
 waiting in another app.

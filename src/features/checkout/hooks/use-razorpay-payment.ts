@@ -85,7 +85,7 @@ export function useRazorpayPayment({
       order_id: checkout.orderId,
       amount: checkout.amountMinor,
       currency: checkout.currency,
-      name: "admit-one",
+      name: "Dress Circle",
       description: `Order ${order.id}`,
       timeout: Math.max(1, Math.floor((Date.parse(checkout.expiresAt) - Date.now()) / 1000)),
       prefill: { name: attendee?.name ?? "", email: attendee?.email ?? "" },

@@ -16,7 +16,7 @@ import { createWebhookReceiver, MAX_DELIVERY_ATTEMPTS, sendDueWebhooks } from ".
 import { signDemoTicket } from "@/core/demo-ticket-key";
 
 const SECRET = "whsec_test_secret";
-const ORIGIN = "http://admit-one.test";
+const ORIGIN = "http://dresscircle.test";
 const STUDIO = "open-studio-ceramics";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;

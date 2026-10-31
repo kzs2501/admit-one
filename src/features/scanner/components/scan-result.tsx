@@ -5,7 +5,7 @@ import type { DoorResult } from "@/features/scanner/hooks/use-door";
 function rejectionText(rejection: Rejection): string {
   switch (rejection.reason) {
     case "not-a-ticket":
-      return "This isn’t an admit-one ticket.";
+      return "This isn’t a Dress Circle ticket.";
     case "unknown-key":
       return "It’s signed with a key this scanner doesn’t trust.";
     case "forged":

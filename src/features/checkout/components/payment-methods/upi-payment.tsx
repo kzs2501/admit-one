@@ -124,7 +124,7 @@ function PendingRequest({
         {/* On a computer, scan the code with a phone; on a phone, a code on its own screen can't be scanned. */}
         <QrCode
           value={request.intentUri}
-          label={`QR code to pay ${total} to admit-one with UPI`}
+          label={`QR code to pay ${total} to Dress Circle with UPI`}
           className="hidden size-48 shrink-0 border border-line sm:block"
         />
         <div className="space-y-3 text-sm">

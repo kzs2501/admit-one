@@ -78,7 +78,7 @@ describe("the server's rate limit on reserving", () => {
   // Bodies that don't parse are attempts too, so these use no stock.
   const reserve = (server: ReturnType<typeof api>, ip: string) =>
     server.handle(
-      new Request("http://admit-one.test/api/holds", {
+      new Request("http://dresscircle.test/api/holds", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Forwarded-For": `${ip}, 10.0.0.1` },
         body: "{}",
@@ -103,9 +103,11 @@ describe("the server's rate limit on reserving", () => {
   });
 
   it("keys a client by the first address a trusted proxy names, and nobody by a header it doesn't trust", () => {
-    const request = new Request("http://admit-one.test/", { headers: { "X-Forwarded-For": "203.0.113.70, 10.0.0.1" } });
+    const request = new Request("http://dresscircle.test/", {
+      headers: { "X-Forwarded-For": "203.0.113.70, 10.0.0.1" },
+    });
     expect(clientKeyOf(request, "x-forwarded-for")).toBe("ip:203.0.113.70");
     expect(clientKeyOf(request, null)).toBeNull();
-    expect(clientKeyOf(new Request("http://admit-one.test/"), "x-forwarded-for")).toBeNull();
+    expect(clientKeyOf(new Request("http://dresscircle.test/"), "x-forwarded-for")).toBeNull();
   });
 });

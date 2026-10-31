@@ -58,7 +58,7 @@ export function WaitingRoom({ slug }: { slug: string }) {
         : view?.kind === "admitted"
           ? "It’s your turn"
           : "Queue";
-    document.title = `${title} · admit-one`;
+    document.title = `${title} · Dress Circle`;
   }, [view]);
 
   const body = (() => {

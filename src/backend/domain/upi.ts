@@ -12,8 +12,8 @@ import type { PaymentRecord } from "./state";
  * pay this address — even if someone scans the demo's QR code.
  */
 export const UPI_PAYEE = {
-  address: "admit-one@example",
-  name: "admit-one",
+  address: "dresscircle@example",
+  name: "Dress Circle",
   /** Merchant category code 7922: theatrical producers and ticket agencies. */
   merchantCategoryCode: "7922",
 } as const;
@@ -43,7 +43,7 @@ export function buildUpiIntent({ paymentId, orderId, amountMinor }: UpiIntentInp
     ["pn", UPI_PAYEE.name],
     ["mc", UPI_PAYEE.merchantCategoryCode],
     ["tr", paymentId],
-    ["tn", `admit-one order ${orderId}`],
+    ["tn", `Dress Circle order ${orderId}`],
     ["am", formatUpiAmount(amountMinor)],
     ["cu", "INR"],
   ] as const;

@@ -4,7 +4,7 @@
 
 ## Context
 
-The dashboard is the first part of admit-one that isn't open to everyone. An
+The dashboard is the first part of Dress Circle that isn't open to everyone. An
 organiser should see their own events' orders and nobody else's, and a box-office
 account shouldn't be able to refund. The sandbox has no identity provider and no
 server of its own, so access has to work inside the browser without pretending to be
@@ -26,7 +26,7 @@ more secure than it is.
   button isn't shown to the box office, and a forced request is a 403.
 - **Each status says exactly what went wrong:**
   - **401 `unauthenticated`** — no token, or one that's no longer valid.
-    `WWW-Authenticate: Bearer realm="admit-one"` adds `error="invalid_token"` when a
+    `WWW-Authenticate: Bearer realm="Dress Circle"` adds `error="invalid_token"` when a
     token was sent (RFC 6750 §3.1).
   - **403 `forbidden`** — something public, such as an event, that this account may
     not act on, or a permission its role lacks.

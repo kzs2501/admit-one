@@ -28,7 +28,7 @@ beforeAll(() => {
   network.listen({ onUnhandledFrame: "error" });
   unwrappedFetch = globalThis.fetch;
   globalThis.fetch = (input, init) =>
-    unwrappedFetch(typeof input === "string" ? new URL(input, "http://admit-one.test") : input, init);
+    unwrappedFetch(typeof input === "string" ? new URL(input, "http://dresscircle.test") : input, init);
 });
 afterEach(() => {
   network.resetHandlers();
@@ -146,7 +146,7 @@ describe("when the sandbox's backend has gone away", () => {
   const restarting = () =>
     HttpResponse.json(
       {
-        type: "http://admit-one.test/problems/backend-restarting",
+        type: "http://dresscircle.test/problems/backend-restarting",
         title: "The demo’s backend is starting again",
         status: 503,
         detail: "The sandbox’s backend wasn’t answering in this browser.",

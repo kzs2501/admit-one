@@ -32,7 +32,7 @@ import {
   toSessionDto,
 } from "./mappers";
 
-const CHALLENGE = 'Bearer realm="admit-one"';
+const CHALLENGE = 'Bearer realm="Dress Circle"';
 /** Often enough that proxies along the way don't close an idle stream. */
 export const HEARTBEAT_MS = 15_000;
 /** Changes are gathered for this long and sent as one event, so a burst is one refresh. */
