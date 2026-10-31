@@ -112,8 +112,16 @@ export function SeatGrid({
             role="row"
             aria-rowindex={rowIndex + 1}
             // A little space where one price tier ends and the next begins.
-            className={`grid gap-x-0.5 ${rowIndex > 0 && section.rows[rowIndex - 1]?.tierId !== row.tierId ? "pt-4" : ""}`}
-            style={{ gridTemplateColumns: `1.75rem repeat(${section.columnCount}, var(--seat-size))` }}
+            // A row out of view isn't styled, laid out or painted until it nears the view
+            // (it stays in the accessibility tree), at the size it would have. That also
+            // clips what the row paints to its box, and a focused seat's ring (2 px, 2 px
+            // out) goes past it: so only where the clip can be widened to fit the ring.
+            className={`grid gap-x-0.5 supports-[overflow-clip-margin:4px]:[content-visibility:auto] ${rowIndex > 0 && section.rows[rowIndex - 1]?.tierId !== row.tierId ? "pt-4" : ""}`}
+            style={{
+              gridTemplateColumns: `1.75rem repeat(${section.columnCount}, var(--seat-size))`,
+              containIntrinsicSize: `auto calc(1.75rem + ${section.columnCount} * (var(--seat-size) + 0.125rem)) auto var(--seat-size)`,
+              overflowClipMargin: "4px",
+            }}
           >
             <div role="rowheader" className="tabular grid place-items-center text-xs text-ink-3">
               {row.label}
