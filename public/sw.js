@@ -19,6 +19,8 @@ const OFFLINE = params.get("offline") === "1";
 const MOCKING = params.get("mocking") === "1";
 
 // Bump when what's cached, or how, changes: activating deletes every other version.
+// The caches and the message below keep the app's first name, admit-one: devices already
+// hold them (src/core/persisted-names.ts, whose test checks these lines).
 const VERSION = "v1";
 const PAGES = `admit-one-pages-${VERSION}`;
 const ASSETS = `admit-one-assets-${VERSION}`;

@@ -7,6 +7,7 @@
 import { createStore, entries, setMany, values, type UseStore } from "idb-keyval";
 import type { OrderDto } from "@/contract/dto";
 import { getEvent } from "@/core/catalog";
+import { DATABASES } from "@/core/persisted-names";
 import { formatSeat } from "./format";
 
 /** A ticket as the wallet keeps it: everything needed to show it, and the token the door checks. */
@@ -47,7 +48,7 @@ export function ticketsFromOrder(order: OrderDto): WalletTicket[] {
 
 // Opened on first use: there's no IndexedDB on the server.
 let store: UseStore | null = null;
-const walletStore = () => (store ??= createStore("admit-one-wallet", "tickets"));
+const walletStore = () => (store ??= createStore(DATABASES.wallet, "tickets"));
 
 /** Keep tickets on this device, by event and code, so saving the same order twice keeps one of each. */
 export async function saveTickets(tickets: readonly WalletTicket[]): Promise<boolean> {

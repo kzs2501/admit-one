@@ -6,9 +6,10 @@
  */
 import { useSyncExternalStore } from "react";
 import * as z from "@/core/zod";
+import { STORAGE_KEYS } from "@/core/persisted-names";
 import { readSession, writeSession } from "./storage";
 
-const keyFor = (eventSlug: string) => `admit-one:queue:${eventSlug}`;
+const keyFor = STORAGE_KEYS.queue;
 const savedTokenSchema = z.object({ token: z.string().min(1) });
 
 const listeners = new Set<() => void>();

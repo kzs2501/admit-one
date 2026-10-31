@@ -9,6 +9,7 @@
 import * as z from "@/core/zod";
 import { PRESET_IDS } from "@/backend/chaos/presets";
 import { CURRENCIES } from "@/core/money";
+import { STORAGE_KEYS } from "@/core/persisted-names";
 import { TAX_LINE_KINDS } from "@/core/pricing";
 import {
   ORDER_STATUSES,
@@ -22,7 +23,7 @@ import {
 const STATE_VERSION = 15;
 
 /** Versioned, so a save from an older shape is never even read. */
-export const SANDBOX_STORAGE_KEY = `admit-one:sandbox:v${STATE_VERSION}`;
+export const SANDBOX_STORAGE_KEY = STORAGE_KEYS.sandbox(STATE_VERSION);
 
 const epochMsSchema = z.number().int().nonnegative();
 const lineItemSchema = z.object({ tierId: z.string(), quantity: z.number().int().positive() });

@@ -4,10 +4,11 @@
  * limit is the device: two doors, each offline, would each let a copied ticket in once.
  */
 import { createStore, keys, update, type UseStore } from "idb-keyval";
+import { DATABASES } from "@/core/persisted-names";
 
 // Opened on first use: there's no IndexedDB on the server.
 let store: UseStore | null = null;
-const scanStore = () => (store ??= createStore("admit-one-door", "scans"));
+const scanStore = () => (store ??= createStore(DATABASES.door, "scans"));
 
 const keyOf = (eventSlug: string, code: string) => `${eventSlug}/${code}`;
 

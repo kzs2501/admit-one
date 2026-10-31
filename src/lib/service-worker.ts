@@ -5,6 +5,7 @@
  * the sandbox's MSW starts the worker at this URL; in server mode the app registers it.
  * See ADR 019.
  */
+import { PREPARE_OFFLINE_MESSAGE } from "@/core/persisted-names";
 import { isServerMode } from "./backend-mode";
 
 /** In development, nothing is cached: a cached script would hide the change just saved. */
@@ -22,9 +23,6 @@ export const SERVICE_WORKER_URL = workerUrl();
 
 /** Check for a new worker on every load, past the HTTP cache: a stale one serves stale pages. */
 export const SERVICE_WORKER_OPTIONS = { updateViaCache: "none" } satisfies RegistrationOptions;
-
-/** The message `sw.js` waits for, to cache what the offline pages need. */
-const PREPARE_OFFLINE = "admit-one:prepare-offline";
 
 /**
  * The build's files this page has loaded. On a first visit the page loads them before
@@ -46,7 +44,7 @@ function loadedAssets() {
 
 async function tellWorker() {
   const registration = await navigator.serviceWorker.ready;
-  registration.active?.postMessage({ type: PREPARE_OFFLINE, urls: loadedAssets() });
+  registration.active?.postMessage({ type: PREPARE_OFFLINE_MESSAGE, urls: loadedAssets() });
 }
 
 const warn = (error: unknown) => {

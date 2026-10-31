@@ -5,6 +5,7 @@
  * refused, so both ways say whether it worked rather than throw.
  */
 import { createStore, get, set, type UseStore } from "idb-keyval";
+import { DATABASES } from "@/core/persisted-names";
 
 export interface DoorVoids {
   codes: readonly string[];
@@ -14,7 +15,7 @@ export interface DoorVoids {
 
 // Opened on first use: there's no IndexedDB on the server.
 let store: UseStore | null = null;
-const voidStore = () => (store ??= createStore("admit-one-door-voids", "lists"));
+const voidStore = () => (store ??= createStore(DATABASES.doorVoids, "lists"));
 
 export async function saveDoorVoids(eventSlug: string, voids: DoorVoids): Promise<boolean> {
   try {

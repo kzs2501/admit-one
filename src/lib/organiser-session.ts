@@ -9,9 +9,10 @@
  */
 import { useSyncExternalStore } from "react";
 import * as z from "@/core/zod";
+import { STORAGE_KEYS } from "@/core/persisted-names";
 import { readSession, writeSession } from "./storage";
 
-const KEY = "admit-one:organiser-session";
+const KEY = STORAGE_KEYS.organiserSession;
 const savedSessionSchema = z.object({ token: z.string().min(1) });
 
 const listeners = new Set<() => void>();

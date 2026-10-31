@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { CATALOG, findEvent } from "@/core/catalog";
 import * as z from "@/core/zod";
+import { STORAGE_KEYS } from "@/core/persisted-names";
 import { readLocal, writeLocal } from "@/lib/storage";
 
 /**
@@ -8,7 +9,7 @@ import { readLocal, writeLocal } from "@/lib/storage";
  * scanner offline tomorrow) doesn't quietly switch the door back to the first event
  * and turn every valid ticket away as "for another event".
  */
-const KEY = "admit-one:door-event";
+const KEY = STORAGE_KEYS.doorEvent;
 const FIRST_EVENT = CATALOG[0]?.slug ?? "";
 
 const listeners = new Set<() => void>();

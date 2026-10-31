@@ -4,6 +4,7 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import * as z from "@/core/zod";
+import { STORAGE_KEYS } from "@/core/persisted-names";
 import { PAYMENT_METHODS } from "@/core/statuses";
 import { readSession, writeSession } from "@/lib/storage";
 
@@ -21,7 +22,7 @@ export type Draft = z.infer<typeof draftSchema>;
 export const createEmptyDraft = (): Draft => ({ attendees: [], addOns: {}, hasConfirmedAddOns: false });
 
 /** One sessionStorage entry per hold. */
-export const draftStorageKey = (holdId: string) => `admit-one:draft:${holdId}`;
+export const draftStorageKey = STORAGE_KEYS.draft;
 const listeners = new Set<() => void>();
 const cache = new Map<string, Draft>();
 
